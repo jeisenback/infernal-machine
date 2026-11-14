@@ -1625,6 +1625,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Ruthless Technomancer (`tests/test_ruthless_technomancer.py`): "you may sacrifice another creature you control. If you do, create a
+    number of Treasure tokens equal to that creature's power." (`MaySacrificeThen`; `Game.may_sacrifice` records the sacrificed creature's
+    last power for "the sacrificed creature's power"); "Sacrifice X artifacts: Return target creature card with power X or less from your
+    graveyard to the battlefield. X can't be 0." (the kind `creature|p<=x`, X filled in as targets are chosen; `ActivatedAbility.x_not_zero`;
+    the sacrificed X is now announced before targets, CR 601.2b, and only an X that leaves a target is offered).
   - Xorn (`tests/test_xorn.py`): "If you would create one or more Treasure tokens, instead create those tokens plus an additional Treasure
     token." (`ReplacementEffects.extra_treasure`, applied in `Game._create_token_batch_now` once per Xorn, before Chatterfang).
   - Baral, Chief of Compliance (`tests/test_baral.py`): "Whenever a spell or ability you control counters a spell, ..." (the event

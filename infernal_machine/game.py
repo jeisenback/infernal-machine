@@ -1331,7 +1331,16 @@ class Game:
             return False
         if any(" with mana value x" in (target_kind(e) or "") for e in ability.effects) and not self._ability_x_values(seat, permanent, ability):
             return False  # The Mycosynth Gardens: no X it can pay for has a target "with mana value X"
+        if ability.sacrifice_x and not self._sacrifice_x_values(seat, permanent, ability):
+            return False  # Ruthless Technomancer: no X it can sacrifice for (not 0) has a target "with power X or less"
         return self._effects_possible(seat, ability.effects, source_qualities(card), permanent)
+
+    def _sacrifice_x_values(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> list[int]:
+        """ "Sacrifice X artifacts": the X `seat` can sacrifice for, that leave its "power X or less" targets something (Ruthless Technomancer;
+        "X can't be 0")."""
+        most = min(len(self._sacrifice_choices(seat, permanent, ability)), MAX_X)
+        return [n for n in self._x_values_with_targets(seat, list(ability.effects), source_qualities(permanent.card), most)
+                if n or not ability.x_not_zero]
 
     def _ability_x_values(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> list[int]:
         """The X that `seat` can pay for an "{X}" activated ability and that leave its "with mana value X" targets something."""
@@ -2503,6 +2512,10 @@ class Game:
         if ability.mana_cost and cost_of(ability.mana_cost).x:  # "{X}, {T}: ...": X is chosen, then targets (CR 602.2b), then X is paid
             choices = self._ability_x_values(seat, permanent, ability)
             x = choices[seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in choices])]
+        sacrificed = 0
+        if ability.sacrifice_x:  # "Sacrifice X Squirrels": X is as many as the player chooses to sacrifice, announced before targets (CR 601.2b)
+            choices = self._sacrifice_x_values(seat, permanent, ability)
+            sacrificed = x = choices[seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in choices])]
         if ability.equip:  # what it costs depends on the creature (Dwarven Mauler, Dragonfire Blade): only those it can be paid for
             options = [o for o in self.target_options(target_kind(effects[0]) or "creature you control", seat, source_qualities(permanent.card))
                        if self._ability_payment(seat, permanent, ability, 0, o[1]) is not None]
@@ -2515,10 +2528,6 @@ class Game:
                                                                 source_qualities(permanent.card)))
             finally:
                 self.targeting_x = saved_x
-        sacrificed = 0
-        if ability.sacrifice_x:  # "Sacrifice X Squirrels": X is as many as the player chooses to sacrifice
-            most = min(len(self._sacrifice_choices(seat, permanent, ability)), MAX_X)
-            sacrificed = x = seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in range(most + 1)])
         discarded = 0
         if ability.discard_x:  # "Discard X cards": X is as many as the player chooses to discard
             discarded = x = seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in range(min(len(seat.hand), MAX_X) + 1)])
@@ -2588,7 +2597,7 @@ class Game:
         try:
             for i, (kind, distinct, another) in enumerate(kinds):
                 needed = 1 + (sum(k == kind for k, _, _ in kinds[:i]) if distinct else 0)
-                kind = kind.replace(" with mana value x", "")  # X isn't chosen yet: any creature could do
+                kind = kind.replace(" with mana value x", "").replace("|p<=x:", ":")  # X isn't chosen yet: any creature could do
                 options = [o for _, o in self.target_options(self._fixed_kind(kind, source), seat, colors)
                            if not (another and self.option_is_source(o, source))]
                 if len(options) < needed:
@@ -3683,8 +3692,8 @@ class Game:
             kind = "graveyard:creature:any"
         if kind.startswith("graveyard:"):  # "graveyard:<card type>:<yours|opponents|any>"
             _, card_type, whose = kind.split(":")
-            card_type = re.sub(r"mana value x\b", lambda m: "mana value %d" % (  # Likeness Looter: X is chosen before targets (CR 602.2b)
-                self.x_value if self.resolving_item is not None else self.targeting_x), card_type)
+            x = self.x_value if self.resolving_item is not None else self.targeting_x  # Likeness Looter: X is chosen before targets (CR 602.2b)
+            card_type = re.sub(r"\|p<=x$", f"|p<={x}", re.sub(r"mana value x\b", f"mana value {x}", card_type))  # Ruthless Technomancer
             for seat in self.live_seats():
                 if (whose == "yours" and seat is not caster) or (whose == "opponents" and seat is caster):
                     continue
@@ -6912,7 +6921,9 @@ class Game:
         """ "You may sacrifice a permanent." Whether they did (they need one to sacrifice, and to want to). `exclude`: "another", not this."""
         if any(_permanent_matches(kind, p.card) and p is not exclude for p in seat.battlefield) \
                 and seat.player.choose(SACRIFICE_DRAW_PROMPT, YES_NO) == 0:
-            self.sacrifice(seat, kind, 1, exclude=exclude)
+            gone = self.sacrifice(seat, kind, 1, exclude=exclude)
+            if self.resolving_item is not None and gone:  # "the sacrificed creature's power", as it last was (CR 608.2h)
+                self.resolving_item.sacrificed_power = gone[0].last_power
             return True
         return False
 

@@ -1551,7 +1551,8 @@ def _if_flip(m: re.Match) -> Any:
 
 def _if_you_do(m: re.Match) -> Any:
     inner = _parse([m[1][:1].upper() + m[1][1:] + "."])
-    if inner and len(inner) > 1 and all(isinstance(e, (Draw, CreateTokens)) for e in inner):  # "draw a card and create a Treasure token"
+    if inner and len(inner) > 1 and all(isinstance(e, (Draw, CreateTokens, DefineX)) for e in inner):  # "draw a card and create a Treasure token"
+        # (Ruthless Technomancer: "create a number of Treasure tokens equal to that creature's power": X, then the tokens)
         return _IfYouDo(tuple(inner))
     return _IfYouDo(inner[0]) if inner and len(inner) == 1 and isinstance(inner[0], (BecomePrepared, SearchForLands)) else None
 
@@ -2351,7 +2352,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N_FIXED} damage to each other opponent\.", re.I), lambda m: DamageEachOtherOpponent(_number(m[1]))),  # Parapet Thrasher
     (re.compile(r"you may discard a card\.", re.I), lambda m: _MayDiscard()),
     (re.compile(r"you may discard a card\. (If|When) you do, (?!draw )(.+)", re.I), _may_discard_then),  # Party Thrasher; Inti
-    (re.compile(rf"you may sacrifice (an?|another) {_SACRIFICE_KIND}\.", re.I), lambda m: _MaySacrifice(m[2].lower(), m[1].lower() == "another")),
+    (re.compile(rf"you may sacrifice (an?|another) {_SACRIFICE_KIND}(?: you control)?\.", re.I),  # Ruthless Technomancer: "you control"
+     lambda m: _MaySacrifice(m[2].lower(), m[1].lower() == "another")),
     (re.compile(rf"you may remove an? {_COUNTER} from (?:it|{_SELF})\.", re.I), lambda m: _MayRemoveCounter(_counter_name(m[1]))),
     (re.compile(rf"if you do, draw {_N_FIXED} cards?(?:, then mill {_N_FIXED} cards?)?\.", re.I),
      lambda m: _IfYouDoDraw(_number(m[1]), _number(m[2]) if m[2] else 0)),

@@ -70,7 +70,7 @@ def _land_types(text: str) -> tuple[str, ...]:
     return tuple(t.capitalize() for t in re.findall(_LAND_TYPE, text, re.I))
 
 
-_MANA_VALUE = r"(?: with mana value \d+(?: or less| or greater)?| with (?:power|toughness) \d+ or less)?"
+_MANA_VALUE = r"(?: with mana value \d+(?: or less| or greater)?| with (?:power|toughness) (?:\d+|X) or less)?"  # Ruthless Technomancer: "power X"
 
 
 _SUBTYPE_WORD = r"(?-i:[A-Z][a-z]+)"  # a creature type or other subtype, capitalized: "an Elf card", "a Dragon card"
@@ -93,7 +93,7 @@ _CARDS_PLURAL = (r"((?:(?:legendary creature|legendary permanent|legendary|nonba
                  rf"|instant or sorcery|instant|sorcery|{_SUBTYPE_CARDS}) )?cards{_MANA_VALUE})")
 
 
-_CARD_PHRASE = re.compile(r"(?:(.+?) )?card(?: with (?:mana value (\d+)(?: (or less|or greater))?|(power|toughness) (\d+) or less))?")
+_CARD_PHRASE = re.compile(r"(?:(.+?) )?card(?: with (?:mana value (\d+)(?: (or less|or greater))?|(power|toughness) (\d+|x) or less))?")
 
 
 def _card_kind(phrase: str | None) -> str:
