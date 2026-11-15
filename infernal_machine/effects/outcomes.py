@@ -532,6 +532,7 @@ from .families.mana import (  # noqa: F401
     _ManaForEachDestroyed,
 )
 from .families.spells_and_misc import (  # noqa: F401
+    PayAtUpkeepOrLose,
     TargetShufflesGraveyard,
     TemptingOffer,
     TEMPT_PROMPT,
@@ -2353,6 +2354,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N_FIXED} damage to each other opponent\.", re.I), lambda m: DamageEachOtherOpponent(_number(m[1]))),  # Parapet Thrasher
     (re.compile(r"you may discard a card\.", re.I), lambda m: _MayDiscard()),
     (re.compile(r"you may discard a card\. (If|When) you do, (?!draw )(.+)", re.I), _may_discard_then),  # Party Thrasher; Inti
+    (re.compile(r"at the beginning of your next upkeep, pay ((?:\{[^}]+\})+)\. If you don't, you lose the game\.", re.I),
+     lambda m: PayAtUpkeepOrLose(m[1])),  # the Pacts
     (re.compile(r"you may sacrifice an (artifact, creature, enchantment, land, or planeswalker)\. If you do, each opponent may sacrifice a "
                 r"permanent of their choice that shares a card type with it\. For each opponent who doesn't, that player loses (\d+) life and "
                 r"you draw a card\.", re.I), lambda m: SacrificeOrPay(m[1].lower(), int(m[2]))),  # Braids, Arisen Nightmare

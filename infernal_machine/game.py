@@ -637,6 +637,7 @@ class Seat:
     permanent_left_turn: int | None = None  # the last turn a permanent left the battlefield under this player's control (Revolt)
     cast_log: list[tuple[int, Card]] = field(default_factory=list)  # (turn, spell) for every spell cast
     drew_from_empty: bool = False
+    lost_by_effect: bool = False  # "If you don't, you lose the game." (the Pacts, CR 104.3e)
     speed: int = 0  # Start your engines!: 0 (none), 1 to 4 (max speed)
     speed_turn: int = 0  # the turn it last went up (once each turn)
     wins_game: bool = False  # Laboratory Maniac: it drew from an empty library with the card out
@@ -6742,6 +6743,19 @@ class Game:
         self.broadcast({"event": "monarch", "seat": seat.index})
         self.happened("became_monarch", seat)
 
+    def pay_at_next_upkeep_or_lose(self, seat: Seat, cost_text: str) -> None:
+        """The Pacts: "At the beginning of your next upkeep, pay {3}{U}{U}. If you don't, you lose the game." (a delayed trigger, CR 603.7;
+        losing, CR 104.3e). It is paid when it can be: not paying only loses."""
+        def due() -> None:
+            payment = self._pay_cost(seat, cost_of(cost_text))
+            if payment is None:
+                seat.lost_by_effect = True
+                self._check_state()
+                return
+            self._spend_mana(seat, payment)
+            self.broadcast({"event": "paid_upkeep", "seat": seat.index, "cost": cost_text})
+        self.at_owner_upkeep.append((seat, self.turn, due))  # its controller's next upkeep, not another player's
+
     def pays_unless(self, payer: Seat, cost_text: str, source: Card) -> bool:
         """"... unless that player pays {1}": whether `payer` can and chooses to pay the cost (and pays it)."""
         payment = self._pay_cost(payer, cost_of(cost_text))
@@ -8152,6 +8166,7 @@ class Game:
                 reason = ("opponent_won" if any(o.wins_game for o in self.seats if o is not seat)
                           else "life" if seat.life <= 0
                           else "empty_library" if seat.drew_from_empty
+                          else "effect" if seat.lost_by_effect
                           else "poison" if seat.player_counters.get("poison", 0) >= POISON_LIMIT
                           else "commander_damage" if self.format.commander_damage is not None and any(d >= self.format.commander_damage for d in seat.commander_damage.values())
                           else None)
