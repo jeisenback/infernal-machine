@@ -346,11 +346,19 @@ _RETURN_EXILED = re.compile(rf"When(?:ever)? {_SELF} leaves the battlefield, ret
 
 
 _OPENING_HAND = "If this card is in your opening hand, you may begin the game with it on the battlefield."
+_OPENING_HAND_LUCK = ("If this card is in your opening hand and you're not the starting player, you may begin the game with CARDNAME on the "
+                      "battlefield with a luck counter on it. If you do, exile a card from your hand.")  # Gemstone Caverns
 
 
 def is_opening_hand_line(line: str) -> bool:
     """Leyline of the Void: the card may start the game on the battlefield (the game offers it after the mulligans)."""
-    return line == _OPENING_HAND
+    return line in (_OPENING_HAND, _OPENING_HAND_LUCK)
+
+
+@lru_cache(maxsize=None)
+def begins_with_luck(card: Card) -> bool:
+    """Gemstone Caverns: only for a player who doesn't start, with a luck counter, and a card of the hand exiled."""
+    return _OPENING_HAND_LUCK in rules_lines(card)
 
 
 @lru_cache(maxsize=None)

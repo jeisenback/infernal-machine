@@ -87,6 +87,19 @@ _COUNTERS_RIDER = re.compile(r"(.+\.) If you spend this mana to cast your comman
 _BONUS_RIDER = re.compile(r"(.+\.) If you control an? (.+?) and an? (.+?), add ((?:\{C\})+) instead\.")
 
 
+# Gemstone Caverns: "{T}: Add {C}. If CARDNAME has a luck counter on it, instead add one mana of any color."
+_COUNTER_ANY_RIDER = re.compile(r"(.+\.) If CARDNAME has an? (\w+) counter on it, instead add one mana of any color\.")
+
+
+@lru_cache(maxsize=None)
+def counter_any_color(card: Card) -> str | None:
+    """Gemstone Caverns: the counter ("luck") that turns its {C} into one mana of any color, or None."""
+    for line in rules_lines(card):
+        if m := _COUNTER_ANY_RIDER.fullmatch(line):
+            return m[2]
+    return None
+
+
 @lru_cache(maxsize=None)
 def mana_bonus(card: Card) -> tuple[tuple[str, str], int] | None:
     """(the two permanents to control, how much mana the land makes then) for an Urza land, or None."""
@@ -146,7 +159,7 @@ def has_next_x_rider(card: Card) -> bool:
 def _without_spent_rider(line: str) -> str:
     """The mana ability alone, without its "When that mana is spent ..." sentence or its spending restriction."""
     m = (_SPENT_RIDER.fullmatch(line) or _NEXT_X_RIDER.fullmatch(line) or _COUNTERS_RIDER.fullmatch(line) or _BONUS_RIDER.fullmatch(line)
-         or _COPY_RIDER.fullmatch(line))
+         or _COPY_RIDER.fullmatch(line) or _COUNTER_ANY_RIDER.fullmatch(line))
     line = _MANA_RESTRICTION.sub("", m[1] if m else line)
     # Eldrazi Spawn: "Sacrifice this token: Add {C}." reads like Treasure's "{T}, Sacrifice this permanent: Add {C}."
     return "{T}, Sacrifice this permanent: " + line.removeprefix("Sacrifice this token: ") if line.startswith("Sacrifice this token: Add ") else line
