@@ -5778,7 +5778,7 @@ class Game:
                     self.transform(permanent, by_day_night=True)
 
     def flicker(self, target: Permanent, controller: Seat, when: str, to: str, under_owner: bool, transformed: bool = False,
-                counters: int = 0) -> None:
+                counters: int = 0, tapped: bool = False) -> None:
         """Exile `target`, then return it to the battlefield (or its owner's hand) right away (`when` is "now") or as the
         next end step begins ("end_step"). A token is gone for good; it comes back under `controller`'s control if
         the card says "under your control", otherwise under its owner's, with `counters` +1/+1 counters (Daydream)."""
@@ -5796,7 +5796,7 @@ class Game:
                 owner.hand.append(card)
                 self.broadcast({"event": "returned_from_exile", "seat": owner.index, "card": card.name, "to": "hand"})
             else:
-                self._return_from_exile(owner if under_owner else controller, card, owner, transformed, counters)
+                self._return_from_exile(owner if under_owner else controller, card, owner, transformed, counters, tapped)
 
         if when == "now":
             bring_back()
@@ -5804,7 +5804,8 @@ class Game:
             fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
             self.at_end_step.append((fire_turn, bring_back))
 
-    def _return_from_exile(self, seat: Seat, card: Card, owner: Seat | None = None, transformed: bool = False, counters: int = 0) -> None:
+    def _return_from_exile(self, seat: Seat, card: Card, owner: Seat | None = None, transformed: bool = False, counters: int = 0,
+                           tapped: bool = False) -> None:
         """A card exiled "until" comes back as a new permanent under its owner's control."""
         holder = owner or seat  # the exile zone it is in belongs to its owner, who may not be the one it returns to
         if seat.lost or card not in holder.exile:
@@ -5812,7 +5813,7 @@ class Game:
         holder.exile.remove(card)
         self.broadcast({"event": "returned_from_exile", "seat": seat.index, "card": card.name})
         self._enter(seat, self._transformed_permanent(card, holder) if transformed and card.flip is not None
-                    else Permanent(card, sick=True, loyalty=_starting_loyalty(card), owner=holder, extra_counters=counters))
+                    else Permanent(card, sick=True, tapped=tapped, loyalty=_starting_loyalty(card), owner=holder, extra_counters=counters))
 
     def exile_graveyard(self, seat: Seat) -> None:
         cards, seat.graveyard = seat.graveyard, []

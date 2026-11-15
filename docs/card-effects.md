@@ -1625,6 +1625,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Nezahal, Primal Tide (`tests/test_nezahal.py`): "Discard three cards: Exile Nezahal. Return it to the battlefield tapped under its
+    owner's control at the beginning of the next end step." (`FlickerSelf(end_step, tapped)`; `Game.flicker` returns it tapped).
   - Valley Floodcaller (`tests/test_valley_floodcaller.py`): "You may cast noncreature spells as though they had flash." (`flash:noncreature`,
     `_flash_covers`); "Birds, Frogs, Otters, and Rats you control get +1/+1 until end of turn. Untap them." (`PumpEach.subtype` "Bird|Frog|
     Otter|Rat", any of them; "Untap them." folds into it as "Untap those creatures." does).

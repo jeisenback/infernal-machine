@@ -335,13 +335,16 @@ class GuffRewritesHistory:
 @dataclass(frozen=True)
 class FlickerSelf:
     """Jin-Gitaxias: "Exile Jin-Gitaxias, then return it to the battlefield transformed under its owner's control." The Great Synthesis:
-    "Exile this Saga, then return it to the battlefield (front face up)." (`transformed` False: the front face)"""
+    "Exile this Saga, then return it to the battlefield (front face up)." (`transformed` False: the front face) Nezahal, Primal Tide: "Exile
+    Nezahal. Return it to the battlefield tapped under its owner's control at the beginning of the next end step." (`end_step`, `tapped`)"""
     transformed: bool
+    end_step: bool = False
+    tapped: bool = False
     binds = SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.flicker(target, controller, "now", "battlefield", True, self.transformed)
+            game.flicker(target, controller, "end_step" if self.end_step else "now", "battlefield", True, self.transformed, tapped=self.tapped)
 
 
 @dataclass(frozen=True)
