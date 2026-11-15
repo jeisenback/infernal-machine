@@ -257,6 +257,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     SacrificeAnother,
     MaySacrificeThen,
     SacrificeOrPay,
+    TransmuteArtifact,
     ChooseTypeRevealTop,
     Regenerate,
     RegenerateEach,
@@ -2359,6 +2360,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N_FIXED} damage to each other opponent\.", re.I), lambda m: DamageEachOtherOpponent(_number(m[1]))),  # Parapet Thrasher
     (re.compile(r"you may discard a card\.", re.I), lambda m: _MayDiscard()),
     (re.compile(r"you may discard a card\. (If|When) you do, (?!draw )(.+)", re.I), _may_discard_then),  # Party Thrasher; Inti
+    (re.compile(r"sacrifice an artifact\. If you do, search your library for an artifact card\. If that card's mana value is less than or "
+                r"equal to the sacrificed artifact's mana value, put it onto the battlefield\. If it's greater, you may pay \{X\}, where X is the "
+                r"difference\. If you do, put it onto the battlefield\. If you don't, put it into its owner's graveyard\. Then shuffle\.", re.I),
+     lambda m: TransmuteArtifact()),  # Transmute Artifact
     (re.compile(r"artifacts you control become artifact creatures with base power and toughness (\d+)/(\d+) until end of turn\.", re.I),
      lambda m: AnimateArtifacts(int(m[1]), int(m[2]))),  # Tezzeret the Seeker
     (re.compile(r"search your library and/or graveyard for a creature card with mana value X or less and put it onto the battlefield\. If "
