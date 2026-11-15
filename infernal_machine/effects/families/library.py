@@ -244,6 +244,16 @@ class SearchLibrary:
 
 
 @dataclass(frozen=True)
+class SearchLibraryOrGraveyard:
+    """Finale of Devastation: "Search your library and/or graveyard for a creature card with mana value X or less and put it onto the
+    battlefield. If you search your library this way, shuffle." (`Game.search_library_or_graveyard`)"""
+    card_type: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.search_library_or_graveyard(controller, self.card_type)
+
+
+@dataclass(frozen=True)
 class SearchForLands:
     """Land ramp: "Search your library for up to two basic land cards, reveal those cards, put one onto
     the battlefield tapped and the other into your hand, then shuffle." (Cultivate)"""
