@@ -196,6 +196,7 @@ _WHOLE_LINE = re.compile(
     r"|[Yy]ou may discard a card\. (?:If|When) you do, (?!draw )[^\n]+"
     r"|[Yy]ou may sacrifice another creature\. When you do, [^\n]+"  # Ziatora: the reflexive trigger is the rest of the line
     r"|At the beginning of your next upkeep, pay (?:\{[^}]+\})+\. If you don't, you lose the game\."  # the Pacts
+    r"|Sacrifice an artifact\. If you do, search your library for an artifact card\. If that card's mana value [^\n]+? Then shuffle\."  # Transmute
     r"|Search your library and/or graveyard for a creature card with mana value X or less and put it onto the battlefield\. If you search "
     r"your library this way, shuffle\."  # Finale of Devastation
     r"|Exile (?:CARDNAME|this creature)\. Return it to the battlefield(?: tapped)? under its owner's control at the beginning of the next end step\."  # Nezahal

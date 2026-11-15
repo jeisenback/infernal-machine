@@ -6825,6 +6825,27 @@ class Game:
         self.broadcast({"event": "paid_unless", "seat": payer.index, "card": source.name, "cost": cost_text})
         return True
 
+    def transmute_artifact(self, seat: Seat) -> None:
+        """Transmute Artifact: sacrifice an artifact; if you do, search for an artifact card. One of mana value no greater than the
+        sacrificed one's goes onto the battlefield; a greater one does if the difference is paid in generic mana, else into the graveyard.
+        Then shuffle."""
+        gone = self.sacrifice(seat, "artifact", 1)
+        if not gone:
+            return
+        sacrificed = int(gone[0].card.cmc)
+        matches = _unique([c for c in seat.library if _card_matches("artifact", c)])
+        choice = seat.player.choose(SEARCH_CARD_PROMPT, [c.name for c in matches]) if matches else None
+        if choice is not None:
+            found = matches[choice]
+            seat.library.remove(found)
+            name = self.resolving_item.card if self.resolving_item is not None else None
+            if int(found.cmc) <= sacrificed or self.pays_optional(seat, "{%d}" % (int(found.cmc) - sacrificed), name):
+                self._enter(seat, Permanent(found, sick=True, owner=seat))
+            else:
+                self._move_card(seat, found, "graveyard")
+        self.rng.shuffle(seat.library)
+        self._searched(seat)
+
     def pays_optional(self, payer: Seat, cost_text: str, source: Card | None) -> bool:
         """ "You may pay {2}. If you do, ...": whether `payer` can and chooses to pay the cost (and pays it)."""
         payment = self._pay_cost(payer, cost_of(cost_text))

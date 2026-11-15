@@ -379,3 +379,13 @@ class SacrificeOrPay:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.sacrifice_or_pay(controller, self.kind, self.life)
+
+
+@dataclass(frozen=True)
+class TransmuteArtifact:
+    """Transmute Artifact: "Sacrifice an artifact. If you do, search your library for an artifact card. If that card's mana value is less
+    than or equal to the sacrificed artifact's mana value, put it onto the battlefield. If it's greater, you may pay {X}, where X is the
+    difference. If you do, put it onto the battlefield. If you don't, put it into its owner's graveyard. Then shuffle." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.transmute_artifact(controller)
