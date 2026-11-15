@@ -32,7 +32,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
 from .effects.common import colors_spent
 from .effects import (CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, begins_with_luck, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -106,6 +106,7 @@ COMMANDER_TAX = 2  # CR 903.8
 PERMANENT_TYPES = ("Artifact", "Battle", "Creature", "Enchantment", "Land", "Planeswalker")
 KEEP_PROMPT = PromptKind("keep", "Keep this hand?")
 OPENING_PROMPT = PromptKind("opening", "Begin the game with this on the battlefield: ")  # followed by the card's name
+HAND_EXILE_PROMPT = PromptKind("hand_exile", "Exile a card from your hand for ")  # Gemstone Caverns; options: the cards in hand
 BOTTOM_PROMPT = PromptKind("bottom", "Put a card on the bottom of your library")
 SHUFFLE_BACK_PROMPT = PromptKind("shuffle_back", "Choose a card from your graveyard to shuffle into your library")  # options: cards, then DONE
 LEARN_PROMPT = PromptKind("learn", "Learn: a Lesson from outside the game, or discard a card to draw a card")  # options: lessons, the rummage, "Nothing"
@@ -833,9 +834,15 @@ class Game:
             self._mulligan(seat)
         for seat in self._turn_order(self.active):  # CR 103.6: Leyline-style cards may start on the battlefield
             for card in [c for c in seat.hand if begins_on_battlefield(c)]:
+                luck = begins_with_luck(card)  # Gemstone Caverns: not for the starting player
+                if (luck and seat.index == self.starting_seat) or card not in seat.hand:  # (or exiled by another Caverns)
+                    continue
                 if seat.player.choose(OPENING_PROMPT(f"{card.name}?"), ["Yes", "No"]) == 0:
                     seat.hand.remove(card)
-                    self._enter(seat, Permanent(card))
+                    self._enter(seat, Permanent(card, counters={"luck": 1} if luck else {}))
+                    if luck and seat.hand:  # "If you do, exile a card from your hand."
+                        exiled = seat.hand.pop(seat.player.choose(HAND_EXILE_PROMPT(card.name), [c.name for c in seat.hand]))
+                        self._move_card(seat, exiled, "exile")
 
     def _mulligan(self, seat: Seat) -> None:
         """London mulligan (CR 103.5); the first one is free in multiplayer (103.5c)."""

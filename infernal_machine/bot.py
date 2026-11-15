@@ -25,7 +25,7 @@ from .game import (CAST_FUSED, CAST_FACE_DOWN, CAST_FORETOLD, CAST_DISTURB, ENCO
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
                    MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, EXPLOIT_PROMPT, REPLICATE_PROMPT, SCAPESHIFT_PROMPT,
                    SEPARATE_PROMPT, PILE_TAKE_PROMPT, PILE_GIVE_PROMPT,
-                   CHAIN_COPY_PROMPT)
+                   CHAIN_COPY_PROMPT, HAND_EXILE_PROMPT)
 
 MANA_ONLY = re.compile(r"(?:\{(?:\d+|[WUBRGCS]|[WUBRG2]/[WUBRGP])\})+")  # a cost of mana symbols alone ({2}{U}, {G/W})
 OTHER_CASTS = (CAST_FUSED, CAST_FACE_DOWN, CAST_FORETOLD, CAST_DISTURB)  # with "routes", weighed with the other casts
@@ -183,7 +183,7 @@ class BotPlayer:
         if KEEP_PROMPT.matches(prompt):
             keep = keep_hand_for(self._hand, self._average_cost, self._mulligans) if "keep" in self.features else keep_hand(self._hand, self._mulligans)
             return 0 if keep else 1
-        if is_one_of(prompt, BOTTOM_PROMPT, DISCARD_PROMPT, DISCARD_CARD_PROMPT):
+        if is_one_of(prompt, BOTTOM_PROMPT, DISCARD_PROMPT, DISCARD_CARD_PROMPT, HAND_EXILE_PROMPT):  # (Gemstone Caverns: the worst card)
             return worst_card([self._card(name) for name in options])
         if ATTACK_PROMPT.matches(prompt):
             if _stats(prompt)[0] <= 0 or ("attack" in self.features and not self._worth_attacking(prompt)):

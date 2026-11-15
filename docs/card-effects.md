@@ -1625,6 +1625,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Gemstone Caverns (`tests/test_gemstone_caverns.py`): "If this card is in your opening hand and you're not the starting player, you may
+    begin the game with it on the battlefield with a luck counter on it. If you do, exile a card from your hand." (`begins_with_luck`, at
+    the start of the game in `Game.setup`; `HAND_EXILE_PROMPT`) and "{T}: Add {C}. If it has a luck counter on it, instead add one mana of
+    any color." (`counter_any_color`, read by `Payment`).
   - Nezahal, Primal Tide (`tests/test_nezahal.py`): "Discard three cards: Exile Nezahal. Return it to the battlefield tapped under its
     owner's control at the beginning of the next end step." (`FlickerSelf(end_step, tapped)`; `Game.flicker` returns it tapped).
   - Valley Floodcaller (`tests/test_valley_floodcaller.py`): "You may cast noncreature spells as though they had flash." (`flash:noncreature`,

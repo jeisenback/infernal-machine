@@ -17,7 +17,7 @@ from .cards import Card, has_keyword
 from .effects import (rules_statics, additional_land_mana, charge_mana, chosen_color_mana, counter_mana, counter_removal_mana, filter_mana_ability,
                       granted_land_mana, granted_mana, group_mana_grants, has_next_x_rider, is_identity_mana_land, land_mana_units,
                       makes_mana_by_power, one_color_mana_amount, mana_ability, mana_ability_needs_no_tap, mana_ability_sacrifices, mana_among_legendary,
-                      mana_bonus, mana_by_amount, mana_by_count, mana_condition, mana_extra_cost, mana_life_condition, mana_life_cost, mana_life_types, mana_lines,
+                      mana_bonus, counter_any_color, mana_by_amount, mana_by_count, mana_condition, mana_extra_cost, mana_life_condition, mana_life_cost, mana_life_types, mana_lines,
                       mana_of_imprinted, mana_pain, mana_per_color, mana_per_count, mana_restriction, mana_threshold, reflected_mana, restricted_mana,
                       tap_mana, with_granted_mana)
 from .filters import has_type, matches, parse_filter
@@ -180,6 +180,9 @@ class ManaPayer:
                          if a.attached_to is permanent for mana in additional_land_mana(a.card, a.chosen_color)]  # Wild Growth, Utopia Sprawl
                 if seat.extra_mountain_mana_turn == self.game.turn and "Mountain" in card.type_line:  # Molten Tide
                     extra.append(ManaSource(permanent, frozenset("R"), pain, damage))
+                if (counter := counter_any_color(card)) is not None and permanent.counters.get(counter):  # Gemstone Caverns with luck
+                    lands.extend([ManaSource(permanent, frozenset("WUBRG"), pain, damage)] + extra)
+                    continue
                 if (bonus := mana_bonus(card)) is not None and all(any(name in p.card.type_line.partition("\u2014")[2] for p in seat.battlefield)
                                                                    for name in bonus[0]):  # an Urza's Mine is a land type, not a name
                     lands.extend(own(permanent, [ManaSource(permanent, frozenset("C"), pain, damage) for _ in range(bonus[1])]) + extra)
