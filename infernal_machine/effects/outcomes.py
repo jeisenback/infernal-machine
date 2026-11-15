@@ -533,6 +533,8 @@ from .families.mana import (  # noqa: F401
 )
 from .families.spells_and_misc import (  # noqa: F401
     PayAtUpkeepOrLose,
+    UncounterableThisTurn,
+    HexproofFromThisTurn,
     TargetGraveyardToBottom,
     TargetShufflesGraveyard,
     TemptingOffer,
@@ -2355,6 +2357,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N_FIXED} damage to each other opponent\.", re.I), lambda m: DamageEachOtherOpponent(_number(m[1]))),  # Parapet Thrasher
     (re.compile(r"you may discard a card\.", re.I), lambda m: _MayDiscard()),
     (re.compile(r"you may discard a card\. (If|When) you do, (?!draw )(.+)", re.I), _may_discard_then),  # Party Thrasher; Inti
+    (re.compile(r"draw a card if an opponent has cast an? ((?:white|blue|black|red|green)(?: or (?:white|blue|black|red|green))?) spell this "
+                r"turn\.", re.I), lambda m: Conditional(Condition("opponent_cast_this_turn", what=m[1].lower() + " spell"), Draw(1))),  # Veil of Summer
+    (re.compile(r"spells you control can't be countered this turn\.", re.I), lambda m: UncounterableThisTurn()),  # Veil of Summer
+    (re.compile(r"you and permanents you control gain hexproof from (white|blue|black|red|green) and from (white|blue|black|red|green) until "
+                r"end of turn\.", re.I), lambda m: HexproofFromThisTurn(frozenset({_COLOR_LETTER[m[1].lower()], _COLOR_LETTER[m[2].lower()]}))),
     (re.compile(r"(up to one )?target player puts all the cards from their graveyard on the bottom of their library in a random order\.", re.I),
      lambda m: TargetGraveyardToBottom(optional_target=bool(m[1]))),  # Endurance
     (re.compile(r"at the beginning of your next upkeep, pay ((?:\{[^}]+\})+)\. If you don't, you lose the game\.", re.I),

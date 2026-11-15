@@ -1625,6 +1625,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Veil of Summer (`tests/test_veil_of_summer.py`): "Draw a card if an opponent has cast a blue or black spell this turn." (the condition
+    `opponent_cast_this_turn`), "Spells you control can't be countered this turn." (`UncounterableThisTurn`, `Seat.uncounterable_turn`) and
+    "You and permanents you control gain hexproof from blue and from black until end of turn." (`HexproofFromThisTurn`, `Seat.hexproof_from`,
+    read by `Game.target_options` for the player and their permanents).
   - Gemstone Caverns (`tests/test_gemstone_caverns.py`): "If this card is in your opening hand and you're not the starting player, you may
     begin the game with it on the battlefield with a luck counter on it. If you do, exile a card from your hand." (`begins_with_luck`, at
     the start of the game in `Game.setup`; `HAND_EXILE_PROMPT`) and "{T}: Add {C}. If it has a luck counter on it, instead add one mana of

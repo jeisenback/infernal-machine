@@ -585,6 +585,8 @@ class Seat:
     signature: str | None = None  # an Oathbreaker's signature spell, which starts in the command zone and is cast only while its owner controls the Oathbreaker
     sideboard: list = field(default_factory=list)  # cards outside the game: "an artifact card you own from outside the game" (Karn, the Great Creator)
     next_uncounterable_turn: int | None = None  # Mistrise Village: the turn in which the next spell this player casts can't be countered
+    uncounterable_turn: int | None = None  # Veil of Summer: the turn in which this player's spells can't be countered
+    hexproof_from: tuple[int, frozenset[str]] | None = None  # Veil of Summer: (the turn, the colors) the player and their permanents have hexproof from
     flashback_granted: list = field(default_factory=list)  # (card, turn): it has flashback for its mana cost that turn (Snapcaster Mage)
     enduring_story: bool = False  # Storied: three or more artifacts, legendaries and/or Sagas once, with a storied permanent; for good
     equip_turn: int | None = None  # the last turn this player activated an equip ability (Kili: only the first each turn is free)
@@ -1775,7 +1777,7 @@ class Game:
 
     def uncounterable(self, item: StackItem) -> bool:
         """Whether a permanent its controller has says the spell can't be countered (Rhythm of the Wild, Hexing Squelcher)."""
-        if item.cant_be_countered:
+        if item.cant_be_countered or item.controller.uncounterable_turn == self.turn:  # Veil of Summer: "this turn"
             return True
         return any(owner is item.controller and (key == "uncounterable:spell" or key == "uncounterable:creature"
                                                  and "Creature" in item.card.type_line)
@@ -3433,6 +3435,8 @@ class Game:
         if kind == "opponent_more_creatures":  # Emeritus of Truce
             creatures = lambda s: sum("Creature" in p.card.type_line for p in s.battlefield)
             return any(creatures(o) > creatures(seat) for o in self.opponents(seat))
+        if kind == "opponent_cast_this_turn":  # Veil of Summer: "if an opponent has cast a blue or black spell this turn"
+            return any(turn == self.turn and _watch_type_matches(condition.what, c) for o in self.opponents(seat) for turn, c in o.cast_log)
         if kind == "cast_this_turn":  # "if you've cast a creature spell this turn"; with a count, that many (Arclight Phoenix)
             return sum(turn == self.turn and _watch_type_matches(condition.what, c) for turn, c in seat.cast_log) >= max(condition.count, 1)
         if kind == "no_counter":  # "if it had no -1/-1 counters on it": what it had when it left
@@ -3713,9 +3717,11 @@ class Game:
                             for card in _unique(seat.graveyard) if _card_matches(card_type, card)]
             return options
         if kind in ("any", "player", "player or planeswalker") or kind.startswith("any non-"):
-            options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats() if not s.protected]
+            options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats()
+                        if not s.protected and not self._hexproof_from(s, caster, colors)]
         elif kind == "opponent":
-            options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster) if not s.protected]
+            options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster)
+                        if not s.protected and not self._hexproof_from(s, caster, colors)]
         if (spell_filter := parse_filter(kind)) and re.search(r"spell( you control| you don't control)?( with mana value \d+( or less| or greater)?)?$", kind):  # "spell", "noncreature spell", "... spell you control", "spell with mana value 1"
             options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
                         if not i.ability and spell_filter.matches(i.card)
@@ -3771,10 +3777,17 @@ class Game:
                     continue
                 if "monocolored" in colors and self.has_keyword(permanent, "hexproof from monocolored") and seat is not caster:
                     continue  # Dragonfire Blade
+                if self._hexproof_from(seat, caster, colors):  # Veil of Summer: "permanents you control gain hexproof from blue"
+                    continue
                 if self.protected_from(permanent, colors):
                     continue
                 options.append((self.label(permanent), permanent))
         return options
+
+    def _hexproof_from(self, seat: Seat, caster: Seat, colors: frozenset[str]) -> bool:
+        """Whether `seat` and its permanents have hexproof this turn from a source of `colors` an opponent controls (Veil of Summer)."""
+        return seat.hexproof_from is not None and seat.hexproof_from[0] == self.turn and seat is not caster \
+            and bool(seat.hexproof_from[1] & colors)
 
     def _lone_target(self, item: StackItem) -> int | None:
         """Which of `item.targets` is the only thing the spell or ability targets; None if it targets nothing or several things."""
