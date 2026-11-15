@@ -112,6 +112,9 @@ stats = goldfish(deck, games=5000, turns=5)
     unlocking a Room's door or turning a creature face up. Before it the bot took none of these. The precons hold few such cards (in 20
     games: encore once of 24 offers, suspend once of 1; the rest were offered with something on the stack or outside a main phase). 1,200
     duels on the precons against the bot without it: 50.3% (47.5%-53.2%), no measurable difference.
+  - `pact`: a Pact ("At the beginning of your next upkeep, pay {4}{R}. If you don't, you lose the game.") is cast only when the bot has
+    as many mana sources in play as the upkeep cost's mana value, since those untap for that upkeep; otherwise casting it would lose the
+    game. The precons hold no Pact, so no comparison on them could show an effect; the unit tests are the evidence.
   `python tools/compare_bots.py DECK DECK ...` plays one version of the bot against another on the same decks and reports the
   win rate with its 95% interval. Against the plain bot on the five Secrets of Strixhaven precons (191 games) all five
   together won 67.5% (60.6%-73.8%); alone, timing won 65.5%, attack 57.6%, land 56.8%, target 55.2% and mana 52.9%.

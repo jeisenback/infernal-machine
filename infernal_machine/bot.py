@@ -10,10 +10,11 @@ from typing import Sequence
 
 from .analysis import color_pips, is_land
 from .cards import Card, Deck
+from .mana import cost_of
 from .combos import SpellbookSource
 from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT, NO_ATTACK
 from .prompts import PRIORITY_PROMPT, is_one_of, subject_of
-from .effects import FREE_WAY, RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, ReturnAllToHand, spell_effects
+from .effects import FREE_WAY, RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, PayAtUpkeepOrLose, ReturnAllToHand, spell_effects
 from .report import unsupported_lines
 from .undercity import HELPS_ITS_TARGET
 from .effects import CONSULT_NAME_PROMPT, MOVE_COUNTERS_PROMPT, PACT_TAKE_PROMPT
@@ -33,7 +34,7 @@ FACE_DOWN_COST = 3  # CR 702.37c: a face-down spell costs {3}
 MIN_LANDS = 2
 MAX_LANDS = 5
 MAX_MULLIGANS = 2  # after this many, keep whatever comes
-FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch", "tutor", "win", "sink", "routes"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
+FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch", "tutor", "win", "sink", "routes", "pact"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
 HIGH_TAX = 6  # a commander cast from the command zone three times has this much tax; past it, a graveyard with a way out can be the better place
 # A card that brings a card back from a graveyard to the battlefield or the hand: where a commander that dies can be worth leaving.
 RECURSION = re.compile(r"\b(return|put)\b[^.]{0,120}?\bfrom (?:your|a|any|an opponent's) graveyard (?:to|onto) (?:the battlefield|your hand)"
@@ -285,7 +286,8 @@ class BotPlayer:
         casts = [i for i, option in enumerate(options)
                  if (option.startswith(cast_prefixes) or (option.startswith(CAST_COMMANDER) and _cast_name(option) == self._signature))
                  and not _is_ritual(self._cards.get(_cast_name(option)))
-                 and not self._unhelpful_wipe(self._cards.get(_cast_name(option))) and not self._holds_removal(self._cards.get(_cast_name(option)))]
+                 and not self._unhelpful_wipe(self._cards.get(_cast_name(option))) and not self._holds_removal(self._cards.get(_cast_name(option)))
+                 and not self._unpayable_pact(self._cards.get(_cast_name(option)))]
         if "commander" in self.features:
             casts += [i for i in commanders if i not in casts]  # a commander that has grown expensive competes with the rest
         mine = self._my_seat()
@@ -625,6 +627,16 @@ class BotPlayer:
         if self._life_of(self._seat) <= self.CHUMP_LIFE or len((self._state or {}).get("hand", [])) >= HAND_SIZE:
             return False
         return all(power <= SMALL_THREAT for power in powers)
+
+    def _unpayable_pact(self, card: Card | None) -> bool:
+        """With "pact": a Pact whose upkeep cost is more than its mana sources in play (they untap for that upkeep) would lose the game."""
+        if "pact" not in self.features or card is None:
+            return False
+        costs = [cost_of(e.cost) for e in spell_effects(card) or () if isinstance(e, PayAtUpkeepOrLose)]
+        mine = self._my_seat()
+        sources = sum(1 for p in mine["battlefield"] if "Land" in p["type"] or (p.get("name") in self._cards
+                      and self._cards[p["name"]].produced_mana)) if mine else 0
+        return any(cost.generic + len(cost.colored) > sources for cost in costs)
 
     def _unhelpful_wipe(self, card: Card | None) -> bool:
         """A wipe that hits everyone's creatures is only worth it when opponents have more of them."""
