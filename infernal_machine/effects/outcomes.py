@@ -419,6 +419,7 @@ from .families.library import (  # noqa: F401
     Cascade,
     DanceWithCalamity,
     Discover,
+    SearchLibraryOrGraveyard,
     FetchBasicLand,
     Impulse,
     LookAtTopOfLibrary,
@@ -2357,6 +2358,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N_FIXED} damage to each other opponent\.", re.I), lambda m: DamageEachOtherOpponent(_number(m[1]))),  # Parapet Thrasher
     (re.compile(r"you may discard a card\.", re.I), lambda m: _MayDiscard()),
     (re.compile(r"you may discard a card\. (If|When) you do, (?!draw )(.+)", re.I), _may_discard_then),  # Party Thrasher; Inti
+    (re.compile(r"search your library and/or graveyard for a creature card with mana value X or less and put it onto the battlefield\. If "
+                r"you search your library this way, shuffle\.", re.I), lambda m: SearchLibraryOrGraveyard("creature|mv<=x")),  # Finale of Devastation
+    (re.compile(rf"if X is (\d+) or more, creatures you control get \+X/\+X and gain {_KEYWORDS} until end of turn\.", re.I),
+     lambda m: Conditional(Condition("x_at_least", int(m[1])), PumpEachX(1, 1, keywords=_keyword_list(m[2])))),  # Finale of Devastation
     (re.compile(r"draw a card if an opponent has cast an? ((?:white|blue|black|red|green)(?: or (?:white|blue|black|red|green))?) spell this "
                 r"turn\.", re.I), lambda m: Conditional(Condition("opponent_cast_this_turn", what=m[1].lower() + " spell"), Draw(1))),  # Veil of Summer
     (re.compile(r"spells you control can't be countered this turn\.", re.I), lambda m: UncounterableThisTurn()),  # Veil of Summer

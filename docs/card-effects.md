@@ -1625,6 +1625,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Finale of Devastation (`tests/test_finale_of_devastation.py`): "Search your library and/or graveyard for a creature card with mana value
+    X or less and put it onto the battlefield. If you search your library this way, shuffle." (`SearchLibraryOrGraveyard`,
+    `Game.search_library_or_graveyard`: a graveyard card is offered as "<name> (graveyard)") and "If X is 10 or more, creatures you control
+    get +X/+X and gain haste until end of turn." (`x_at_least` and `PumpEachX`).
   - Veil of Summer (`tests/test_veil_of_summer.py`): "Draw a card if an opponent has cast a blue or black spell this turn." (the condition
     `opponent_cast_this_turn`), "Spells you control can't be countered this turn." (`UncounterableThisTurn`, `Seat.uncounterable_turn`) and
     "You and permanents you control gain hexproof from blue and from black until end of turn." (`HexproofFromThisTurn`, `Seat.hexproof_from`,

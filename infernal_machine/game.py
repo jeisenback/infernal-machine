@@ -5032,6 +5032,30 @@ class Game:
             seat.player.notify({"event": "searched", "seat": seat.index, "found": True, "to": to, "card": found.name})
         return chosen
 
+    def search_library_or_graveyard(self, seat: Seat, card_type: str) -> None:
+        """Finale of Devastation: "Search your library and/or graveyard for a creature card with mana value X or less and put it onto
+        the battlefield. If you search your library this way, shuffle." A card from the graveyard is offered as "<name> (graveyard)"; the
+        library is shuffled unless the card came from the graveyard."""
+        card_type = card_type.replace("mv<=x", f"mv<={self.x_value}")
+        library = _unique([c for c in seat.library if _card_matches(card_type, c) and not self.caged(c)])
+        graveyard = _unique([c for c in seat.graveyard if _card_matches(card_type, c) and not self.caged(c)])
+        options = [c.name for c in library] + [f"{c.name} (graveyard)" for c in graveyard] + [DONE]
+        choice = seat.player.choose(SEARCH_CARD_PROMPT, options)
+        found, from_graveyard = None, choice >= len(library) and choice < len(library) + len(graveyard)
+        if choice < len(library):
+            found = library[choice]
+            seat.library.remove(found)
+        elif from_graveyard:
+            found = graveyard[choice - len(library)]
+            seat.graveyard.remove(found)
+            self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": found.name, "to": "battlefield"})
+            self._left_graveyard(seat, [found])
+        if not from_graveyard:  # "If you search your library this way, shuffle."
+            self.rng.shuffle(seat.library)
+            self._searched(seat)
+        if found is not None:
+            self._enter(seat, Permanent(found, sick=True, owner=seat))
+
     def exploit(self, source: Permanent, seat: Seat) -> None:
         """Exploit (CR 702.110): `seat` may sacrifice a creature, `source` itself among them; if it does, `source` exploited it."""
         options = [p for p in seat.battlefield if "Creature" in p.card.type_line]
