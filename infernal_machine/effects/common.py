@@ -196,6 +196,7 @@ _WHOLE_LINE = re.compile(
     r"|[Yy]ou may discard a card\. (?:If|When) you do, (?!draw )[^\n]+"
     r"|[Yy]ou may sacrifice another creature\. When you do, [^\n]+"  # Ziatora: the reflexive trigger is the rest of the line
     r"|At the beginning of your next upkeep, pay (?:\{[^}]+\})+\. If you don't, you lose the game\."  # the Pacts
+    r"|Exile (?:CARDNAME|this creature)\. Return it to the battlefield(?: tapped)? under its owner's control at the beginning of the next end step\."  # Nezahal
     r"|[Yy]ou may sacrifice an artifact, creature, enchantment, land, or planeswalker\. If you do, each opponent may sacrifice [^\n]+"  # Braids
     r"|[Ss]acrifice (?:it|CARDNAME|this land)\. When you do, [^\n]+"  # Riveteers Overlook
     r"|[Rr]eveal the top \w+ cards of your library(?:\. An opponent separates those cards| and separate them) into two piles\. "

@@ -3024,6 +3024,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"exile {_SELF}, then return it to the battlefield transformed under your control\.", re.I), lambda m: ReturnTransformed()),
     (re.compile(rf"return it to the battlefield( tapped)? and transformed under (?:its owner's|your) control\.", re.I),
      lambda m: ReturnTransformed(dies=True, tapped=m[1] is not None)),
+    (re.compile(rf"exile {_SELF}\. return it to the battlefield( tapped)? under its owner's control at the beginning of the next end step\.", re.I),
+     lambda m: FlickerSelf(False, end_step=True, tapped=bool(m[1]))),  # Nezahal, Primal Tide
     (re.compile(r"return it to the battlefield transformed under (?:its owner's|your) control at the beginning of the next end step\.", re.I),
      lambda m: ReturnTransformed(dies=True, end_step=True)),
     (re.compile(r"conjure a card named (.+?) onto the battlefield\.", re.I), lambda m: Conjure(m[1])),
