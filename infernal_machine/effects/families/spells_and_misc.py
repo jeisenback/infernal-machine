@@ -774,3 +774,12 @@ class TemptingOffer:
         for _ in range(accepted):
             for effect in self.effects:
                 effect.resolve(game, controller, None)
+
+
+@dataclass(frozen=True)
+class PayAtUpkeepOrLose:
+    """The Pacts: "At the beginning of your next upkeep, pay {3}{U}{U}. If you don't, you lose the game." (`Game.pay_at_next_upkeep_or_lose`)"""
+    cost: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.pay_at_next_upkeep_or_lose(controller, self.cost)
