@@ -2166,7 +2166,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?:those creatures|they(?! gain haste until end of turn\.)) gain {_KEYWORDS} until end of turn\.", re.I), lambda m: _TheyGain(_keyword_list(m[1]))),
     (re.compile(rf"those creatures gain {_KEYWORDS} until your next turn\.", re.I), lambda m: _TheyGain(_keyword_list(m[1]), until_next_turn=True)),  # Elspeth, Storm Slayer
     (re.compile(rf"it gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ItGains(_keyword_list(m[1]))),
-    (re.compile(r"untap those creatures\.", re.I), lambda m: _UntapThoseCreatures()),
+    (re.compile(r"untap (?:those creatures|them)\.", re.I), lambda m: _UntapThoseCreatures()),  # Valley Floodcaller: "Untap them."
     (re.compile(rf"put that many {_COUNTER} on (?:it|{_SELF})\.", re.I),  # Hungering Hydra, Necropolis Regent: the number the event carried
      lambda m: PutCountersOnSource("X", _counter_name(m[1]))),
     (re.compile(rf"that creature also gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ThatAlsoGains(_keyword_list(m[1]))),
@@ -3409,6 +3409,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?i:other creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), other=True)),  # Summon: Esper Maduin
     (re.compile(rf"(?i:tokens you control gain) {_KEYWORDS} (?i:until (end of turn|your next turn))\."),  # For the Common Good: every token
      lambda m: KindsGainUntilEndOfTurn("token", _keyword_list(m[1]), until_next_turn=m[2].lower() == "your next turn")),
+    (re.compile(rf"((?-i:[A-Z][a-z]+s)(?:, (?-i:[A-Z][a-z]+s))+,? and (?-i:[A-Z][a-z]+s)) you control {_CHANGE}"),  # Valley Floodcaller (a list
+    # of three or more: "Creatures and Vehicles" or "Soldiers and Heroes" would read badly as subtypes)
+     lambda m: PumpEach(_modifier(m, 2), subtype="|".join(t[:-1] for t in re.findall(r"[A-Z][a-z]+s\b", m[1])))),
     (re.compile(rf"((?-i:[A-Z][a-z]+))s you control {_CHANGE}"), lambda m: PumpEach(_modifier(m, 2), subtype=m[1])),
     (re.compile(rf"(?i:non)-((?-i:[A-Z][a-z]+)) creatures you control {_CHANGE}"),
      lambda m: PumpEach(_modifier(m, 2), subtype="non-" + m[1])),  # Return of the Wildspeaker

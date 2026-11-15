@@ -252,7 +252,7 @@ class PumpEach:
     modifier: Modifier
     opponents: bool = False
     everyone: bool = False  # "All creatures get -2/-2 until end of turn."
-    subtype: str = ""  # "Spirits you control gain double strike and vigilance until end of turn." ("non-Human": all but those)
+    subtype: str = ""  # "Spirits you control gain double strike and vigilance until end of turn." ("non-Human": all but those; "Bird|Frog": either)
     other: bool = False  # Summon: Esper Maduin: "Other creatures you control ...": not its source
     untap: bool = False  # Jeskai Ascendancy: "Untap those creatures."
     attacking: bool = False  # Warren Warleader: "Attacking creatures you control get +1/+1 ..."
@@ -268,7 +268,7 @@ class PumpEach:
                         or (self.with_counter and not permanent.counters.get(self.with_counter)):
                     continue
                 if (self.permanents or "Creature" in permanent.card.type_line) and (
-                        not self.subtype or (self.subtype.removeprefix("non-") in kinds) != self.subtype.startswith("non-")):
+                        not self.subtype or any(t in kinds for t in self.subtype.removeprefix("non-").split("|")) != self.subtype.startswith("non-")):
                     game.modify_until_end_of_turn(permanent, self.modifier)
                     if self.untap:
                         game.untap(permanent)

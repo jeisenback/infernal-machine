@@ -8396,8 +8396,9 @@ COMBAT_STEPS = {"beginning_of_combat", "declare_attackers", "declare_blockers", 
 
 def _flash_covers(kind: str, card: Card) -> bool:
     """Whether "You may cast <kind> spells as though they had flash" covers `card`: "spell" is any, "creature", "sorcery", or a
-    creature type ("spirit")."""
-    return kind == "spell" or kind in card.type_line.lower().replace("\u2014", " ").split()
+    creature type ("spirit"), or "noncreature" (Valley Floodcaller)."""
+    types = card.type_line.lower().replace("\u2014", " ").split()
+    return kind == "spell" or (kind.removeprefix("non") not in types if kind.startswith("non") else kind in types)
 
 
 def _instant_speed(card: Card) -> bool:
