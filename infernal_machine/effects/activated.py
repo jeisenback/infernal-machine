@@ -79,6 +79,7 @@ class ActivatedAbility:
     life: int = 0  # pay N life
     energy: int = 0  # "Pay {E}{E}": that many energy counters (Inventor's Axe)
     loyalty: int | None = None  # planeswalker loyalty change: +1, -2, 0
+    loyalty_x: bool = False  # Tezzeret the Seeker: "\u2212X": X loyalty more is removed, X chosen as it is activated
     sorcery_speed: bool = False  # "Activate only as a sorcery." (loyalty abilities always)
     once_per_turn: bool = False  # "Activate only once each turn."
     power_up: bool = False  # Power-up: only once, and it costs its source's mana cost less if that entered this turn
@@ -209,7 +210,7 @@ _EXILE_COST = re.compile(rf"Exile {_CARDS} (?:(creature|artifact|land|instant|so
 _NUMBER = {"a": 1, "an": 1, "two": 2, "three": 3, "four": 4}
 
 
-_LOYALTY = re.compile(r"([+\u2212-]?)(\d+)")
+_LOYALTY = re.compile(r"([+\u2212-]?)(\d+|X)")  # Tezzeret the Seeker: "\u2212X"
 
 
 _SORCERY_ONLY = "Activate only as a sorcery."
@@ -347,8 +348,13 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
     fields: dict[str, Any] = {}
     loyalty = _LOYALTY.fullmatch(cost)
     if planeswalker and loyalty:
-        amount = int(loyalty[2])
-        fields.update(loyalty=-amount if loyalty[1] in ("\u2212", "-") else amount, sorcery_speed=True)
+        if loyalty[2] == "X":  # "\u2212X": X is chosen, up to its loyalty, and removed (CR 606.4)
+            if loyalty[1] not in ("\u2212", "-"):
+                return None
+            fields.update(loyalty=0, loyalty_x=True, sorcery_speed=True)
+        else:
+            amount = int(loyalty[2])
+            fields.update(loyalty=-amount if loyalty[1] in ("\u2212", "-") else amount, sorcery_speed=True)
     elif (paid := _cost_fields(cost)) is None:
         return None
     else:

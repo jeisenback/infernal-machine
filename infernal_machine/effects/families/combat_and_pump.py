@@ -66,6 +66,20 @@ class Animate:
 
 
 @dataclass(frozen=True)
+class AnimateArtifacts:
+    """Tezzeret the Seeker: "Artifacts you control become artifact creatures with base power and toughness 5/5 until end of turn." They
+    keep their subtypes (an Equipment stays one)."""
+    power: int
+    toughness: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in list(controller.battlefield):
+            if "Artifact" in permanent.card.type_line:
+                subtypes = (permanent.original or permanent.card).type_line.partition("\u2014")[2].strip()
+                game.animate(permanent, self.power, self.toughness, (), subtypes, True, frozenset())
+
+
+@dataclass(frozen=True)
 class AnimateByManaValue:
     """Karn, the Great Creator: "Until your next turn, up to one target noncreature artifact becomes an artifact creature with power and
     toughness each equal to its mana value." """
