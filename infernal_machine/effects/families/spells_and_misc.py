@@ -794,3 +794,20 @@ class PayAtUpkeepOrLose:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.pay_at_next_upkeep_or_lose(controller, self.cost)
+
+
+@dataclass(frozen=True)
+class UncounterableThisTurn:
+    """Veil of Summer: "Spells you control can't be countered this turn." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.uncounterable_turn = game.turn
+
+
+@dataclass(frozen=True)
+class HexproofFromThisTurn:
+    """Veil of Summer: "You and permanents you control gain hexproof from blue and from black until end of turn." (color letters)"""
+    colors: frozenset[str]
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.hexproof_from = (game.turn, self.colors)
