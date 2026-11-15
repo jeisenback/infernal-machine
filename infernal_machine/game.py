@@ -4917,6 +4917,18 @@ class Game:
             self.rng.shuffle(owner.library)
             self._left_graveyard(owner, [t.card for t in targets if t.seat is owner])
 
+    def graveyard_to_bottom(self, seat: Seat) -> None:
+        """Endurance: `seat` puts all the cards from their graveyard on the bottom of their library in a random order."""
+        cards = list(seat.graveyard)
+        if not cards:
+            return
+        seat.graveyard = []
+        self.rng.shuffle(cards)
+        seat.library += cards
+        for card in cards:
+            self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "library"})
+        self._left_graveyard(seat, cards)
+
     def exile_from_graveyard(self, target: GraveyardTarget) -> bool:
         """Exile the card from its graveyard; whether it was still there."""
         seat, card = target.seat, target.card

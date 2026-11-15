@@ -1625,6 +1625,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Endurance (`tests/test_endurance.py`): "up to one target player puts all the cards from their graveyard on the bottom of their library
+    in a random order." (`TargetGraveyardToBottom`, `Game.graveyard_to_bottom`).
   - The Pacts (`tests/test_pacts.py`: Pact of Negation, Pact of the Titan, Slaughter Pact, Summoner's Pact): "At the beginning of your next
     upkeep, pay {3}{U}{U}. If you don't, you lose the game." (`PayAtUpkeepOrLose`, `Game.pay_at_next_upkeep_or_lose`: at its controller's
     next upkeep, paid when it can be; otherwise `Seat.lost_by_effect`, CR 104.3e).
