@@ -79,6 +79,7 @@ from .outcomes import (  # noqa: F401
     CONTRACT_TEXT,
     CannotRegenerate,
     Cascade,
+    PayAtUpkeepOrLose,
     CastExiledCopy,
     ChaosWarp,
     Condition,
