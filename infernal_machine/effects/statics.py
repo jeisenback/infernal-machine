@@ -304,7 +304,8 @@ _RULES_STATICS = [
     (re.compile(r"Each player can't draw more than one card each turn\.", re.I), "draw_limit:each"),
     (re.compile(r"Creature spells you control can't be countered\.", re.I), "uncounterable:creature"),
     (re.compile(r"Spells you control can't be countered\.", re.I), "uncounterable:spell"),
-    (re.compile(r"You may cast (spells|creature spells|sorcery spells|Spirit spells) as though they had flash\.", re.I), "flash"),
+    (re.compile(r"You may cast (spells|creature spells|noncreature spells|sorcery spells|Spirit spells) as though they had flash\.", re.I),
+     "flash"),  # Valley Floodcaller: "noncreature"
     (re.compile(rf"Each land is an? ({_BASIC_LAND_TYPES}) in addition to its other land types\.", re.I), "land_type"),
     (re.compile(r"Lands you control are every basic land type in addition to their other types\.", re.I), "land_type:all_yours"),
     (re.compile(r"You may play (an|two|three) additional lands? on each of your turns\.", re.I), "extra_land"),
