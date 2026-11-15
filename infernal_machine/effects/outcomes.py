@@ -533,6 +533,7 @@ from .families.mana import (  # noqa: F401
 )
 from .families.spells_and_misc import (  # noqa: F401
     PayAtUpkeepOrLose,
+    TargetGraveyardToBottom,
     TargetShufflesGraveyard,
     TemptingOffer,
     TEMPT_PROMPT,
@@ -2354,6 +2355,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N_FIXED} damage to each other opponent\.", re.I), lambda m: DamageEachOtherOpponent(_number(m[1]))),  # Parapet Thrasher
     (re.compile(r"you may discard a card\.", re.I), lambda m: _MayDiscard()),
     (re.compile(r"you may discard a card\. (If|When) you do, (?!draw )(.+)", re.I), _may_discard_then),  # Party Thrasher; Inti
+    (re.compile(r"(up to one )?target player puts all the cards from their graveyard on the bottom of their library in a random order\.", re.I),
+     lambda m: TargetGraveyardToBottom(optional_target=bool(m[1]))),  # Endurance
     (re.compile(r"at the beginning of your next upkeep, pay ((?:\{[^}]+\})+)\. If you don't, you lose the game\.", re.I),
      lambda m: PayAtUpkeepOrLose(m[1])),  # the Pacts
     (re.compile(r"you may sacrifice an (artifact, creature, enchantment, land, or planeswalker)\. If you do, each opponent may sacrifice a "

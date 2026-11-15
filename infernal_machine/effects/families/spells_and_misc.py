@@ -751,6 +751,17 @@ class TargetShufflesGraveyard:
             game.shuffle_into_library(target, [game.graveyard_target(card, target) for card in target.graveyard])
 
 
+@dataclass(frozen=True)
+class TargetGraveyardToBottom:
+    """Endurance: "up to one target player puts all the cards from their graveyard on the bottom of their library in a random order." """
+    target: str = "player"
+    optional_target: bool = False  # "up to one"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.graveyard_to_bottom(target)
+
+
 TEMPT_PROMPT = PromptKind("tempt", "Accept the tempting offer of ")  # followed by the spell's name; options "Yes", "No"
 
 
