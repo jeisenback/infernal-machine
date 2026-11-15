@@ -195,6 +195,7 @@ _WHOLE_LINE = re.compile(
     r"|You may discard a card or sacrifice a land\. If you do, draw (?:a card|two cards)\."  # Highway Robbery
     r"|[Yy]ou may discard a card\. (?:If|When) you do, (?!draw )[^\n]+"
     r"|[Yy]ou may sacrifice another creature\. When you do, [^\n]+"  # Ziatora: the reflexive trigger is the rest of the line
+    r"|[Yy]ou may sacrifice an artifact, creature, enchantment, land, or planeswalker\. If you do, each opponent may sacrifice [^\n]+"  # Braids
     r"|[Ss]acrifice (?:it|CARDNAME|this land)\. When you do, [^\n]+"  # Riveteers Overlook
     r"|[Rr]eveal the top \w+ cards of your library(?:\. An opponent separates those cards| and separate them) into two piles\. "
     r"(?:Put one pile into your hand and the other (?:into your graveyard|on the bottom of your library in any order)|An opponent chooses "

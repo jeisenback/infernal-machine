@@ -264,6 +264,7 @@ ATTACH_PROMPT = PromptKind("attach", "Attach it to the new token? ")  # followed
 MAY_PAY_PROMPT = PromptKind("may_pay", "Pay the cost for ")  # followed by the source's name; options are "Pay <cost>" and "Don't pay"
 DRAW_UP_TO_PROMPT = PromptKind("draw_up_to", "How many cards do you draw? ")
 SACRIFICE_DRAW_PROMPT = PromptKind("sacrifice_draw", "Sacrifice a permanent to draw cards? ")
+SHARE_SACRIFICE_PROMPT = PromptKind("share_sacrifice", "Sacrifice a permanent that shares a card type, for ")  # the source's name; Yes or No
 LOOT_PROMPT = PromptKind("loot", "Discard a card to draw a card? ")
 MAY_DISCARD_PROMPT = PromptKind("may_discard", "Discard a card for ")  # followed by the source's name; options are Yes and No
 EXPLORE_TAKE_PROMPT = PromptKind("explore_take", "Reveal and take ")  # Explore the Vastlands: followed by "a land card" or "an instant or sorcery card"
@@ -6929,6 +6930,25 @@ class Game:
                 self.resolving_item.sacrificed_power = gone[0].last_power
             return True
         return False
+
+    def sacrifice_or_pay(self, seat: Seat, kind: str, life: int) -> None:
+        """Braids, Arisen Nightmare: `seat` may sacrifice a permanent of `kind`. If they do, each opponent may sacrifice one that shares a
+        card type with it; for each who doesn't, that player loses `life` and `seat` draws a card."""
+        if not any(_permanent_matches(kind, p.card) for p in seat.battlefield) or seat.player.choose(SACRIFICE_DRAW_PROMPT, YES_NO) != 0:
+            return
+        gone = self.sacrifice(seat, kind, 1)
+        if not gone:
+            return
+        front = gone[0].card.type_line.partition("\u2014")[0].lower().split()
+        shared = " or ".join(t for t in CARD_TYPES if t in front)  # "artifact or creature" for an artifact creature
+        name = self.resolving_source.card.name if self.resolving_source is not None else ""
+        for opponent in self.opponents(seat):
+            if any(_permanent_matches(shared, p.card) for p in opponent.battlefield) \
+                    and opponent.player.choose(SHARE_SACRIFICE_PROMPT(name), YES_NO) == 0:
+                self.sacrifice(opponent, shared, 1)
+                continue
+            self.change_life(opponent, -life)
+            self.draw(seat, 1)
 
     def may_sacrifice_draw(self, seat: Seat, kind: str, draw: int) -> None:
         """ "You may sacrifice a permanent. If you do, draw two cards." """
