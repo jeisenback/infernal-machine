@@ -2521,6 +2521,9 @@ class Game:
         if effects and isinstance(effects[0], Modal):
             effects, _ = self._choose_modes(seat, permanent.card, effects[0], source=permanent)
         x = 0
+        if ability.loyalty_x:  # "\u2212X": X from 0 up to its loyalty (CR 606.4)
+            choices = list(range((permanent.loyalty or 0) + 1))
+            x = choices[seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in choices])]
         if ability.mana_cost and cost_of(ability.mana_cost).x:  # "{X}, {T}: ...": X is chosen, then targets (CR 602.2b), then X is paid
             choices = self._ability_x_values(seat, permanent, ability)
             x = choices[seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in choices])]
@@ -2554,7 +2557,7 @@ class Game:
             self.change_life(seat, -life)
         self._pay_card_costs(seat, permanent, ability, sacrificed, discard_x=discarded)
         if ability.loyalty is not None:
-            permanent.loyalty = (permanent.loyalty or 0) + ability.loyalty
+            permanent.loyalty = (permanent.loyalty or 0) + ability.loyalty - (x if ability.loyalty_x else 0)
             permanent.loyalty_turn = self.turn
         permanent.activated_turn[ability.text] = self.turn
         if ability.unattach_source:  # Sunforger: unattaching it is part of the cost (CR 602.2)

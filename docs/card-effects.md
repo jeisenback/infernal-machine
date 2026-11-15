@@ -1625,6 +1625,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its
+    loyalty and removed, CR 606.4) and "Artifacts you control become artifact creatures with base power and toughness 5/5 until end of
+    turn." (`AnimateArtifacts`: they keep their subtypes).
   - Finale of Devastation (`tests/test_finale_of_devastation.py`): "Search your library and/or graveyard for a creature card with mana value
     X or less and put it onto the battlefield. If you search your library this way, shuffle." (`SearchLibraryOrGraveyard`,
     `Game.search_library_or_graveyard`: a graveyard card is offered as "<name> (graveyard)") and "If X is 10 or more, creatures you control

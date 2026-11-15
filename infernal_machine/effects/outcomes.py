@@ -84,6 +84,7 @@ from .families.combat_and_pump import (  # noqa: F401
     Pump,
     PumpEach,
     PumpEachX,
+    AnimateArtifacts,
     PumpNamed,
     PumpOtherAttackers,
     PumpSource,
@@ -2358,6 +2359,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N_FIXED} damage to each other opponent\.", re.I), lambda m: DamageEachOtherOpponent(_number(m[1]))),  # Parapet Thrasher
     (re.compile(r"you may discard a card\.", re.I), lambda m: _MayDiscard()),
     (re.compile(r"you may discard a card\. (If|When) you do, (?!draw )(.+)", re.I), _may_discard_then),  # Party Thrasher; Inti
+    (re.compile(r"artifacts you control become artifact creatures with base power and toughness (\d+)/(\d+) until end of turn\.", re.I),
+     lambda m: AnimateArtifacts(int(m[1]), int(m[2]))),  # Tezzeret the Seeker
     (re.compile(r"search your library and/or graveyard for a creature card with mana value X or less and put it onto the battlefield\. If "
                 r"you search your library this way, shuffle\.", re.I), lambda m: SearchLibraryOrGraveyard("creature|mv<=x")),  # Finale of Devastation
     (re.compile(rf"if X is (\d+) or more, creatures you control get \+X/\+X and gain {_KEYWORDS} until end of turn\.", re.I),
