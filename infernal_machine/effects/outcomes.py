@@ -2457,6 +2457,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "library_bottom" if m[2].lower() == "the bottom" else "library_top")),
     (re.compile(rf"exile target {_CARD_TYPE} from a graveyard\.", re.I),
      lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "any"))),
+    (re.compile(rf"exile up to one target {_CARD_TYPE} from a graveyard and (create an? (?:Food|Treasure|Clue) token)\.", re.I),
+     lambda m: [ExileFromGraveyard(_graveyard_kind(m[1], "any"), optional_target=True), *rest]  # Hazel's Brewmaster
+     if (rest := _untargeted(m[2])) else None),
     (re.compile(rf"exile up to one target {_CARD_TYPE} from a graveyard\.", re.I),  # Restless Cottage
      lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "any"), optional_target=True)),
     (re.compile(r"exile target creature card with mana value X from your graveyard\.", re.I),  # Lazotep Quarry (X is chosen first: CR 602.2b)

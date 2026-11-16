@@ -345,6 +345,8 @@ from .statics import (  # noqa: F401
     is_extra_vote_line,
     is_granting_line,
     is_group_activated_grant_line,
+    is_exiled_abilities_line,
+    exiled_abilities_kind,
     is_group_mana_grant_line,
     is_hand_by_counters_line,
     is_no_max_hand_line,

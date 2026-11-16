@@ -1373,6 +1373,20 @@ def is_group_activated_grant_line(line: str) -> bool:
     return _group_activated(line) is not None
 
 
+# Hazel's Brewmaster: the abilities are those of the creature cards still exiled with it (Permanent.exiled_with), read in Game.
+_EXILED_ABILITIES = re.compile(r"(Foods) you control have all activated abilities of all creature cards exiled with this creature\.")
+
+
+@lru_cache(maxsize=None)
+def exiled_abilities_kind(card: Card) -> str:
+    """The kind of permanent ("Food") `card` gives the activated abilities of the creature cards exiled with it, or ""."""
+    return next((_GROUP_KIND[m[1]] for line in rules_lines(card) if (m := _EXILED_ABILITIES.fullmatch(line))), "")
+
+
+def is_exiled_abilities_line(line: str) -> bool:
+    return _EXILED_ABILITIES.fullmatch(line) is not None
+
+
 @lru_cache(maxsize=None)
 def group_activated_grants(card: Card) -> tuple[tuple[str, ActivatedAbility], ...]:
     """The activated abilities `card` gives to a group of permanents you control, as (type of permanent, the ability)."""
