@@ -36,7 +36,8 @@ To add a line:
    and recognised with `CLONE_PROMPT.matches(prompt)`, which compares the kind's name, not the wording. A `Prompt` is still a `str`; the server sends its `kind` and `subject` beside the text. Never take a prompt apart by its words (`startswith`, `==`, `removeprefix`): use `KIND.matches`, `is_one_of`, `subject_of` (`tests/test_prompts.py` fails on it).
 5. **Test it from the card's real Oracle text**, never from invented wording: `tests/real.py` (`REAL`, built from
    `tests/real_oracle_texts.json`) or `real(name, cost, type_line, text, power, toughness)`. Play the card through the game
-   (`table3`, `script`, `run_stack`, `lands`, `pick`, `BEAR`, `OGRE`), include a case where the effect must not apply, and check the
+   (`table3`, `script`, `run_stack`, `lands`, `BEAR`, `OGRE`; a target by the permanent with `choose(game, *targets)`, not its label
+   text with `pick`; the steps with `untap_step`, `end_step` and `next_turn`; combat damage with `combat_damage`), include a case where the effect must not apply, and check the
    new guards by mutation: undo the guard and see a test fail. List them in the test module as `MUTATIONS = [(file, old, new, label), ...]`
    and run `python tools/mutate.py tests.test_x` (it refuses a text that does not occur exactly once, and always puts the file back). The shared fixtures are in `tests/helpers.py`: import them from there,
    never from another test file. Name a new test file for the behaviour (`test_ninjutsu.py`), not the issue number.
