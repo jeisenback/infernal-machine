@@ -8,7 +8,8 @@
 {T}, life, and the card costs below, this builds a table that can pay it, checks the game offers the activation, performs it, resolves the
 stack and checks the cost was paid: the permanents sacrificed, the cards discarded or exiled from the graveyard, the counters removed, the
 creatures tapped, the life paid. It lists abilities that are not offered, raise, hang or leave a cost unpaid. A cost it cannot build a table
-for is counted and named, never skipped quietly. A measurement: it never fails the run.
+for is counted and named, never skipped quietly. A measurement: it never fails the run, except that with `--card` it fails when it tried
+nothing for that card, and says why (not in the pool, not fully playable, no cost it checks, or a cost it builds no table for).
 """
 
 from __future__ import annotations
@@ -199,6 +200,31 @@ def try_ability(card: Card, ability: ActivatedAbility) -> tuple[str, str]:
     return ("unpaid", problem) if problem else ("paid", "")
 
 
+def checks(ability: ActivatedAbility) -> bool:
+    """Whether the ability's cost has a part this tool pays and checks (not only mana and {T}, which are play_smoke's)."""
+    return bool(ability.sacrifice_other or ability.discard or ability.exile_graveyard or ability.remove_counter or ability.tap_creatures
+                or ability.life or ability.remove_among)
+
+
+def nothing_tried(pool: list[dict], name: str) -> str:
+    """Why `check(pool, only=name)` tried no ability of the card `name`."""
+    data = next((d for d in pool if d.get("name") == name), None)
+    if data is None:
+        return f"{name} is not in the pool"
+    card = Card.from_scryfall(data)
+    if lines := unsupported_lines(card):
+        return f"{name} is not fully playable ({len(lines)} line(s) not understood)"
+    abilities = activated_abilities(card)
+    if not abilities:
+        return f"{name} has no activated ability other than mana abilities"
+    kinds = sorted({reason for ability in abilities if (reason := untried(ability))})
+    if kinds:
+        return f"{name} has a cost this tool builds no table for: {', '.join(kinds)}"
+    parts = [part for part, has in (("mana", any(a.mana_cost for a in abilities)), ("{T}", any(a.tap for a in abilities)),
+                                    ("sacrificing itself", any(a.sacrifice for a in abilities))) if has]
+    return f"{name} has no ability with a cost this tool checks (its costs: {', '.join(parts) or 'none'}; play_smoke pays those)"
+
+
 def check(pool: list[dict], limit: int | None = None, only: str | None = None):
     """(abilities tried, abilities paid, problems -> [card (ability)], untried cost kinds -> abilities)."""
     problems: dict[str, list[str]] = collections.defaultdict(list)
@@ -217,8 +243,7 @@ def check(pool: list[dict], limit: int | None = None, only: str | None = None):
             if reason := untried(ability):
                 skipped[reason] += 1
                 continue
-            if not (ability.sacrifice_other or ability.discard or ability.exile_graveyard or ability.remove_counter or ability.tap_creatures
-                    or ability.life or ability.remove_among):
+            if not checks(ability):
                 continue  # a plain mana or {T} ability: its cost is play_smoke's
             if limit is not None and tried >= limit:
                 return tried, paid, problems, skipped
@@ -256,6 +281,9 @@ def main(argv: list[str]) -> int:
         print(f"- {len(labels)} x `{message}`: {', '.join(sorted(labels)[:6])}")
     if skipped:
         print("- not tried, for a cost it builds no table for: " + ", ".join(f"{reason} {n}" for reason, n in skipped.most_common()))
+    if args.card and not tried:  # a check of one card that checked nothing is not a pass
+        print(f"- nothing tried: {nothing_tried(pool, args.card)}")
+        return 1
     return 0
 
 
