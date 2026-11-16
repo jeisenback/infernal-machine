@@ -306,6 +306,8 @@ _WHOLE_LINE = re.compile(
     r"|Exile the top card of your library\. You may put that card into your hand unless it has the same name as another card exiled this way\. Repeat this process until you put a card into your hand or you exile two cards with the same name, whichever comes first\."  # Tainted Pact
     r"|[Ee]xile the top card of each opponent's library\. Until end of turn, you may cast spells from among those exiled cards, and you may spend mana as though it were mana of any color to cast those spells\."  # Stolen Strategy
     r"|[Ee]xile the top card of each opponent's library\. You may play those cards for as long as they remain exiled\. If you cast a spell this way, you may spend mana as though it were mana of any color to cast it\."  # Brainstealer Dragon
+    r"|[Ee]ach opponent who has three or more poison counters exiles the top card of their library face down\. You may look at and play "
+    r"those cards for as long as they remain exiled, and you may spend mana as though it were mana of any color to cast those spells\."  # Ixhel
     r"|[Ee]xile the top card of that player's library\. You may play that card for as long as it remains exiled, and you may spend mana as though it were mana of any color to cast it\."  # Cunning Rhetoric
     r"|[Ee]xile the top card of your library\. If it's an? \w+ creature card, you may cast that card until the end of your next turn\."  # Rundvelt Hordemaster
     r"|[Ee]xile the top card of that player's library\. Until end of turn, you may cast that card and you may spend mana as though it were mana of any color to cast that spell\."  # Grenzo, Havoc Raiser

@@ -1938,6 +1938,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"Exile the top card of your library\. You may put that card into your hand unless it has the same name as another card exiled this way\. Repeat this process until you put a card into your hand or you exile two cards with the same name, whichever comes first\.", re.I), lambda m: ExileUntilTakenOrTwice()),  # Tainted Pact
     (re.compile(r"exile the top card of each opponent's library\. Until end of turn, you may cast spells from among those exiled cards, and you may spend mana as though it were mana of any color to cast those spells\.", re.I), lambda m: ExileTopOfEachOpponentMayCast()),  # Stolen Strategy
     (re.compile(r"exile the top card of each opponent's library\. You may play those cards for as long as they remain exiled\. If you cast a spell this way, you may spend mana as though it were mana of any color to cast it\.", re.I), lambda m: ExileTopOfEachOpponentMayCast(forever=True)),  # Brainstealer Dragon
+    (re.compile(r"each opponent who has (three|four|five) or more poison counters exiles the top card of their library face down\. You may "
+                r"look at and play those cards for as long as they remain exiled, and you may spend mana as though it were mana of any color "
+                r"to cast those spells\.", re.I),
+     lambda m: ExileTopOfEachOpponentMayCast(forever=True, min_poison={"three": 3, "four": 4, "five": 5}[m[1].lower()])),  # Ixhel
     (re.compile(r"exile the top card of that player's library\. You may play that card for as long as it remains exiled, and you may spend mana as though it were mana of any color to cast it\.", re.I), lambda m: ExileTopOfThatPlayerMayCast(forever=True, any_mana=True)),  # Cunning Rhetoric
     (re.compile(r"they lose life equal to its mana value\.", re.I), lambda m: OwnerLosesManaValue()),  # Brainstealer Dragon
     (re.compile(r"exile the top card of your library\. If it's an? (\w+ creature) card, you may cast that card until the end of your next turn\.", re.I),
