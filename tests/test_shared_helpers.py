@@ -5,7 +5,8 @@ to the blockers when blocked, the mistake an attack built by hand without `block
 import unittest
 
 from infernal_machine.game import Permanent
-from tests.helpers import BEAR, OGRE, choose, combat_damage, end_step, next_turn, table3, untap_step
+from infernal_machine.report import unsupported_lines
+from tests.helpers import BEAR, OGRE, choose, combat_damage, creature, end_step, next_turn, table3, untap_step
 from tests.real import REAL
 
 # The guards these tests are there to catch (python tools/mutate.py tests.test_shared_helpers).
@@ -15,6 +16,7 @@ MUTATIONS = [
     ("tests/helpers.py", "                continue  # (gone: never offered)", "                pass", "a permanent that left is skipped"),
     ("tests/helpers.py", "    game.turn += 1\n    game.active = seat.index\n    begin(game, \"untap\", seat)",
      "    game.active = seat.index\n    begin(game, \"untap\", seat)", "the untap step begins a turn"),
+    ("tests/helpers.py", "        run_stack(game)  # its triggers resolve before regular damage", "        pass  #", "first-strike triggers resolve first"),
     ("tests/helpers.py", "    untap_step(game, seat)\n    game.step = \"main1\"", "    untap_step(game, seat)", "next_turn ends in the main phase"),
 ]
 
@@ -74,6 +76,17 @@ class CombatDamageTests(unittest.TestCase):
         self.assertEqual(b.life, life - 3)
         combat_damage(game, ogre, b, blockers=[bear])
         self.assertEqual((b.life, bear in b.battlefield), (life - 3, False))
+
+    def test_first_strike_damage_triggers_resolve_before_regular_damage(self):
+        game, _ = table3()
+        a, b, _ = game.seats
+        striker = Permanent(creature("Striker", 1, 1, "Double strike\nWhenever this creature deals combat damage to a player, "
+                                          "put a +1/+1 counter on it."), sick=False)
+        self.assertEqual(unsupported_lines(striker.card), [])
+        a.battlefield = [striker]
+        life = b.life
+        combat_damage(game, striker, b)
+        self.assertEqual((b.life, striker.counters), (life - 3, {"+1/+1": 2}))
 
 
 if __name__ == "__main__":

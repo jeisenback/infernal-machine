@@ -604,11 +604,12 @@ def next_turn(game, seat):
 
 def combat_damage(game, attacker, defender, blockers=()):
     """`attacker` (its controller's) attacks the player `defender`, blocked by `blockers` if any (CR 509.1h: blocked, even if they leave),
-    and combat damage is dealt, first strike first (CR 510.4); then the state is checked and the stack resolved."""
+    and combat damage is dealt, first strike first (CR 510.4), the state checked and the stack resolved after each damage step."""
     game.combat.attacks = [Attack(attacker, game.controller(attacker), defender, list(blockers), blocked=bool(blockers))]
     if game.combat.has_first_strike():
         game.combat.deal_damage(first_strike_step=True)
         game._check_state()
+        run_stack(game)  # its triggers resolve before regular damage, as in the engine's first-strike damage step
     game.combat.deal_damage(first_strike_step=False)
     game._check_state()
     run_stack(game)
