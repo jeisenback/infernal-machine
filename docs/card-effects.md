@@ -1632,6 +1632,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Swift Reconfiguration (`tests/test_swift_reconfiguration.py`): "Enchanted permanent is a Vehicle artifact with crew 5 and it loses all
     other card types." (`vehicle_crew`; `Game._vehicles`, a state-based pass, swaps the card for a Vehicle artifact with "Crew N", its
     supertypes kept, while the Aura is attached; the real card waits in `Permanent.vehicled` and is back once it is gone or leaves).
+  - Hazel's Brewmaster (`tests/test_hazels_brewmaster.py`): "exile up to one target card from a graveyard and create a Food token." and
+    "Foods you control have all activated abilities of all creature cards exiled with this creature." (`exiled_abilities_kind`:
+    `Game._activations` gives each Food the activated abilities of the creature cards still in exile in its `exiled_with`; their mana
+    abilities are not given).
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its
