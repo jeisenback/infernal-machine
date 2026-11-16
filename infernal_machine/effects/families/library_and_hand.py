@@ -69,6 +69,7 @@ class ExileControllerDraws:
 class TargetDraw:
     count: int | str
     target: str = "player"  # "player" or "opponent"
+    distinct: bool = False  # Gleaming Splendor: "Two target players each draw a card." (two effects, two different players)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
