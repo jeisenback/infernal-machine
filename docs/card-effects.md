@@ -1648,6 +1648,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     `proliferate` event also reads "When"; `Game.proliferate` lets the cards in the graveyard that return themselves hear it).
   - Brokers Ascendancy (`tests/test_brokers_ascendancy.py`): "put a +1/+1 counter on each creature you control and a loyalty counter on
     each planeswalker you control." (`PutCountersOnEach` and `LoyaltyOnEach`, which adds to `Permanent.loyalty`).
+  - Venerated Rotpriest (`tests/test_venerated_rotpriest.py`): "Whenever a creature you control becomes the target of a spell, target
+    opponent gets a poison counter." (the event `creature_targeted`, heard by the targeted creature's controller once for each creature
+    a spell targets; `TargetGetsPoison`).
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its

@@ -266,6 +266,8 @@ class Caster:
         for target in (t for chosen in item.targets for t in (chosen if isinstance(chosen, list) else [chosen])):
             if isinstance(target, g.Permanent) and self.game.on_battlefield(target):  # "Whenever this creature becomes the target of a spell"
                 self.game.trigger("targeted", target, self.game.controller(target))
+                if "Creature" in target.card.type_line and (holder := self.game.controller(target)) is not None:
+                    self.game.happened("creature_targeted", holder, subject=target)  # Venerated Rotpriest
                 if self.game.controller(target) is not item.controller:  # Tectonic Giant: "a spell an opponent controls"
                     self.game.trigger("targeted_by_opponent", target, self.game.controller(target))
         self.game._targets_chosen(item)

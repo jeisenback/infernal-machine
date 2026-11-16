@@ -437,6 +437,17 @@ class GivePoison:
 
 
 @dataclass(frozen=True)
+class TargetGetsPoison:
+    """Venerated Rotpriest: "target opponent gets a poison counter." (CR 122.1f)"""
+    count: Quantity
+    target: str = "opponent"  # or "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.give_poison(target, game.amount(self.count))
+
+
+@dataclass(frozen=True)
 class PlayerGetsPoison:
     """Etali, Primal Sickness: "they get that many poison counters": the player the trigger is about, X the damage it saw."""
     amount: Quantity
