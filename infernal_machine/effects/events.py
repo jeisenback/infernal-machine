@@ -218,6 +218,10 @@ declare("activate_artifact", re.compile(r"Whenever you activate an ability of an
 declare("activate_host", re.compile(r"Whenever an ability of equipped creature is activated, if it isn't a mana ability, (.+)", re.I),
         to="you", happens="activated", accepts=on_the_subject)  # only the Equipment attached to the creature hears it
 declare("other_attacks_two", re.compile(r"Whenever another player attacks with two or more creatures, (.+)", re.I), about_player=True)
+declare("opponent_creatures_combat_damage_you", re.compile(r"Whenever one or more creatures an opponent controls deal combat damage to you, "
+                                                     r"(.+)", re.I), about_player=True)  # Norn's Decree: that opponent is the player
+declare("player_attacks_poisoned", re.compile(r"Whenever a player attacks, if one or more players being attacked are poisoned, (.+)", re.I),
+        about_player=True)  # Norn's Decree: fired only when one is (CR 603.4); the attacking player is the player
 declare("attacks_opponent", re.compile(r"Whenever a player attacks one of your opponents, (.+)", re.I), about_player=True)  # x: the seat attacked
 declare("cycle", re.compile(r"Whenever you cycle (?:a|another) card, (.+)", re.I), to="you", happens="cycled")
 declare("cycle_or_discard", re.compile(r"Whenever you cycle or discard (?:a|another) card, (.+)", re.I),
