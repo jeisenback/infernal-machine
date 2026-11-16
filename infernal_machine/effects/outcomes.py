@@ -2072,6 +2072,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"((?:\{[^}]+\})+) instead if this spell was cast using teamwork\.", re.I),
      lambda m: Counter(unless=m[1], unless_teamwork=m[2])),  # We Say Thee Nay!
     (re.compile(r"copy this spell\.", re.I), lambda m: CopySpellTimes(1)),  # Sage of the Skies: a "When you cast this spell" trigger
+    (re.compile(r"reveal the top card of your library\. If it's a creature or planeswalker card, put it into your hand\. Otherwise, you may "
+                r"put it on the bottom of your library\.", re.I),
+     lambda m: RevealTopToHand(only="creature or planeswalker", may_bottom=True)),  # Ajani, Sleeper Agent
     (re.compile(r"reveal the top card of your library\. If it's an? (permanent|creature|land|nonland) card, put it into your hand\.", re.I),
      lambda m: RevealTopToHand(only=m[1].lower())),  # Summon: Esper Maduin
     (re.compile(r"search your library for a card, put (?:that card|it) into your graveyard, then shuffle\.", re.I),  # "it": Lively Dirge
@@ -4147,7 +4150,7 @@ _CONDITIONAL = Follows(
     Follow(_BecomesIfNotCreature, PutCounters, set_fields(becomes=lambda m: (m.power, m.toughness, m.subtype))),  # ... and his emblem
     Follow(_TheyGain, PutCountersOnEach, set_fields(grant=lambda m: m.keywords, grant_until_next_turn=lambda m: True),
            fits=lambda previous, marker: marker.until_next_turn),  # Elspeth, Storm Slayer
-    Follow(_TheyGain, (PutCountersOnEach, PutCountersOnEachUpToX), set_fields(grant=lambda m: m.keywords),
+    Follow(_TheyGain, (PutCountersOnEach, PutCountersOnEachUpToX, DistributeCounters), set_fields(grant=lambda m: m.keywords),
            fits=lambda previous, marker: not marker.until_next_turn),
     Follow(_RecallAttachment, CreateTokens, lambda previous, marker: CreateTokenWithGraveyardAttachment(previous.token),
            fits=lambda previous, marker: previous.count == 1),

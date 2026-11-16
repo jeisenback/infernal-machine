@@ -1670,6 +1670,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Tekuthal, Inquiry Dominus (`tests/test_tekuthal.py`): the cost "Remove three counters from among other artifacts, creatures, and
     planeswalkers you control" (`ActivatedAbility.remove_among`; `Game._counters_among`, loyalty included; payable only with that many,
     removed one at a time with `REMOVE_AMONG_PROMPT`).
+  - Ajani, Sleeper Agent (`tests/test_ajani_sleeper_agent.py`): "+1: Reveal the top card ... If it's a creature or planeswalker card,
+    put it into your hand. Otherwise, you may put it on the bottom of your library." (`RevealTopToHand` with `may_bottom`), "Distribute
+    three +1/+1 counters ... They gain vigilance until end of turn." (`DistributeCounters.grant`, only the creatures given one) and an
+    emblem with "Whenever you cast a creature or planeswalker spell, ..." (a new cast kind).
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its

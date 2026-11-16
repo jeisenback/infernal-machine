@@ -155,7 +155,7 @@ _WATCHES = {
                                          r"graveyard(?: from the battlefield)?, (.+)", re.I),  # a permanent only ever goes there from the battlefield (Aetherworks Marvel)
     "cast": re.compile(r"Whenever (you cast or copy|you cast|a player casts|an opponent casts) (?:(an?|another)|(?:your|their) (first|second|third)) "
                        r"((?:white|blue|black|red|green) spell|multicolored spell|colorless spell"
-                       r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact, instant, or sorcery spell|artifact spell"
+                       r"|spell|creature spell|creature or planeswalker spell|noncreature spell|instant or sorcery spell|artifact, instant, or sorcery spell|artifact spell"
                        r"|enchantment spell|legendary spell"
                        r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost|prepared spell"
                        r"|permanent spell with a mana cost that contains \{X\}|instant or sorcery spell with \{X\} in its mana cost"
