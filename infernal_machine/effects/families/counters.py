@@ -559,3 +559,14 @@ class GetEnergy:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.change_energy(controller, self.count)
+
+
+@dataclass(frozen=True)
+class LoyaltyOnEach:
+    """Brokers Ascendancy: "... and a loyalty counter on each planeswalker you control." (loyalty is `Permanent.loyalty`)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in controller.battlefield:
+            if permanent.loyalty is not None and "Planeswalker" in permanent.card.type_line:
+                permanent.loyalty += 1
+                game.broadcast({"event": "counters", "card": permanent.card.name, "counter": "loyalty", "added": 1, "total": permanent.loyalty})
