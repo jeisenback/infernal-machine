@@ -503,7 +503,7 @@ from .families.life_and_damage import (  # noqa: F401
     PunishPerCounter,
     OpponentsLoseLife,
     PlayerLosesLife,
-    PlayerGetsPoison, PoisonShrinksOpponentsCreatures, TargetGetsPoison,
+    PlayerGetsPoison, PoisonShrinksOpponentsCreatures, TargetGetsPoison, PoisonUpTo,
     PowerDamageToEachOther,
     NoPreventionThisTurn,
     PreventAllCombatDamage,
@@ -589,6 +589,7 @@ from .families.spells_and_misc import (  # noqa: F401
     NewTargetMustBe,
     NewTargets,
     OnPlayer,
+    BecomeTreasure,
     OnSubject,
     OnSubjectController,
     PARITY_PROMPT,
@@ -3219,6 +3220,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: GivePoison((m[1] or m[2]).lower(), _number(m[3]))),
     (re.compile(r"they get that many poison counters\.", re.I), lambda m: PlayerGetsPoison("X")),  # Etali, Primal Sickness: the damaged player
     (re.compile(r"that player gets a poison counter\.", re.I), lambda m: PlayerGetsPoison(1)),  # Swamp Mosquito: the player attacked
+    (re.compile(r"if target (player|opponent) has fewer than (nine|ten) poison counters, they get a number of poison counters equal to "
+                r"the difference\.", re.I), lambda m: PoisonUpTo({"nine": 9, "ten": 10}[m[2].lower()], m[1].lower())),  # Vraska, Betrayal's Sting
+    (re.compile(r'target creature becomes a Treasure artifact with "\{T\}, Sacrifice this artifact: Add one mana of any color" and loses all '
+                r"other card types and abilities\.", re.I), lambda m: BecomeTreasure()),  # Vraska, Betrayal's Sting
     (re.compile(r"target (player|opponent) gets (a|one|two|three) poison counters?\.", re.I),  # Venerated Rotpriest
      lambda m: TargetGetsPoison(_count(m[2]), m[1].lower())),
     (re.compile(r"then each creature your opponents control gets -1/-1 until end of turn for each poison counter its controller has\.", re.I),

@@ -448,6 +448,18 @@ class TargetGetsPoison:
 
 
 @dataclass(frozen=True)
+class PoisonUpTo:
+    """Vraska, Betrayal's Sting: "If target player has fewer than nine poison counters, they get a number of poison counters equal to the
+    difference." """
+    total: int
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:  # (none if it has that many already: give_poison gives no negative count)
+            game.give_poison(target, self.total - target.player_counters.get("poison", 0))
+
+
+@dataclass(frozen=True)
 class PlayerGetsPoison:
     """Etali, Primal Sickness: "they get that many poison counters": the player the trigger is about, X the damage it saw."""
     amount: Quantity
