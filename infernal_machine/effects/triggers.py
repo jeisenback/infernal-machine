@@ -213,10 +213,10 @@ _PLAYER_PRONOUNS = [
      r"target player \1 \2. Target player \3 \4."),
     (re.compile(r"\bdeals (\d+) damage to them\.", re.I), r"deals \1 damage to target player."),  # Razorkin Needlehead: the player who drew
     (re.compile(r"\bthey (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
-    (re.compile(r"\bthat (?:attacking )?player (loses|gains|draws|discards|mills|sacrifices)\b", re.I), r"target player \1"),
+    (re.compile(r"\b(?:that (?:attacking )?|the attacking )player (loses|gains|draws|discards|mills|sacrifices)\b", re.I), r"target player \1"),  # Norn's Decree: "the attacking player"
     (re.compile(r"\bhave that player (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
     (re.compile(r"\bto that player\b", re.I), "to target player"),
-    (re.compile(r"\bthat opponent (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),  # Tomik
+    (re.compile(r"\bthat opponent (loses|gains|draws|discards|mills|gets)\b", re.I), r"target player \1"),  # Tomik; Norn's Decree: "gets"
     (re.compile(r"\blook at that player's hand\b", re.I), "look at target player's hand"),  # Walker of Secret Ways
 ]
 

@@ -159,6 +159,10 @@ class Combat:
                     if defender is not watcher:
                         for permanent in list(watcher.battlefield):
                             self.game.trigger("attacks_opponent", permanent, watcher, player=seat, x=defender.index)
+            if any(a.defender.player_counters.get("poison", 0) > 0 for a in self.attacks):  # Norn's Decree: a player attacked is poisoned
+                for watcher in self.game.live_seats():
+                    for permanent in list(watcher.battlefield):
+                        self.game.trigger("player_attacks_poisoned", permanent, watcher, player=seat)
 
     def _myriad(self, permanent: Permanent, seat: Seat, defender: Seat) -> None:
         """Myriad: for each opponent other than the defending player, you may create a token copy of the creature that's tapped
@@ -351,6 +355,11 @@ class Combat:
                     self.game.trigger("tokens_combat_damage", permanent, hitter, subject=sources[0])
                 if artifacts := [s for s in sources if "Artifact" in s.card.type_line.partition("\u2014")[0]]:
                     self.game.trigger("artifact_creatures_combat_damage", permanent, hitter, subject=artifacts[0])
+        for (_, hit_index), (hitter, _) in hit_players.items():  # "Whenever one or more creatures an opponent controls deal combat damage to
+            hit = self.game.seats[hit_index]  # you": once for each opponent whose creatures hit you
+            if hit is not hitter:
+                for permanent in list(hit.battlefield):
+                    self.game.trigger("opponent_creatures_combat_damage_you", permanent, hit, player=hitter)
         for hitter in {id(h): h for h, _ in hit_players.values()}.values():  # "... to one or more players": once for the damage step
             sources = [s for h, hit in hit_players.values() if h is hitter for s in hit]
             for permanent in list(hitter.battlefield):
