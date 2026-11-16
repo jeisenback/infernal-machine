@@ -225,6 +225,7 @@ from .families.counters import (  # noqa: F401
     PutCounters,
     PutCountersOnChosenCreature,
     PutCountersOnEach,
+    LoyaltyOnEach,
     PutCountersOnEachUpToX,
     PutCountersOnEntered,
     PutCountersOnSource,
@@ -3278,6 +3279,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower(), another=True)),
     (re.compile(rf"(?:you may )?remove an? {_COUNTER} from {_SELF}\. If you do, (put .+ on each other creature you control\.)", re.I),
      lambda m: RemoveCounterFromSourceThen(_counter_name(m[1]), e) if (e := _template(m[2])) is not None else None),  # Guiding Hydra
+    (re.compile(rf"put {_N} {_COUNTER} on each creature you control and a loyalty counter on each planeswalker you control\.", re.I),
+     lambda m: [PutCountersOnEach(_count(m[1]), _counter_name(m[2])), LoyaltyOnEach()]),  # Brokers Ascendancy
     (re.compile(rf"put {_N} {_COUNTER} on each other creature you control\.", re.I),  # Guiding Hydra
      lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), other=True)),
     (re.compile(rf"put {_N} {_COUNTER} on each creature target player controls\.", re.I),  # Practiced Offense
