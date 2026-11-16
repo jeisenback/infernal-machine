@@ -126,6 +126,16 @@ class PhaseOutThat:
 
 
 @dataclass(frozen=True)
+class PhaseOutTarget:
+    """Teferi, Master of Time: "Target creature you don't control phases out." (CR 702.26)"""
+    target: str = "creature you don't control"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            game.phase_out(target)
+
+
+@dataclass(frozen=True)
 class ExileThatIf:
     """Dispatch: "Metalcraft \u2014 If you control three or more artifacts, exile that creature.": the target of the effect before it,
     exiled only if the condition holds as it resolves."""

@@ -1674,6 +1674,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     put it into your hand. Otherwise, you may put it on the bottom of your library." (`RevealTopToHand` with `may_bottom`), "Distribute
     three +1/+1 counters ... They gain vigilance until end of turn." (`DistributeCounters.grant`, only the creatures given one) and an
     emblem with "Whenever you cast a creature or planeswalker spell, ..." (a new cast kind).
+  - Teferi, Master of Time (`tests/test_teferi_master_of_time.py`): "You may activate loyalty abilities of Teferi on any player's turn
+    any time you could cast an instant." (`instant_loyalty`: `Game._can_activate` lets its loyalty abilities skip sorcery timing, still
+    once each turn), "Target creature you don't control phases out." (`PhaseOutTarget`) and "Take two extra turns after this one."
+    (`ExtraTurn(2)`).
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its

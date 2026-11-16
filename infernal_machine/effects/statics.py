@@ -1662,6 +1662,19 @@ def is_search_opposition_line(line: str) -> bool:
     return line in (_CONTROLS_SEARCHES, _EXILES_FOUND)
 
 
+_INSTANT_LOYALTY = "You may activate loyalty abilities of CARDNAME on any player's turn any time you could cast an instant."  # Teferi
+
+
+@lru_cache(maxsize=None)
+def instant_loyalty(card: Card) -> bool:
+    """Teferi, Master of Time: its loyalty abilities can be activated at instant speed, on any player's turn (CR 606.3 is lifted)."""
+    return _INSTANT_LOYALTY in rules_lines(card)
+
+
+def is_instant_loyalty_line(line: str) -> bool:
+    return line == _INSTANT_LOYALTY
+
+
 _EXTRA_VOTE = "While voting, you may vote an additional time."
 
 

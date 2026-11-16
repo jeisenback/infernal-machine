@@ -117,10 +117,11 @@ class NoAttacksThisTurn:
 
 @dataclass(frozen=True)
 class ExtraTurn:
-    """ "Take an extra turn after this one." """
+    """ "Take an extra turn after this one." Teferi, Master of Time: "Take two extra turns after this one." (`count`)"""
+    count: int = 1
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.extra_turns.append(controller.index)
+        game.extra_turns.extend([controller.index] * self.count)
 
 
 @dataclass(frozen=True)

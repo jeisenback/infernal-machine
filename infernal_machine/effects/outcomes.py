@@ -281,6 +281,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
 from .families.exile_and_return import (  # noqa: F401
     ExileThatIf,
     PhaseOutThat,
+    PhaseOutTarget,
     _LeftoversToGraveyard,
     _FreeIfFromGraveyard,
     ExileAttackers,
@@ -1981,6 +1982,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"destroy each artifact, creature, and enchantment with mana value X or less\.", re.I),
      lambda m: DestroyAll("artifact or creature or enchantment", MassFilter(stat="mana_value", at_most="X"))),
     (re.compile(rf"exile each {_PERMANENT_KIND}\.", re.I), lambda m: ExileAll(m[1].lower())),
+    (re.compile(r"target (creature you don't control|creature) phases out\.", re.I), lambda m: PhaseOutTarget(m[1].lower())),  # Teferi
     (re.compile(r"(?:it|that creature) phases out\.", re.I), lambda m: PhaseOutThat()),  # Slip Out the Back: the creature just targeted
     (re.compile(r"return each creature without a \+1/\+1 counter on it to its owner's hand\.", re.I),  # Wave Goodbye
      lambda m: ReturnAllToHand("creature", MassFilter(counters=False, counter="+1/+1"))),
@@ -3125,6 +3127,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"return an? {_CARD_TYPE} from your graveyard to your hand\.", re.I),
      lambda m: ReturnChosen(_card_kind(m[1]), "hand")),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
+    (re.compile(r"take two extra turns after this one\.", re.I), lambda m: ExtraTurn(2)),  # Teferi, Master of Time
     (re.compile(r"target player takes two extra turns after this one\.", re.I), lambda m: TargetExtraTurn(count=2)),  # Time Stretch
     (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),
     (re.compile(rf"return (?:{_SELF}|this card) to its owner's hand\.", re.I), lambda m: ReturnSelfToHand()),
