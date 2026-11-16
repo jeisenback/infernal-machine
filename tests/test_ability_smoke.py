@@ -24,6 +24,8 @@ MUTATIONS = [
     ("tools/ability_smoke.py", "    if lines := unsupported_lines(card):", "    if False:", "the reason: not fully playable"),
     ("tools/ability_smoke.py", "    if not abilities:\n", "    if False:\n", "the reason: no activated ability"),
     ("tools/ability_smoke.py", "    if kinds:\n", "    if False:\n", "the reason: a cost it builds no table for"),
+    ("tools/ability_smoke.py", "(\"sacrificing itself\", any(a.sacrifice for a in abilities))", "(\"sacrificing itself\", False)",
+     "the reason names a cost of sacrificing itself"),
 ]
 
 WARRENS = real("Goblin Warrens", "{3}{R}", "Enchantment", "{2}{R}, Sacrifice two Goblins: Create three 1/1 red Goblin creature tokens.", colors=("R",))
@@ -229,15 +231,15 @@ class OneCardTests(unittest.TestCase):
             code = ability_smoke.main(["ability_smoke.py", "--pool", pool.name, "--card", name])
         return code, out.getvalue()
 
-    def test_each_reason_nothing_was_tried(self):  # (Tap Probe: Skrelv's case, an ability that costs only mana and {T})
+    def test_each_reason_nothing_was_tried(self):  # (Tap Probe: Skrelv's case, only mana and {T}; Mind Stone: it sacrifices itself)
         stuck = real("Stuck Probe", "{2}", "Creature — Frog", "Frobnicate the widget whenever the moon is full.", "1", "1")
         vanilla = real("Vanilla Probe", "{1}", "Creature — Frog", "", "1", "1")
         crewed = real("Crew Probe", "{2}", "Artifact — Vehicle", "Crew 2", "3", "3")
-        pool = [data(c) for c in (stuck, vanilla, crewed, ELVES, TAP_PROBE)]
+        pool = [data(c) for c in (stuck, vanilla, crewed, ELVES, TAP_PROBE, MIND_STONE)]
         for name, reason in (("Missing Probe", "is not in the pool"), ("Stuck Probe", "is not fully playable"),
                              ("Vanilla Probe", "has no activated ability"), ("Crew Probe", "builds no table for: crew"),
                              ("Llanowar Elves", "has no activated ability other than mana abilities"),
-                             ("Tap Probe", "only mana and {T}")):
+                             ("Tap Probe", "(its costs: mana, {T};"), ("Mind Stone", "(its costs: mana, {T}, sacrificing itself;")):
             self.assertIn(reason, ability_smoke.nothing_tried(pool, name), name)
 
     def test_it_fails_when_nothing_was_tried_and_passes_when_something_was(self):

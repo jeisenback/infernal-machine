@@ -67,7 +67,7 @@ python tools/branch_report.py                  # against origin/main (about 2.5 
 python tools/play_smoke.py                     # every fully playable card casts or plays without an error (about a minute, across processes)
 python tools/ability_smoke.py                  # the costs of their activated abilities (sacrifice, discard, ...) are offered and paid (a card with a new cost: --card NAME)
                                                # --card fails when it tried nothing for the card and says why: a cost it builds no table
-                                               # for is one to teach it, as #789 did; only mana and {T} is play_smoke's to check
+                                               # for is one to teach it, as #789 did; mana, {T} and sacrificing itself are play_smoke's to check
 ```
 
 To reproduce a CI failure:

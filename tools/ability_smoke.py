@@ -220,7 +220,9 @@ def nothing_tried(pool: list[dict], name: str) -> str:
     kinds = sorted({reason for ability in abilities if (reason := untried(ability))})
     if kinds:
         return f"{name} has a cost this tool builds no table for: {', '.join(kinds)}"
-    return f"{name} has no ability with a cost this tool checks (only mana and {{T}}, which play_smoke checks)"
+    parts = [part for part, has in (("mana", any(a.mana_cost for a in abilities)), ("{T}", any(a.tap for a in abilities)),
+                                    ("sacrificing itself", any(a.sacrifice for a in abilities))) if has]
+    return f"{name} has no ability with a cost this tool checks (its costs: {', '.join(parts) or 'none'}; play_smoke pays those)"
 
 
 def check(pool: list[dict], limit: int | None = None, only: str | None = None):
