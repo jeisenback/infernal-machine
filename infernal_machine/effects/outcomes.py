@@ -592,6 +592,7 @@ from .families.spells_and_misc import (  # noqa: F401
     NewTargets,
     OnPlayer,
     BecomeTreasure,
+    BecomeElk,
     OnSubject,
     OnSubjectController,
     PARITY_PROMPT,
@@ -720,6 +721,8 @@ from .families.turns_and_control import (  # noqa: F401
     ExtraCombat,
     ExtraLandDrop,
     ExtraTurn,
+    ExchangeFirst,
+    ExchangeControl,
     GainControl,
     GoadEachOfTarget,
     OpponentsCantCast,
@@ -3235,6 +3238,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"that player gets a poison counter\.", re.I), lambda m: PlayerGetsPoison(1)),  # Swamp Mosquito: the player attacked
     (re.compile(r"if target (player|opponent) has fewer than (nine|ten) poison counters, they get a number of poison counters equal to "
                 r"the difference\.", re.I), lambda m: PoisonUpTo({"nine": 9, "ten": 10}[m[2].lower()], m[1].lower())),  # Vraska, Betrayal's Sting
+    (re.compile(r"target artifact or creature loses all abilities and becomes a green Elk creature with base power and toughness 3/3\.",
+                re.I), lambda m: BecomeElk()),  # Oko, Thief of Crowns
+    (re.compile(r"exchange control of target artifact or creature you control and target creature an opponent controls with power 3 or "
+                r"less\.", re.I), lambda m: [ExchangeFirst(), ExchangeControl()]),  # Oko, Thief of Crowns
     (re.compile(r'target creature becomes a Treasure artifact with "\{T\}, Sacrifice this artifact: Add one mana of any color" and loses all '
                 r"other card types and abilities\.", re.I), lambda m: BecomeTreasure()),  # Vraska, Betrayal's Sting
     (re.compile(r"target (player|opponent) gets (a|one|two|three) poison counters?\.", re.I),  # Venerated Rotpriest
