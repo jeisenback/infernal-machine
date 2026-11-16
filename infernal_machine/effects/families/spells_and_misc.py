@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
@@ -811,3 +813,18 @@ class HexproofFromThisTurn:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         controller.hexproof_from = (game.turn, self.colors)
+
+
+@dataclass(frozen=True)
+class BecomeTreasure:
+    """Vraska, Betrayal's Sting: "Target creature becomes a Treasure artifact with "{T}, Sacrifice this artifact: Add one mana of any color"
+    and loses all other card types and abilities." For good: its name, colors, mana cost and supertypes stay (Game.become_card: it leaves as its real card)."""
+    target: str = "creature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            was = target.card  # what it is now (a Clone keeps the name it copied: CR 613.1a before 613.1d)
+            supertypes = [w for w in was.type_line.partition("\u2014")[0].split() if w in ("Legendary", "Snow", "World")]
+            game.become_card(target, dataclasses.replace(
+                was, type_line=" ".join(supertypes + ["Artifact \u2014 Treasure"]), power=None, toughness=None, loyalty=None,
+                oracle_text="{T}, Sacrifice this artifact: Add one mana of any color."))
