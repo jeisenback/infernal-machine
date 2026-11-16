@@ -10,7 +10,7 @@ from typing import Any, TYPE_CHECKING
 from ...cards import Card
 from ...characteristics import Modifier
 from ..common import HEXPROOF_FROM_COLOR, NOT_BLOCKED_BY, Quantity
-from ..targets import PLAYER, SOURCE, SUBJECT
+from ..targets import DEAD_SOURCE, PLAYER, SOURCE, SUBJECT
 from .base import Condition
 from ...prompts import PromptKind
 
@@ -565,6 +565,17 @@ class BecomeCreature:
 class Explore:
     """ "Target creature you control explores." (CR 701.44; the Map token's ability)"""
     target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.explore(controller, target)
+
+
+@dataclass(frozen=True)
+class ExploreSelf:
+    """ "When this creature enters, it explores." (CR 701.44): the source explores, even if it has left the battlefield by then (its
+    controller still reveals the card; only the counter is lost)."""
+    binds = DEAD_SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:

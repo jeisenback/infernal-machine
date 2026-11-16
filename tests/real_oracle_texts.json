@@ -2524,6 +2524,171 @@
    "produced_mana": [
     "U"
    ]
+  },
+  {
+   "name": "Cenote Scout",
+   "mana_cost": "{G}",
+   "type_line": "Creature — Merfolk Scout",
+   "oracle_text": "When this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Pathfinding Axejaw",
+   "mana_cost": "{3}{G}",
+   "type_line": "Creature — Dinosaur",
+   "oracle_text": "When this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "4",
+   "toughness": "3",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Merfolk Branchwalker",
+   "mana_cost": "{1}{G}",
+   "type_line": "Creature — Merfolk Scout",
+   "oracle_text": "When this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "River Herald Scout",
+   "mana_cost": "{1}{U}",
+   "type_line": "Creature — Merfolk Scout",
+   "oracle_text": "When this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "1",
+   "toughness": "2",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "River Herald Guide",
+   "mana_cost": "{2}{G}",
+   "type_line": "Creature — Merfolk Scout",
+   "oracle_text": "Vigilance\nWhen this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "3",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Siren Lookout",
+   "mana_cost": "{2}{U}",
+   "type_line": "Creature — Siren Pirate",
+   "oracle_text": "Flying\nWhen this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "1",
+   "toughness": "2",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Tishana's Wayfinder",
+   "mana_cost": "{2}{G}",
+   "type_line": "Creature — Merfolk Scout",
+   "oracle_text": "When this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Ixalli's Diviner",
+   "mana_cost": "{1}{G}",
+   "type_line": "Creature — Human Druid",
+   "oracle_text": "When this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "0",
+   "toughness": "3",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Kinjalli's Dawnrunner",
+   "mana_cost": "{2}{W}",
+   "type_line": "Creature — Human Scout",
+   "oracle_text": "Double strike\nWhen this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Brazen Buccaneers",
+   "mana_cost": "{3}{R}",
+   "type_line": "Creature — Human Pirate",
+   "oracle_text": "Haste\nWhen this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Dire Fleet Interloper",
+   "mana_cost": "{3}{B}",
+   "type_line": "Creature — Human Pirate",
+   "oracle_text": "Menace\nWhen this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Seekers' Squire",
+   "mana_cost": "{1}{B}",
+   "type_line": "Creature — Human Scout",
+   "oracle_text": "When this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "1",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Queen's Agent",
+   "mana_cost": "{5}{B}",
+   "type_line": "Creature — Vampire Scout",
+   "oracle_text": "Lifelink\nWhen this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Emissary of Sunrise",
+   "mana_cost": "{2}{W}",
+   "type_line": "Creature — Human Cleric",
+   "oracle_text": "First strike\nWhen this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Sunrise Seeker",
+   "mana_cost": "{4}{W}",
+   "type_line": "Creature — Human Scout",
+   "oracle_text": "Vigilance\nWhen this creature enters, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "W"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

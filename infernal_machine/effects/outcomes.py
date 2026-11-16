@@ -96,6 +96,7 @@ from .families.combat_and_pump import (  # noqa: F401
     TargetPrepared,
     Transform,
     Explore,
+    ExploreSelf,
     RevealTopTransform,
     Unattach,
     _RecallAttachment,
@@ -2954,6 +2955,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [TargetLoseLife(_number(m[1]), "player"), PutCountersOnSource(_number(m[2]), "+1/+1")]),  # Ob Nixilis, the Fallen ("you may have ..." as the trigger rewrote it)
     (re.compile(r"untap that creature\.", re.I), lambda m: UntapThat()),
     (re.compile(r"target (creature you control) explores\.", re.I), lambda m: Explore(m[1].lower())),  # the Map token
+    (re.compile(r"(?:it|CARDNAME|this creature) explores\.", re.I), lambda m: ExploreSelf()),  # Cenote Scout: on entering
     (re.compile(rf"choose (creature) or (land)\. reveal the top {_N_FIXED} cards of your library\. put all cards of the chosen type revealed "
                 r"this way into your hand and the rest into your graveyard\.", re.I),
      lambda m: ChooseTypeRevealTop((m[1].lower(), m[2].lower()), _number(m[3]))),  # Winding Way
