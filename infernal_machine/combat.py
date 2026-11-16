@@ -351,6 +351,10 @@ class Combat:
                     self.game.trigger("tokens_combat_damage", permanent, hitter, subject=sources[0])
                 if artifacts := [s for s in sources if "Artifact" in s.card.type_line.partition("\u2014")[0]]:
                     self.game.trigger("artifact_creatures_combat_damage", permanent, hitter, subject=artifacts[0])
+        for hitter in {id(h): h for h, _ in hit_players.values()}.values():  # "... to one or more players": once for the damage step
+            sources = [s for h, hit in hit_players.values() if h is hitter for s in hit]
+            for permanent in list(hitter.battlefield):
+                self.game.trigger("creatures_combat_damage_players", permanent, hitter, subject=sources[0])
 
     def _assign(self, attacker: Permanent, controller: Seat, blockers: list[Permanent], defender: Seat | Permanent | None,
                 amount: int) -> list[tuple[Permanent, Seat | Permanent, int]]:
