@@ -1636,6 +1636,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     "Foods you control have all activated abilities of all creature cards exiled with this creature." (`exiled_abilities_kind`:
     `Game._activations` gives each Food the activated abilities of the creature cards still in exile in its `exiled_with`; their mana
     abilities are not given).
+  - Opposition Agent (`tests/test_opposition_agent.py`): "You control your opponents while they're searching their libraries." and "While
+    an opponent is searching their library, they exile each card they find. ..." (`opposes_searches`; `Game._searcher` asks the
+    Agent's controller the search's choices, CR 722.2, and `Game._found` exiles each card found for them, playable for as long as it
+    remains exiled with mana of any type, in `tutor`, `fetch_basic_land`, `search_for_lands`, `search_library_or_graveyard`,
+    `transmute_artifact` and `search_cast_free`).
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its

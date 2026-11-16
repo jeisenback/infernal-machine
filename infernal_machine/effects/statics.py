@@ -1646,6 +1646,22 @@ def is_no_max_hand_line(line: str) -> bool:
     return line in (_NO_MAX_HAND, _NO_MAX_HAND_ALL)
 
 
+# Opposition Agent (CR 701.19, 722: controlling another player; Game._searcher and Game._found).
+_CONTROLS_SEARCHES = "You control your opponents while they're searching their libraries."
+_EXILES_FOUND = ("While an opponent is searching their library, they exile each card they find. You may play those cards for as long as "
+                 "they remain exiled, and you may spend mana as though it were mana of any color to cast them.")
+
+
+@lru_cache(maxsize=None)
+def opposes_searches(card: Card) -> bool:
+    """Opposition Agent: an opponent's library searches are made by this card's controller, and what they find is exiled for them."""
+    return _EXILES_FOUND in rules_lines(card)
+
+
+def is_search_opposition_line(line: str) -> bool:
+    return line in (_CONTROLS_SEARCHES, _EXILES_FOUND)
+
+
 _EXTRA_VOTE = "While voting, you may vote an additional time."
 
 
