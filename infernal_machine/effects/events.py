@@ -177,6 +177,8 @@ declare("ally_combat_damage", re.compile(r"Whenever a creature you control deals
 # player dealt damage is carried: Grenzo, Havoc Raiser's "that player" in a mode)
 declare("self_or_enchanted_combat_damage",  # Calix, Guided by Fate
         re.compile(rf"Whenever {_SELF} or an enchanted creature you control deals combat damage to a player, (.+)", re.I))
+declare("combat_damage_to_you", re.compile(r"Whenever a creature deals combat damage to you, (.+)", re.I), to="you",
+        happens="combat_damaged")  # The Cabbage Merchant: the player dealt the damage hears it
 declare("combat_damage_to_your_opponent", re.compile(r"Whenever a creature deals combat damage to one of your opponents, (.+)", re.I),
         to="opponents", happens="combat_damaged", about_creature=True)  # Gix, Yawgmoth Praetor: any creature, the player's opponents hear it
 declare("ally_noncombat_damage", re.compile(r"Whenever a source you control deals noncombat damage to an opponent, (.+)", re.I), about_creature=True)  # Niv-Mizzet, Visionary

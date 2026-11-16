@@ -1627,6 +1627,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Fae-Cursed King).
   - Gleaming Splendor (`tests/test_gleaming_splendor.py`): "Two target players each draw a card." (two `TargetDraw` with `distinct`: two
     different players, CR 115.3).
+  - The Cabbage Merchant (`tests/test_cabbage_merchant.py`): "Whenever a creature deals combat damage to you, sacrifice a Food token."
+    (the event `combat_damage_to_you`, heard by the player dealt combat damage; "a Food/Treasure/Clue token" is read as that kind).
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its

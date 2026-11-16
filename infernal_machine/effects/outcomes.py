@@ -3242,6 +3242,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"sacrifice another (permanent|creature|artifact|land|nonland permanent)\.", re.I), lambda m: SacrificeAnother(m[1].lower())),  # Korvold
     (re.compile(rf"(?:you )?sacrifice (a|an|one|two|three) {_SACRIFICE_KIND}\.", re.I),
      lambda m: EachSacrifices("you", m[2].lower(), _count(m[1]))),
+    (re.compile(r"(?:you )?sacrifice (a|an) (food|treasure|clue) token\.", re.I),  # The Cabbage Merchant: these are always tokens
+     lambda m: EachSacrifices("you", m[2].lower(), 1)),
     (re.compile(rf"(?:you )?sacrifice (two|three|four|five) {_SACRIFICE_PLURAL}\.", re.I),
      lambda m: EachSacrifices("you", _PLURAL_SACRIFICE[m[2].lower()], _count(m[1]))),
     (re.compile(rf"sacrifice {_SELF} unless you return an untapped ({_LAND_TYPE}) you control to its owner's hand\.", re.I),
