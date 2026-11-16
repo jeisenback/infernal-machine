@@ -1324,6 +1324,16 @@ _ATTACHED_MUTATION = re.compile(r"Enchanted creature is an Insect artifact creat
                                 r"indestructible, and it loses all other abilities, card types, and creature types\.")
 
 
+# Swift Reconfiguration: the host's card is swapped for a Vehicle artifact with crew N while the Aura is attached (Game._vehicles).
+_ATTACHED_VEHICLE = re.compile(r"Enchanted permanent is a Vehicle artifact with crew (\d+) and it loses all other card types\.")
+
+
+@lru_cache(maxsize=None)
+def vehicle_crew(card: Card) -> int:
+    """The N of an Aura's "Enchanted permanent is a Vehicle artifact with crew N and it loses all other card types.", or 0."""
+    return next((int(m[1]) for line in rules_lines(card) if (m := _ATTACHED_VEHICLE.fullmatch(line))), 0)
+
+
 _ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS}"
                        r"|can't attack or block|gets ([+\-\u2212]\d+)/([+\-\u2212]\d+) and loses (flying))\.")  # Colossus Hammer
 
@@ -1496,6 +1506,8 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
             keywords = _keyword_list(m["kw"]) if m["kw"] else frozenset()
             buffs.append(AttachedBuff(Modifier(_signed(m["p"]), _signed(m["t"]), keywords) if m["p"] else Modifier(keywords=keywords), line,
                                       subtype=m["kind"]))
+        elif _ATTACHED_VEHICLE.fullmatch(line):  # the type change itself is Game._vehicles
+            buffs.append(AttachedBuff(Modifier(), line))
         elif _ATTACHED_MUTATION.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(keywords=frozenset({"indestructible", LOSES_ALL}), set_pt=(0, 1)), line))
         elif _ATTACHED_LOSES.fullmatch(line):  # Infinite Coursework

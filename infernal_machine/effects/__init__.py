@@ -282,6 +282,7 @@ from .statics import (  # noqa: F401
     additional_land_mana,
     annihilator_of,
     attached_abilities,
+    vehicle_crew,
     granted_triggers,
     AttackTax,
     attack_tax_per_counter,
