@@ -1625,6 +1625,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Gleaming Splendor (`tests/test_gleaming_splendor.py`): "Two target players each draw a card." (two `TargetDraw` with `distinct`: two
+    different players, CR 115.3).
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its

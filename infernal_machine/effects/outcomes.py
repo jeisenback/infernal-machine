@@ -2360,6 +2360,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N_FIXED} damage to each other opponent\.", re.I), lambda m: DamageEachOtherOpponent(_number(m[1]))),  # Parapet Thrasher
     (re.compile(r"you may discard a card\.", re.I), lambda m: _MayDiscard()),
     (re.compile(r"you may discard a card\. (If|When) you do, (?!draw )(.+)", re.I), _may_discard_then),  # Party Thrasher; Inti
+    (re.compile(rf"two target players each draw {_N} cards?\.", re.I),  # Gleaming Splendor: two different players (CR 115.3)
+     lambda m: [TargetDraw(_count(m[1]), distinct=True), TargetDraw(_count(m[1]), distinct=True)]),
     (re.compile(r"sacrifice an artifact\. If you do, search your library for an artifact card\. If that card's mana value is less than or "
                 r"equal to the sacrificed artifact's mana value, put it onto the battlefield\. If it's greater, you may pay \{X\}, where X is the "
                 r"difference\. If you do, put it onto the battlefield\. If you don't, put it into its owner's graveyard\. Then shuffle\.", re.I),
