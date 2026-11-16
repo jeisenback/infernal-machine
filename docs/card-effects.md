@@ -1644,6 +1644,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Contaminant Grafter (`tests/test_contaminant_grafter.py`): "Whenever one or more creatures you control deal combat damage to one or
     more players, proliferate." (the event `creatures_combat_damage_players`, fired once for each player whose creatures hit anyone in
     the damage step, however many players were hit; "to a player" stays once per player hit).
+  - Voidwing Hybrid (`tests/test_voidwing_hybrid.py`): "When you proliferate, return this card from your graveyard to your hand." (the
+    `proliferate` event also reads "When"; `Game.proliferate` lets the cards in the graveyard that return themselves hear it).
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its
