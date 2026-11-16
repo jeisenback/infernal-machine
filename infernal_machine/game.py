@@ -30,7 +30,7 @@ from . import casting
 from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, MILLED, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects.common import colors_spent
-from .effects import (CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
+from .effects import (vehicle_crew, CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, begins_with_luck, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
                       SacrificeSelf,
@@ -368,6 +368,7 @@ class Permanent:
     control_eot: bool = False  # control changes back at end of turn (Threaten)
     original: "Card | None" = None  # a crewed Vehicle's real card, while it is an artifact creature
     reconfigured: "Card | None" = None  # an Equipment creature's real card, while it is attached (and not a creature)
+    vehicled: "Card | None" = None  # Swift Reconfiguration: the real card, while an Aura makes it a Vehicle artifact (Game._vehicles)
     attacked_turn: int | None = None  # the last turn it attacked
     lured_turn: int = 0  # the turn all creatures able to block it have to ("All creatures able to block target creature this turn do so.")
     must_block_turn: int = 0  # the turn it has to block if able ("Target creature blocks this turn if able.")
@@ -7783,6 +7784,8 @@ class Game:
                 permanent.card, permanent.reconfigured = permanent.reconfigured, None
             if permanent.original is not None:  # a crewed Vehicle goes back to being just a card
                 permanent.card, permanent.original = permanent.original, None
+            if permanent.vehicled is not None:  # after the crew: a crewed one's `original` is the Vehicle the Aura made it
+                permanent.card, permanent.vehicled = permanent.vehicled, None
             where = destination
             if destination == "graveyard" and permanent.paragon_life is not None:  # "exile it and you gain 2 life"
                 where = "exile"
@@ -8227,11 +8230,31 @@ class Game:
                     if partner.paired is p:
                         partner.paired = None
 
+    def _vehicles(self) -> None:
+        """Swift Reconfiguration: "Enchanted permanent is a Vehicle artifact with crew N and it loses all other card types." While such an
+        Aura is attached, the permanent's card is that Vehicle (its supertypes, abilities and power and toughness kept, with "Crew N"
+        added); once no such Aura is, its real card is back (CR 205.1a, 613.1d: a type-changing effect lasts while the Aura does)."""
+        crews = {id(a.attached_to): n for s in self.seats for a in s.battlefield
+                 if a.attached_to is not None and (n := vehicle_crew(a.card))}
+        for seat in self.seats:
+            for permanent in seat.battlefield:
+                n = crews.get(id(permanent), 0)
+                if n and permanent.vehicled is None:
+                    real = permanent.original or permanent.card
+                    supertypes = [w for w in real.type_line.partition("\u2014")[0].split() if w in ("Legendary", "Snow", "Basic", "World")]
+                    permanent.vehicled, permanent.original = real, None
+                    permanent.card = dataclasses.replace(real, type_line=" ".join(supertypes + ["Artifact \u2014 Vehicle"]),
+                                                         oracle_text=f"{real.oracle_text}\nCrew {n}".lstrip())
+                    self.broadcast({"event": "became_vehicle", "card": real.name, "crew": n})
+                elif not n and permanent.vehicled is not None:
+                    permanent.card, permanent.vehicled, permanent.original = permanent.vehicled, None, None
+
     def _check_state(self) -> None:
         """State-based actions (CR 704.5): losing the game, lethal damage, zero toughness or loyalty."""
         while True:
             changed = False
             self._unpair()
+            self._vehicles()
             for seat in self.live_seats():
                 if seat.speed == 0 and any(self.has_keyword(p, "start your engines!") for p in seat.battlefield):  # CR 702.179: speed starts at 1
                     seat.speed = 1
