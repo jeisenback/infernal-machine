@@ -1667,6 +1667,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     that color until end of turn. It can't be blocked by creatures of that color this turn." (`ChosenColorShield`, `Game.choose_color`:
     the keywords "toxic N", `HEXPROOF_FROM_COLOR` + the color and `NOT_BLOCKED_BY` + "color:" + the color, read by combat damage,
     `Game.target_options` and `Combat._can_block`).
+  - Tekuthal, Inquiry Dominus (`tests/test_tekuthal.py`): the cost "Remove three counters from among other artifacts, creatures, and
+    planeswalkers you control" (`ActivatedAbility.remove_among`; `Game._counters_among`, loyalty included; payable only with that many,
+    removed one at a time with `REMOVE_AMONG_PROMPT`).
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its

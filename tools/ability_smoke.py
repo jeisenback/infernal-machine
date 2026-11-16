@@ -119,6 +119,8 @@ def build(card: Card, ability: ActivatedAbility) -> Setup:
         on_table += [Permanent(probe(ability.sacrifice_other, f"Fodder {n}"), sick=False) for n in range(spare(ability))]
     if ability.tap_creatures:
         on_table += [Permanent(probe("creature", f"Tapper {n}"), sick=False) for n in range(ability.tap_creatures)]
+    if ability.remove_among:  # Tekuthal: a +1/+1 counter on each of that many other creatures
+        on_table += [Permanent(probe("creature", f"Holder {n}"), counters={"+1/+1": 1}) for n in range(ability.remove_among)]
     fodder = list(on_table)
     source = None
     if any(kind in card.type_line.split(" // ")[0] for kind in PERMANENT_TYPES) and not ability.from_graveyard:
@@ -165,6 +167,8 @@ def unpaid(setup: Setup, ability: ActivatedAbility, life_paid: int) -> str | Non
         return "remove counters"
     if ability.tap_creatures and sum(p.tapped for p in setup.fodder) < ability.tap_creatures:
         return "tap creatures"
+    if ability.remove_among and any(p.counters.get("+1/+1") for p in setup.fodder if p.card.name.startswith("Holder")):
+        return "remove counters from among others"
     if ability.life and life_paid < ability.life:
         return "pay life"
     if ability.mana_cost and "{X}" not in ability.mana_cost and not any(p.tapped or not on_battlefield(p) for p in setup.lands):
@@ -214,7 +218,7 @@ def check(pool: list[dict], limit: int | None = None, only: str | None = None):
                 skipped[reason] += 1
                 continue
             if not (ability.sacrifice_other or ability.discard or ability.exile_graveyard or ability.remove_counter or ability.tap_creatures
-                    or ability.life):
+                    or ability.life or ability.remove_among):
                 continue  # a plain mana or {T} ability: its cost is play_smoke's
             if limit is not None and tried >= limit:
                 return tried, paid, problems, skipped

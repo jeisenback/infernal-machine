@@ -260,6 +260,7 @@ MAX_TARGETS = 30  # a bound on "any number of target ..."
 MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
 LIFE_X_PROMPT = PromptKind("life_x", "Pay how much life (X) for ")  # followed by the spell's name; options are the numbers
+REMOVE_AMONG_PROMPT = PromptKind("remove_among", "Remove a counter from ")  # followed by the ability's source; Tekuthal's cost
 REMOVE_COUNTER_PROMPT = PromptKind("remove_counter", "Remove a counter to draw a card? ")  # followed by the permanent's name
 ATTACH_PROMPT = PromptKind("attach", "Attach it to the new token? ")  # followed by the Aura's name
 MAY_PAY_PROMPT = PromptKind("may_pay", "Pay the cost for ")  # followed by the source's name; options are "Pay <cost>" and "Don't pay"
@@ -1379,6 +1380,8 @@ class Game:
             return False
         if ability.remove_counter and source is not None and source.counters.get(ability.remove_counter, 0) < ability.remove_count:
             return False
+        if ability.remove_among and sum(n for _, _, n in self._counters_among(seat, source)) < ability.remove_among:
+            return False
         if ability.bounce_other and not any(_permanent_matches(ability.bounce_other, p.card) for p in seat.battlefield):
             return False
         if ability.craft and not self._craft_choices(seat, source, ability.craft):
@@ -1621,6 +1624,13 @@ class Game:
             self._left_graveyard(seat)
         if ability.remove_counter and source is not None:
             self.remove_counters(source, ability.remove_counter, ability.remove_count)
+        for _ in range(ability.remove_among):  # Tekuthal: one counter at a time, from any of them (CR 118.3)
+            held = self._counters_among(seat, source)
+            permanent, kind, _ = held[seat.player.choose(REMOVE_AMONG_PROMPT(name), [f"{self.label(p)}: {k}" for p, k, _ in held])]
+            if kind == "loyalty":
+                permanent.loyalty = (permanent.loyalty or 0) - 1
+            else:
+                self.remove_counters(permanent, kind, 1)
         if ability.put_counter and source is not None:
             self.put_counters(source, ability.put_counter, 1, by=seat)
         self._pay_sacrifice_cost(seat, name, source, ability, sacrifice_x if ability.sacrifice_x else None)
@@ -4287,6 +4297,17 @@ class Game:
         """`seat` gets (or pays) energy counters, {E} (CR 122.1, 107.14)."""
         seat.player_counters["energy"] = seat.player_counters.get("energy", 0) + amount
         self.broadcast({"event": "energy", "seat": seat.index, "change": amount, "total": seat.player_counters["energy"]})
+
+    def _counters_among(self, seat: Seat, source: Permanent | None) -> list[tuple[Permanent, str, int]]:
+        """The counters on `seat`'s other artifacts, creatures and planeswalkers, as (permanent, kind, how many); loyalty counts."""
+        held = []
+        for permanent in seat.battlefield:
+            if permanent is source or not any(t in permanent.card.type_line for t in ("Artifact", "Creature", "Planeswalker")):
+                continue
+            held += [(permanent, kind, n) for kind, n in permanent.counters.items() if n > 0]
+            if permanent.loyalty and "Planeswalker" in permanent.card.type_line:
+                held.append((permanent, "loyalty", permanent.loyalty))
+        return held
 
     def choose_color(self, seat: Seat, name: str) -> str:
         """ "Choose a color.": the color letter `seat` chooses, for the card named `name`."""

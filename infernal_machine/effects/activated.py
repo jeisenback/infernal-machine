@@ -98,6 +98,7 @@ class ActivatedAbility:
     reconfigure: str = ""  # "attach" (only with another creature to attach to) or "unattach" (only while attached)
     remove_counter: str = ""  # "Remove a +1/+1 counter from this creature": the kind of counter
     remove_count: int = 1  # ... and how many ("Remove three spore counters")
+    remove_among: int = 0  # Tekuthal: "Remove three counters from among other artifacts, creatures, and planeswalkers you control"
     put_counter: str = ""  # "Put a -1/-1 counter on this creature": the kind of counter put on the source as a cost (CR 118.3: always payable)
     condition: "Condition | None" = None  # "Activate only if you control two or more white permanents."
     discard_self: bool = False  # "Discard this card": activated from the hand, like cycling (Magma Opus)
@@ -175,6 +176,7 @@ _SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four|X) (?:othe
 
 
 _REMOVE_COUNTER_COST = re.compile(rf"Remove {_N_FIXED} {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
+_REMOVE_AMONG_COST = re.compile(r"Remove (two|three|four|five) counters from among other artifacts\|creatures\|planeswalkers you control")
 _PUT_COUNTER_COST = re.compile(rf"Put an? {_COUNTER} on (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")  # Devoted Druid
 
 
@@ -286,6 +288,7 @@ def hand_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
 def _cost_fields(cost: str) -> dict[str, Any] | None:
     """The fields of an ActivatedAbility that a cost sets ("{1}, {T}, Pay 2 life"), or None if any part isn't understood."""
     fields: dict[str, Any] = {}
+    cost = cost.replace("artifacts, creatures, and planeswalkers", "artifacts|creatures|planeswalkers")  # one part (Tekuthal), not three
     for part in cost.split(", "):
         if _MANA_PART.fullmatch(part):
             fields["mana_cost"] = fields.get("mana_cost", "") + part
@@ -337,6 +340,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields.update(exile_graveyard=_NUMBER[m[1]], exile_graveyard_kind=m[2] or "")
         elif m := _REMOVE_COUNTER_COST.fullmatch(part):
             fields.update(remove_counter=_counter_name(m[2]), remove_count=_number(m[1]))
+        elif m := _REMOVE_AMONG_COST.fullmatch(part):
+            fields["remove_among"] = _NUMBER[m[1]]
         elif m := _PUT_COUNTER_COST.fullmatch(part):
             fields["put_counter"] = _counter_name(m[1])
         else:
