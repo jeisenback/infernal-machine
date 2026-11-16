@@ -536,9 +536,12 @@ class DelayedTrigger:
     next_turn: bool = False  # "until the end of your next turn": it lasts through the controller's next turn
     only: "Permanent | None" = None  # "Whenever that creature deals combat damage ...": the creature it is about
     when: frozenset = frozenset()  # ... and the kinds of hit that set it off (Game._remembered)
+    until_your_turn: bool = False  # Tamiyo, Field Researcher: "Until your next turn, ...": gone as the controller's next turn begins
 
     def expired(self, game: "Game") -> bool:
         """Checked as a turn's cleanup step ends (CR 514.2)."""
+        if self.until_your_turn:
+            return False  # (Game._turn_based_actions ends it, at the controller's untap step)
         return not self.next_turn or (game.turn > self.born and game.active == self.controller.index)
 
 
@@ -931,6 +934,7 @@ class Game:
         if self.step == "untap":
             self._update_day_night()
             seat.protected = seat.life_locked = seat.sorcery_flash = False  # "until your next turn"
+            self.delayed = [d for d in self.delayed if not (d.until_your_turn and d.controller is seat)]  # Tamiyo, Field Researcher
             self.combat = Combat(self)
             seat.battlefield += seat.phased_out  # they phase in first, then untap with everything else
             seat.phased_out = []
@@ -3297,11 +3301,11 @@ class Game:
                 self.pending[-1] = dataclasses.replace(self.pending[-1], sacrificed_power=sacrificed_power)
 
     def add_delayed(self, ability: TriggeredAbility, item: "StackItem", controller: Seat, next_turn: bool = False,
-                    only: Permanent | None = None, when: frozenset = frozenset()) -> None:
+                    only: Permanent | None = None, when: frozenset = frozenset(), until_your_turn: bool = False) -> None:
         """Set up `ability` for `controller` (CR 603.7): it watches until the turn ends, or the controller's next turn does. A spell
         that was kicked passes that on to its delayed ability's "if this spell was kicked"."""
         watcher = Permanent(item.card, kicked=item.kicked, kickers=item.kickers)
-        self.delayed.append(DelayedTrigger(ability, watcher, controller, self.turn, next_turn, only, when))
+        self.delayed.append(DelayedTrigger(ability, watcher, controller, self.turn, next_turn, only, when, until_your_turn))
 
     def _remembered(self, creature: Permanent, kinds: set[str], amount: int = 0, player: Seat | None = None) -> None:
         """`creature` did something (dealt damage ...) that a delayed ability about that creature watches for."""
