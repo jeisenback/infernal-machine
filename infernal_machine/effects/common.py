@@ -306,6 +306,8 @@ _WHOLE_LINE = re.compile(
     r"|Exile the top card of your library\. You may put that card into your hand unless it has the same name as another card exiled this way\. Repeat this process until you put a card into your hand or you exile two cards with the same name, whichever comes first\."  # Tainted Pact
     r"|[Ee]xile the top card of each opponent's library\. Until end of turn, you may cast spells from among those exiled cards, and you may spend mana as though it were mana of any color to cast those spells\."  # Stolen Strategy
     r"|[Ee]xile the top card of each opponent's library\. You may play those cards for as long as they remain exiled\. If you cast a spell this way, you may spend mana as though it were mana of any color to cast it\."  # Brainstealer Dragon
+    r"|[Cc]hoose a color\. Another target creature you control gains toxic \d+ and hexproof from that color until end of turn\. It can't be "
+    r"blocked by creatures of that color this turn\."  # Skrelv, Defector Mite
     r"|[Ee]ach opponent who has three or more poison counters exiles the top card of their library face down\. You may look at and play "
     r"those cards for as long as they remain exiled, and you may spend mana as though it were mana of any color to cast those spells\."  # Ixhel
     r"|[Ee]xile the top card of that player's library\. You may play that card for as long as it remains exiled, and you may spend mana as though it were mana of any color to cast it\."  # Cunning Rhetoric
@@ -561,6 +563,8 @@ PROTECTION_CHOSEN = "protection from the chosen color"  # Flickering Ward: Game.
 
 CANT_BE_BLOCKED = "can't be blocked"
 ONLY_BLOCKED_BY = "only blocked by "  # + a blocker test ("keyword:haste", "type:Wall"): "can't be blocked this turn except by ..."
+NOT_BLOCKED_BY = "not blocked by "  # + a blocker test ("color:B"): Skrelv, Defector Mite: "It can't be blocked by creatures of that color this turn."
+HEXPROOF_FROM_COLOR = "hexproof from color:"  # + a color letter: Skrelv, Defector Mite: "hexproof from that color"
 
 
 MUST_ATTACK = "attacks each combat if able"

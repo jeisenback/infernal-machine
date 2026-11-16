@@ -9,7 +9,7 @@ from typing import Any, TYPE_CHECKING
 
 from ...cards import Card
 from ...characteristics import Modifier
-from ..common import Quantity
+from ..common import HEXPROOF_FROM_COLOR, NOT_BLOCKED_BY, Quantity
 from ..targets import PLAYER, SOURCE, SUBJECT
 from .base import Condition
 from ...prompts import PromptKind
@@ -705,3 +705,19 @@ class PayOrCantAttackWalkers:
         if target is None or item is None or game.pays_unless(target, self.cost, item.card):
             return
         target.cant_attack_walkers.append((controller, self.kind, game.turn))
+
+
+@dataclass(frozen=True)
+class ChosenColorShield:
+    """Skrelv, Defector Mite: "Choose a color. Another target creature you control gains toxic 1 and hexproof from that color until end of
+    turn. It can't be blocked by creatures of that color this turn." """
+    toxic: int = 1
+    target: str = "creature you control"
+    another = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None or not game.on_battlefield(target):
+            return
+        color = game.choose_color(controller, game.resolving_item.card.name if game.resolving_item is not None else "")
+        game.modify_until_end_of_turn(target, Modifier(keywords=frozenset({f"toxic {self.toxic}", HEXPROOF_FROM_COLOR + color,
+                                                                            NOT_BLOCKED_BY + "color:" + color})))

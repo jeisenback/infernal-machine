@@ -48,6 +48,7 @@ from .families.base import (  # noqa: F401
     Condition,
 )
 from .families.combat_and_pump import (  # noqa: F401
+    ChosenColorShield,
     PumpHost,
     PayOrCantAttackWalkers,
     MayRemoveCountersTransform,
@@ -1938,6 +1939,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"Exile the top card of your library\. You may put that card into your hand unless it has the same name as another card exiled this way\. Repeat this process until you put a card into your hand or you exile two cards with the same name, whichever comes first\.", re.I), lambda m: ExileUntilTakenOrTwice()),  # Tainted Pact
     (re.compile(r"exile the top card of each opponent's library\. Until end of turn, you may cast spells from among those exiled cards, and you may spend mana as though it were mana of any color to cast those spells\.", re.I), lambda m: ExileTopOfEachOpponentMayCast()),  # Stolen Strategy
     (re.compile(r"exile the top card of each opponent's library\. You may play those cards for as long as they remain exiled\. If you cast a spell this way, you may spend mana as though it were mana of any color to cast it\.", re.I), lambda m: ExileTopOfEachOpponentMayCast(forever=True)),  # Brainstealer Dragon
+    (re.compile(r"choose a color\. another target creature you control gains toxic (\d+) and hexproof from that color until end of turn\. "
+                r"it can't be blocked by creatures of that color this turn\.", re.I), lambda m: ChosenColorShield(int(m[1]))),  # Skrelv
     (re.compile(r"each opponent who has (three|four|five) or more poison counters exiles the top card of their library face down\. You may "
                 r"look at and play those cards for as long as they remain exiled, and you may spend mana as though it were mana of any color "
                 r"to cast those spells\.", re.I),
