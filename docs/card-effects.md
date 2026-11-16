@@ -1682,6 +1682,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Elk creature with base power and toughness 3/3." (`BecomeElk`, for good through `Game.become_card`) and "Exchange control of target
     artifact or creature you control and target creature an opponent controls with power 3 or less." (`ExchangeFirst` and
     `ExchangeControl`, `gain_control` each way; nothing is exchanged if either target is gone, CR 701.12b).
+  - Tamiyo, Field Researcher (`tests/test_tamiyo_field_researcher.py`): "Choose up to two target creatures. Until your next turn, whenever
+    either of those creatures deals combat damage, you draw a card." (`WatchCombatDamage`: a delayed ability about each creature with
+    `DelayedTrigger.until_your_turn`, ended as the controller's next turn begins) and "Tap up to two target nonland permanents. They
+    don't untap during their controller's next untap step." (`Tap.skip_untap`).
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its

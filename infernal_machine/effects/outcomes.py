@@ -101,6 +101,7 @@ from .families.combat_and_pump import (  # noqa: F401
     _RecallAttachment,
 )
 from .families.tapping_and_fighting import (  # noqa: F401
+    WatchCombatDamage,
     DONE,
     UNTAP_LANDS_PROMPT,
     AttackersDontUntapNext,
@@ -3242,6 +3243,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 re.I), lambda m: BecomeElk()),  # Oko, Thief of Crowns
     (re.compile(r"exchange control of target artifact or creature you control and target creature an opponent controls with power 3 or "
                 r"less\.", re.I), lambda m: [ExchangeFirst(), ExchangeControl()]),  # Oko, Thief of Crowns
+    (re.compile(r"choose up to two target creatures\. Until your next turn, whenever either of those creatures deals combat damage, you "
+                r"draw a card\.", re.I), lambda m: [WatchCombatDamage(), WatchCombatDamage(distinct=True)]),  # Tamiyo, Field Researcher
+    (re.compile(r"tap up to two target nonland permanents\. They don't untap during their controller's next untap step\.", re.I),
+     lambda m: [Tap("nonland permanent", optional_target=True, skip_untap=True),
+                Tap("nonland permanent", distinct=True, optional_target=True, skip_untap=True)]),  # Tamiyo, Field Researcher
     (re.compile(r'target creature becomes a Treasure artifact with "\{T\}, Sacrifice this artifact: Add one mana of any color" and loses all '
                 r"other card types and abilities\.", re.I), lambda m: BecomeTreasure()),  # Vraska, Betrayal's Sting
     (re.compile(r"target (player|opponent) gets (a|one|two|three) poison counters?\.", re.I),  # Venerated Rotpriest

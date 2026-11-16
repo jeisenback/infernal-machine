@@ -73,10 +73,13 @@ class Tap:
     optional_target: bool = False
     strip_while_source: bool = False  # The Wondrous Wasp: "It loses all abilities for as long as CARDNAME remains on the battlefield."
     lock_while_tapped: bool = False  # Braided Net: "Its activated abilities can't be activated for as long as it remains tapped."
+    skip_untap: bool = False  # Tamiyo, Field Researcher: "They don't untap during their controller's next untap step."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.tap(target)
+            if self.skip_untap:
+                target.skips_next_untap = True
             if self.lock_while_tapped:
                 target.locked_while_tapped = True
             if self.strip_while_source:
@@ -334,3 +337,21 @@ class GoadAll:
             for permanent in list(seat.battlefield):
                 if "Creature" in permanent.card.type_line:
                     game.goad(permanent, controller)
+
+
+@dataclass(frozen=True)
+class WatchCombatDamage:
+    """Tamiyo, Field Researcher: "Choose up to two target creatures. Until your next turn, whenever either of those creatures deals combat
+    damage, you draw a card." One per target: a delayed ability about that creature (Game._remembered), until the controller's next turn."""
+    target: str = "creature"
+    distinct: bool = False
+    optional_target: bool = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        from ..triggers import TriggeredAbility  # (here: triggers imports the families)
+        from .library_and_hand import Draw
+        if target is None or game.resolving_item is None or not game.on_battlefield(target):
+            return
+        ability = TriggeredAbility("remembered", (Draw(1),), False, "Whenever either of those creatures deals combat damage, you draw a card.")
+        game.add_delayed(ability, game.resolving_item, controller, only=target,
+                         when=frozenset({"combat_player", "combat_planeswalker", "combat_creature"}), until_your_turn=True)
