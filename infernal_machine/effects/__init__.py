@@ -350,6 +350,8 @@ from .statics import (  # noqa: F401
     is_group_mana_grant_line,
     is_hand_by_counters_line,
     is_no_max_hand_line,
+    is_search_opposition_line,
+    opposes_searches,
     is_prevention_line,
     is_quest_untap_line,
     is_reanimation_aura_line,

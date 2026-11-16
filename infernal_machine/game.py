@@ -30,7 +30,7 @@ from . import casting
 from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, MILLED, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects.common import colors_spent
-from .effects import (vehicle_crew, exiled_abilities_kind, CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
+from .effects import (vehicle_crew, exiled_abilities_kind, opposes_searches, CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, begins_with_luck, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
                       SacrificeSelf,
@@ -3218,6 +3218,29 @@ class Game:
                     self._queue(delayed.ability, delayed.watcher, delayed.controller, x, subject,
                                 None if event.to == "you" else seat, spell)
 
+    def _opposing_agent(self, seat: Seat) -> Seat | None:
+        """Opposition Agent: the opponent of `seat` whose Agent controls `seat` while it searches its library, if any."""
+        return next((other for other in self.live_seats() if other is not seat
+                     and any(opposes_searches(p.card) and not self.loses_abilities(p) for p in other.battlefield)), None)
+
+    def _searcher(self, seat: Seat) -> Player:
+        """Who makes `seat`'s choices while it searches its library: the Opposition Agent's controller, or `seat` (CR 722.2)."""
+        agent = self._opposing_agent(seat)
+        return agent.player if agent is not None else seat.player
+
+    def _found(self, seat: Seat, card: Card) -> bool:
+        """`seat` found `card` (already taken out of its library). Under an opponent's Opposition Agent it is exiled instead, and the
+        Agent's controller may play it for as long as it remains exiled, with mana of any type: whether that happened."""
+        agent = self._opposing_agent(seat)
+        if agent is None:
+            return False
+        agent.exile.append(card)
+        agent.borrowed.append((card, seat))
+        agent.exile_play.append((card, FOREVER))
+        agent.exile_any_mana.append(card)
+        self.broadcast({"event": "exiled_from_library", "seat": seat.index, "cards": [card.name], "may_play": True})
+        return True
+
     def _searched(self, seat: Seat) -> None:
         """`seat` searched their library (found something or not)."""
         self.happened("searched", seat)
@@ -5014,13 +5037,14 @@ class Game:
             if not matches:
                 break
             options = [c.name for c in matches] + ([DONE] if count > 1 else [])
-            choice = seat.player.choose(SEARCH_CARD_PROMPT, options)
+            choice = self._searcher(seat).choose(SEARCH_CARD_PROMPT, options)
             if choice >= len(matches):
                 break
             seat.library.remove(matches[choice])
             chosen.append(matches[choice])
             if distinct:
                 excluded.add(matches[choice].name)
+        chosen = [c for c in chosen if not self._found(seat, c)]
         self.rng.shuffle(seat.library)
         self._searched(seat)
         if not chosen:
@@ -5048,11 +5072,13 @@ class Game:
         library = _unique([c for c in seat.library if _card_matches(card_type, c) and not self.caged(c)])
         graveyard = _unique([c for c in seat.graveyard if _card_matches(card_type, c) and not self.caged(c)])
         options = [c.name for c in library] + [f"{c.name} (graveyard)" for c in graveyard] + [DONE]
-        choice = seat.player.choose(SEARCH_CARD_PROMPT, options)
+        choice = self._searcher(seat).choose(SEARCH_CARD_PROMPT, options)
         found, from_graveyard = None, choice >= len(library) and choice < len(library) + len(graveyard)
         if choice < len(library):
             found = library[choice]
             seat.library.remove(found)
+            if self._found(seat, found):
+                found = None
         elif from_graveyard:
             found = graveyard[choice - len(library)]
             seat.graveyard.remove(found)
@@ -6010,13 +6036,14 @@ class Game:
         basics = _unique([c for c in seat.library if (_is_searched_land(c, subtypes) if subtypes
                                                        else "Basic" in c.type_line and "Land" in c.type_line)])
         if basics:
-            choice = basics[seat.player.choose(SEARCH_PROMPT, [c.name for c in basics])]
+            choice = basics[self._searcher(seat).choose(SEARCH_PROMPT, [c.name for c in basics])]
             seat.library.remove(choice)
-            self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": choice.name, "tapped": tapped})
-            land = Permanent(choice, tapped=tapped, counters={"stun": 1} if stun else {})
-            self._enter(seat, land)
-            if untap_if and self.condition_holds(untap_if, seat, self.resolving_source):
-                land.tapped = False
+            if not self._found(seat, choice):
+                self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": choice.name, "tapped": tapped})
+                land = Permanent(choice, tapped=tapped, counters={"stun": 1} if stun else {})
+                self._enter(seat, land)
+                if untap_if and self.condition_holds(untap_if, seat, self.resolving_source):
+                    land.tapped = False
         self.rng.shuffle(seat.library)
         self._searched(seat)
 
@@ -6039,10 +6066,11 @@ class Game:
                     continue  # no Forest: the Plains is still found
                 break
             onto = n < battlefield
-            card = matches[seat.player.choose(SEARCH_LAND_PROMPT if onto else SEARCH_LAND_HAND_PROMPT,
-                                              [c.name for c in matches])]
+            card = matches[self._searcher(seat).choose(SEARCH_LAND_PROMPT if onto else SEARCH_LAND_HAND_PROMPT,
+                                                       [c.name for c in matches])]
             seat.library.remove(card)
-            (to_battlefield if onto else to_hand).append(card)
+            if not self._found(seat, card):
+                (to_battlefield if onto else to_hand).append(card)
         self.rng.shuffle(seat.library)
         for card in to_battlefield:
             self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": card.name, "tapped": tapped})
@@ -6839,10 +6867,11 @@ class Game:
             return
         sacrificed = int(gone[0].card.cmc)
         matches = _unique([c for c in seat.library if _card_matches("artifact", c)])
-        choice = seat.player.choose(SEARCH_CARD_PROMPT, [c.name for c in matches]) if matches else None
-        if choice is not None:
-            found = matches[choice]
+        choice = self._searcher(seat).choose(SEARCH_CARD_PROMPT, [c.name for c in matches]) if matches else None
+        found = matches[choice] if choice is not None else None
+        if found is not None:
             seat.library.remove(found)
+        if found is not None and not self._found(seat, found):
             name = self.resolving_item.card if self.resolving_item is not None else None
             if int(found.cmc) <= sacrificed or self.pays_optional(seat, "{%d}" % (int(found.cmc) - sacrificed), name):
                 self._enter(seat, Permanent(found, sick=True, owner=seat))
@@ -7945,8 +7974,12 @@ class Game:
         """Sunforger: search the library for a card of `kind` and cast it without paying its mana cost, then shuffle. A card that can't
         be cast is not offered: it stays in the library (CR 608.2g: the search and the cast happen as the ability resolves)."""
         matches = _unique([c for c in seat.library if _card_matches(kind, c) and not is_land(c) and not self._cast_barred(seat, c)])
-        if matches and (pick := seat.player.choose(SEARCH_CARD_PROMPT, [c.name for c in matches] + [DONE])) < len(matches):
-            self._cast(seat, matches[pick], seat.library, free=True)
+        if matches and (pick := self._searcher(seat).choose(SEARCH_CARD_PROMPT, [c.name for c in matches] + [DONE])) < len(matches):
+            if self._opposing_agent(seat) is not None:  # Opposition Agent: found, it is exiled instead of cast
+                seat.library.remove(matches[pick])
+                self._found(seat, matches[pick])
+            else:
+                self._cast(seat, matches[pick], seat.library, free=True)
         self.rng.shuffle(seat.library)
         self._searched(seat)
 
