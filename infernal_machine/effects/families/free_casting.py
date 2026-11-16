@@ -393,11 +393,15 @@ class ExileUntilNonlandCast:
 class ExileTopOfEachOpponentMayCast:
     """Stolen Strategy: "exile the top card of each opponent's library. Until end of turn, you may cast spells from among those exiled
     cards, and you may spend mana as though it were mana of any color to cast those spells." Brainstealer Dragon: "You may play those
-    cards for as long as they remain exiled." (`forever`, lands too)"""
+    cards for as long as they remain exiled." (`forever`, lands too) Ixhel, Scion of Atraxa: only each opponent who has three or more
+    poison counters (`min_poison`), face down: its controller may look at them."""
     forever: bool = False
+    min_poison: int = 0
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for victim in game.opponents(controller):
+            if victim.player_counters.get("poison", 0) < self.min_poison:
+                continue
             game.exile_top_of_other(controller, victim, forever=self.forever, any_mana=True, spells_only=not self.forever)
 
 
