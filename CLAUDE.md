@@ -37,7 +37,8 @@ To add a line:
 5. **Test it from the card's real Oracle text**, never from invented wording: `tests/real.py` (`REAL`, built from
    `tests/real_oracle_texts.json`) or `real(name, cost, type_line, text, power, toughness)`. Play the card through the game
    (`table3`, `script`, `run_stack`, `lands`, `pick`, `BEAR`, `OGRE`), include a case where the effect must not apply, and check the
-   new guards by mutation: undo the guard and see a test fail. The shared fixtures are in `tests/helpers.py`: import them from there,
+   new guards by mutation: undo the guard and see a test fail. List them in the test module as `MUTATIONS = [(file, old, new, label), ...]`
+   and run `python tools/mutate.py tests.test_x` (it refuses a text that does not occur exactly once, and always puts the file back). The shared fixtures are in `tests/helpers.py`: import them from there,
    never from another test file. Name a new test file for the behaviour (`test_ninjutsu.py`), not the issue number.
    A wording that makes many cards playable at once (a keyword, #794): list them all with `wording_unlocked(self, names)` (each fully
    playable and casts or plays), their real text added to the fixture with `python tools/add_real_cards.py NAME ...`, and test the
