@@ -39,6 +39,9 @@ To add a line:
    (`table3`, `script`, `run_stack`, `lands`, `pick`, `BEAR`, `OGRE`), include a case where the effect must not apply, and check the
    new guards by mutation: undo the guard and see a test fail. The shared fixtures are in `tests/helpers.py`: import them from there,
    never from another test file. Name a new test file for the behaviour (`test_ninjutsu.py`), not the issue number.
+   A wording that makes many cards playable at once (a keyword, #794): list them all with `wording_unlocked(self, names)` (each fully
+   playable and casts or plays), their real text added to the fixture with `python tools/add_real_cards.py NAME ...`, and test the
+   behaviour on one or two of them as above.
 6. **Add a bullet to `docs/card-effects.md`** (the "Card effects" section).
 
 Cite the Comprehensive Rules in a comment where a rule is applied (`# CR 502.4`).

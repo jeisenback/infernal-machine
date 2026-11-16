@@ -544,3 +544,19 @@ ADEPT = Card(name="Study Adept // Quick Study", mana_cost="{1}{U}", type_line="C
 
 
 
+
+
+def wording_unlocked(test, names):
+    """Issue #809: the check for a wording that makes many cards playable at once (a keyword, #794). Each named card, by its real
+    Oracle text in `tests/real_oracle_texts.json` (add it with `python tools/add_real_cards.py NAME ...`), is fully playable and casts or
+    plays without an error, as `tools/play_smoke.py` plays it. What the wording does is for a behaviour test on one or two of them."""
+    import os
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
+    import play_smoke  # (tools/ is not a package; the smoke test imports it so too)
+    for name in names:
+        with test.subTest(card=name):
+            card = REAL.get(name)
+            test.assertIsNotNone(card, f"{name} is not in tests/real_oracle_texts.json: add it with tools/add_real_cards.py")
+            test.assertEqual(unsupported_lines(card), [], name)
+            test.assertTrue(play_smoke.play(card), f"{name}: no way to cast or play it")
