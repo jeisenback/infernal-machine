@@ -3,8 +3,12 @@ a check that the cost was paid. The cards are real: Goblin Warrens (a plural sac
 discard), Cabal Patriarch (an exile from the graveyard), Spike Feeder (a counter), Aetherflux Reservoir (life), Cauldron Familiar (a
 graveyard ability that sacrifices a Food)."""
 
+import contextlib
+import io
+import json
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
@@ -13,6 +17,14 @@ import ability_smoke  # noqa: E402
 
 from infernal_machine.effects import activated_abilities  # noqa: E402
 from tests.helpers import real  # noqa: E402
+
+# The guards these tests are there to catch (python tools/mutate.py tests.test_ability_smoke).
+MUTATIONS = [
+    ("tools/ability_smoke.py", "    if args.card and not tried:", "    if False:", "--card fails when it tried nothing"),
+    ("tools/ability_smoke.py", "    if lines := unsupported_lines(card):", "    if False:", "the reason: not fully playable"),
+    ("tools/ability_smoke.py", "    if not abilities:\n", "    if False:\n", "the reason: no activated ability"),
+    ("tools/ability_smoke.py", "    if kinds:\n", "    if False:\n", "the reason: a cost it builds no table for"),
+]
 
 WARRENS = real("Goblin Warrens", "{3}{R}", "Enchantment", "{2}{R}, Sacrifice two Goblins: Create three 1/1 red Goblin creature tokens.", colors=("R",))
 AMUGABA = real("Amugaba", "{3}{U}{U}", "Creature — Eldrazi Horror", "{2}{U}, Discard a card: Return this creature to its owner's hand.", "5", "5",
@@ -200,6 +212,39 @@ class CheckTests(unittest.TestCase):
         ability_smoke.TIMEOUT_SECONDS = 1
         ability_smoke.try_ability = lambda card, ability: [None for _ in iter(int, 1)]  # never ends
         self.assertEqual(list(ability_smoke.check([data(WARRENS)])[2]), ["took more than 1 seconds"])
+
+
+TAP_PROBE = real("Tap Probe", "{1}", "Artifact", "{1}, {T}: You gain 1 life.")
+
+
+class OneCardTests(unittest.TestCase):
+    """With --card, a check that tried nothing for the card fails and says why (issue #812)."""
+
+    def run_main(self, name, cards):
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as pool:
+            json.dump([data(c) for c in cards], pool)
+        self.addCleanup(os.remove, pool.name)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = ability_smoke.main(["ability_smoke.py", "--pool", pool.name, "--card", name])
+        return code, out.getvalue()
+
+    def test_each_reason_nothing_was_tried(self):  # (Tap Probe: Skrelv's case, an ability that costs only mana and {T})
+        stuck = real("Stuck Probe", "{2}", "Creature — Frog", "Frobnicate the widget whenever the moon is full.", "1", "1")
+        vanilla = real("Vanilla Probe", "{1}", "Creature — Frog", "", "1", "1")
+        crewed = real("Crew Probe", "{2}", "Artifact — Vehicle", "Crew 2", "3", "3")
+        pool = [data(c) for c in (stuck, vanilla, crewed, ELVES, TAP_PROBE)]
+        for name, reason in (("Missing Probe", "is not in the pool"), ("Stuck Probe", "is not fully playable"),
+                             ("Vanilla Probe", "has no activated ability"), ("Crew Probe", "builds no table for: crew"),
+                             ("Llanowar Elves", "has no activated ability other than mana abilities"),
+                             ("Tap Probe", "only mana and {T}")):
+            self.assertIn(reason, ability_smoke.nothing_tried(pool, name), name)
+
+    def test_it_fails_when_nothing_was_tried_and_passes_when_something_was(self):
+        code, out = self.run_main("Tap Probe", [TAP_PROBE])
+        self.assertEqual(code, 1)
+        self.assertIn("nothing tried: Tap Probe has no ability with a cost this tool checks", out)
+        self.assertEqual(self.run_main("Amugaba", [AMUGABA])[0], 0)
 
 
 if __name__ == "__main__":
