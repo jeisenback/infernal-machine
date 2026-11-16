@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
 from ..common import Quantity
-from ..targets import PREVIOUS_TARGET, SOURCE
+from ..targets import DEAD_SOURCE, PREVIOUS_TARGET, SOURCE
 from .base import Condition
 from ...cards import Card
 from ...prompts import PromptKind
@@ -581,3 +581,18 @@ class OwnerPutsSecondOrBottom:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.put_second_or_bottom(target)
+
+
+@dataclass(frozen=True)
+class Kinship:
+    """Kinship (an ability word, CR 207.2c): "At the beginning of your upkeep, you may look at the top card of your library. If it shares a
+    creature type with this creature, you may reveal it. If you do, <reward>." `reward` are effects with no target, each acting on nothing
+    or on this creature; `play_free`: Leaf-Crowned Elder's "you may play that card without paying its mana cost". The creature's types are
+    its last known ones if it has left the battlefield by then (CR 608.2h)."""
+    reward: tuple
+    play_free: bool = False
+    binds = DEAD_SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.kinship(controller, target, self.reward, self.play_free)

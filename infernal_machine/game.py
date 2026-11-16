@@ -234,6 +234,7 @@ CAST_FREE_PROMPT = PromptKind("cast_free", "Cast an Aura spell from among the ex
 SHOW_AND_TELL_PROMPT = PromptKind("show_and_tell", "Put a card from your hand onto the battlefield")  # Show and Tell; then NONE_TAKEN
 PUT_PERMANENT_PROMPT = PromptKind("put_permanent", "Put a nonland permanent card onto the battlefield")  # then NONE_TAKEN to stop
 SET_ASIDE_PROMPT = PromptKind("set_aside", "Choose a nonland card exiled this way; it can't be cast")
+KINSHIP_PROMPT = PromptKind("kinship", "Reveal the top card of your library for kinship with ")  # then the source's name: Reveal or not
 CAST_FREE_EXILED_PROMPT = PromptKind("cast_free_exiled", "Cast a spell from among the other exiled cards without paying its mana cost")  # then NONE_TAKEN
 CHOOSE_EXILED_WITH_PROMPT = PromptKind("choose_exiled_with", "Choose a card exiled with this permanent")
 EVIDENCE_PROMPT = PromptKind("evidence", "Exile a card from your graveyard to collect evidence for ")  # followed by the spell's name; options are cards, then EVIDENCE_NONE
@@ -7007,6 +7008,27 @@ class Game:
         self._from_library_to_graveyard(seat, binned)
         if top:  # surveil 0 is no surveil event either
             self.happened("surveilled", seat)
+
+    def kinship(self, seat: Seat, source: Permanent, reward: tuple, play_free: bool) -> None:
+        """Kinship: `seat` looks at the top card of their library; if it shares a creature type with `source` (its last known types once it
+        has left the battlefield, CR 608.2h), they may reveal it, and if they do the reward happens: its effects, those about this
+        creature on `source` while it is still there; or, `play_free`, the card cast without paying its mana cost (Leaf-Crowned Elder)."""
+        if not seat.library:
+            return
+        card = seat.library[0]
+        seat.player.notify({"event": "look", "seat": seat.index, "cards": [card.name]})
+        kinds = set(card.type_line.partition("\u2014")[2].split()) if "Creature" in card.type_line or "Kindred" in card.type_line else set()
+        mine = set(self.subtypes(source) if self.on_battlefield(source) else source.card.type_line.partition("\u2014")[2].split())
+        if not kinds & mine or seat.player.choose(KINSHIP_PROMPT(source.card.name), ["Reveal", "Don't reveal"]) != 0:
+            return
+        self.broadcast({"event": "revealed", "seat": seat.index, "card": card.name})
+        if play_free:
+            if not is_land(card) and not self._cast_barred(seat, card) \
+                    and seat.player.choose(CAST_FREE_EXILED_PROMPT, [card.name, NONE_TAKEN]) == 0:
+                self._cast(seat, card, seat.library, free=True)
+            return
+        for effect in reward:
+            effect.resolve(self, seat, source if binding(effect) == SOURCE and self.on_battlefield(source) else None)
 
     def explore(self, seat: Seat, creature: Permanent) -> None:
         """`creature` explores (CR 701.44a): `seat` reveals the top card of their library; a land card goes into their hand, anything else

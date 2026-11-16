@@ -450,7 +450,9 @@ _WHOLE_LINE = re.compile(
     r"|Counter target spell unless its controller pays (?:\{[^}]+\})+\. Counter that spell unless its controller pays (?:\{[^}]+\})+ "
     r"instead if this spell was cast using teamwork\."
     r"|Exile the top card of your library\. You may cast that card\. If you don't, CARDNAME deals \d+ damage to each opponent\."
-    r"|Target instant or sorcery card in your graveyard gains flashback until end of turn\. The flashback cost is equal to its mana cost\.",
+    r"|Target instant or sorcery card in your graveyard gains flashback until end of turn\. The flashback cost is equal to its mana cost\."
+    r"|(?:you may )?look at the top card of your library\. If it shares a creature type with (?:this creature|CARDNAME), you may reveal it\. "
+    r"If you do, [^.]+\.",  # Kinship
     re.I)
 
 
