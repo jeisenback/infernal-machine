@@ -66,6 +66,15 @@ class MutateTests(unittest.TestCase):
         self.assertEqual(mutate.run([(mutate.Mutation("guarded.py", "nowhere", "x"), ["test_guarded"])], self.root, out), 2)
         self.assertIn("refused", out.getvalue())
 
+    def test_tests_that_do_not_pass_without_the_mutation_refuse_it(self):
+        for tests in (["test_misspelled"], ["test_guarded"]):
+            if tests == ["test_guarded"]:
+                (self.root / "test_guarded.py").write_text(TEST.replace("(3, 3)", "(4, 4)"))
+            out = io.StringIO()
+            self.assertEqual(mutate.run([(mutate.Mutation("guarded.py", "if a > b:", "if a < b:"), tests)], self.root, out), 2, tests)
+            self.assertIn("do not pass without the mutation", out.getvalue())
+            self.assert_untouched()
+
 
 if __name__ == "__main__":
     unittest.main()

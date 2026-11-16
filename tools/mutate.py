@@ -8,7 +8,8 @@ there to catch; the second form applies each in turn and runs that module's test
 
 For each mutation the file's `old` text must occur exactly once, or the mutation is refused (an edit that would not apply is an
 error, never a pass). The edit is applied, the tests run, and the file is put back from the bytes read before, whatever happens (never
-through git, so nothing else in the working tree is touched). A mutation is caught when a test fails, and survived when none does.
+through git, so nothing else in the working tree is touched). A mutation is caught when a test fails, and survived when none does; the tests are run once
+without it first, and a mutation whose tests do not pass then (a misspelled module, a test already failing) is refused.
 Exit 0 if every mutation was caught, 1 if one survived, 2 if one was refused.
 """
 
@@ -57,16 +58,21 @@ def apply(mutation: Mutation, root: Path) -> tuple[Path, bytes]:
     return path, original
 
 
+def passes(tests: list[str], root: Path = ROOT, timeout: int = 600) -> bool:
+    """Run `tests` (unittest module names) as the files stand: whether they all pass."""
+    # A fresh, empty bytecode cache for each run: a mutation of the same size written within the same second would otherwise load
+    # the cached code of the file before it, or of the mutation before it, and be reported for the wrong code.
+    with tempfile.TemporaryDirectory() as cache:
+        env = {**os.environ, "PYTHONPYCACHEPREFIX": cache}
+        run = subprocess.run([sys.executable, "-m", "unittest", "-q", *tests], cwd=root, capture_output=True, timeout=timeout, env=env)
+        return run.returncode == 0
+
+
 def caught(mutation: Mutation, tests: list[str], root: Path = ROOT, timeout: int = 600) -> bool:
-    """Apply `mutation`, run `tests` (unittest module names) and put the file back: whether a test failed."""
+    """Apply `mutation`, run `tests` and put the file back: whether a test failed."""
     path, original = apply(mutation, root)
     try:
-        # A fresh, empty bytecode cache for each run: a mutation of the same size written within the same second would otherwise load
-        # the cached code of the file before it, or of the mutation before it, and be reported for the wrong code.
-        with tempfile.TemporaryDirectory() as cache:
-            env = {**os.environ, "PYTHONPYCACHEPREFIX": cache}
-            run = subprocess.run([sys.executable, "-m", "unittest", "-q", *tests], cwd=root, capture_output=True, timeout=timeout, env=env)
-            return run.returncode != 0
+        return not passes(tests, root, timeout)
     except subprocess.TimeoutExpired:
         return True  # (a test that hangs on the mutation has noticed it)
     finally:
@@ -84,8 +90,15 @@ def listed(module: str) -> list[Mutation]:
 def run(plan: list[tuple[Mutation, list[str]]], root: Path = ROOT, out=sys.stdout) -> int:
     """Run each (mutation, tests) of the plan and report: the exit code."""
     survived = refused = 0
+    baseline: dict[tuple[str, ...], bool] = {}
     for mutation, tests in plan:
+        key = tuple(tests)
+        if key not in baseline:
+            baseline[key] = passes(tests, root)
         try:
+            # A test run that fails without the mutation (a misspelled module, a test already failing) would count any mutation as caught.
+            if not baseline[key]:
+                raise Refused(f"{mutation.name()}: {' '.join(tests)} do not pass without the mutation")
             ok = caught(mutation, tests, root)
         except Refused as reason:
             refused += 1
