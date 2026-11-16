@@ -5396,6 +5396,7 @@ class Game:
         for _ in range(self._factor(seat, "proliferate_factor")):
             self._proliferate_once(seat)
             self.happened("proliferate", seat)
+            self._graveyard_returns(seat, "proliferate")  # Voidwing Hybrid
 
     def _proliferate_once(self, seat: Seat) -> None:
         """`seat` chooses any permanents with counters (or planeswalkers); each gets one more of every kind of
