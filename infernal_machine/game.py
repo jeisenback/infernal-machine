@@ -30,7 +30,7 @@ from . import casting
 from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, MILLED, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects.common import colors_spent
-from .effects import (vehicle_crew, exiled_abilities_kind, opposes_searches, CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
+from .effects import (HEXPROOF_FROM_COLOR, vehicle_crew, exiled_abilities_kind, opposes_searches, CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, begins_with_luck, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
                       SacrificeSelf,
@@ -3810,6 +3810,8 @@ class Game:
                     continue  # Dragonfire Blade
                 if self._hexproof_from(seat, caster, colors):  # Veil of Summer: "permanents you control gain hexproof from blue"
                     continue
+                if seat is not caster and any(self.has_keyword(permanent, HEXPROOF_FROM_COLOR + c) for c in colors if len(c) == 1):
+                    continue  # Skrelv, Defector Mite: "hexproof from that color"
                 if self.protected_from(permanent, colors):
                     continue
                 options.append((self.label(permanent), permanent))
@@ -4125,7 +4127,8 @@ class Game:
                 for permanent in list(dealer.battlefield):
                     self.trigger("ally_noncombat_damage", permanent, dealer, subject=source, x=amount)
             if combat and amount > 0 and source is not None and not self.loses_abilities(source) \
-                    and (toxic := toxic_of(source.card)):
+                    and (toxic := toxic_of(source.card) + sum(int(k[6:]) for m in self.modifiers(source) for k in m.keywords
+                                                              if re.fullmatch(r"toxic \d+", k))):  # Skrelv: a toxic granted
                 self.give_poison(target, toxic, by=controller)  # Toxic N: that many poison counters in addition to the damage
             if combat and controller and source is not None:  # (a controller means there is a source)
                 self.happened("combat_damaged", target, subject=source)  # "Whenever a creature deals combat damage to one of your opponents"
@@ -4284,6 +4287,11 @@ class Game:
         """`seat` gets (or pays) energy counters, {E} (CR 122.1, 107.14)."""
         seat.player_counters["energy"] = seat.player_counters.get("energy", 0) + amount
         self.broadcast({"event": "energy", "seat": seat.index, "change": amount, "total": seat.player_counters["energy"]})
+
+    def choose_color(self, seat: Seat, name: str) -> str:
+        """ "Choose a color.": the color letter `seat` chooses, for the card named `name`."""
+        names = {"White": "W", "Blue": "U", "Black": "B", "Red": "R", "Green": "G"}
+        return names[list(names)[seat.player.choose(CHOOSE_COLOR_PROMPT(name), list(names))]]
 
     def give_poison(self, seat: Seat, count: int, by: Seat | None = None) -> None:
         count = self._counters_put_by(by, count)

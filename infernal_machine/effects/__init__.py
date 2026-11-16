@@ -25,6 +25,8 @@ from .common import (  # noqa: F401
     CANT_ATTACK,
     CANT_BE_BLOCKED,
     ONLY_BLOCKED_BY,
+    NOT_BLOCKED_BY,
+    HEXPROOF_FROM_COLOR,
     CANT_BLOCK,
     MUST_ATTACK,
     PROTECTION,

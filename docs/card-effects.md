@@ -1663,6 +1663,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Ixhel, Scion of Atraxa (`tests/test_ixhel.py`): "each opponent who has three or more poison counters exiles the top card of their
     library face down. You may look at and play those cards for as long as they remain exiled, and you may spend mana as though it
     were mana of any color to cast those spells." (`ExileTopOfEachOpponentMayCast` with `min_poison`, as Brainstealer Dragon's).
+  - Skrelv, Defector Mite (`tests/test_skrelv.py`): "Choose a color. Another target creature you control gains toxic 1 and hexproof from
+    that color until end of turn. It can't be blocked by creatures of that color this turn." (`ChosenColorShield`, `Game.choose_color`:
+    the keywords "toxic N", `HEXPROOF_FROM_COLOR` + the color and `NOT_BLOCKED_BY` + "color:" + the color, read by combat damage,
+    `Game.target_options` and `Combat._can_block`).
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its
