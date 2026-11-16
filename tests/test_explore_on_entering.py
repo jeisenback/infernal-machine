@@ -12,6 +12,17 @@ CARDS = ["Cenote Scout", "Pathfinding Axejaw", "Merfolk Branchwalker", "River He
          "Queen's Agent", "Emissary of Sunrise", "Sunrise Seeker"]
 SCOUT = REAL["Cenote Scout"]
 
+# The guards these tests are there to catch (python tools/mutate.py tests.test_explore_on_entering).
+MUTATIONS = [
+    ("infernal_machine/game.py", "        if self.on_battlefield(creature):\n            self.put_counters(creature, \"+1/+1\", 1, seat)",
+     "        if True:\n            self.put_counters(creature, \"+1/+1\", 1, seat)", "the counter only on a creature on the battlefield"),
+    ("infernal_machine/effects/families/combat_and_pump.py", "    binds = DEAD_SOURCE\n\n    def resolve(self, game: Game, controller: Seat, "
+     "target: Any) -> None:\n        if target is not None:\n            game.explore(controller, target)",
+     "    binds = SOURCE\n\n    def resolve(self, game: Game, controller: Seat, target: Any) -> None:\n        if target is not None:\n"
+     "            game.explore(controller, target)", "a creature gone by then still explores (DEAD_SOURCE, not SOURCE)"),
+    ("infernal_machine/effects/outcomes.py", "lambda m: ExploreSelf()),", "lambda m: None),", "the template"),
+]
+
 
 def scout_enters(top, policy=None, leaves_first=False):
     """Cenote Scout enters for seat 0 with `top` on top of its library; its trigger resolves (after it left, with `leaves_first`)."""
