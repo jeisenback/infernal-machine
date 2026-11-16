@@ -828,3 +828,17 @@ class BecomeTreasure:
             game.become_card(target, dataclasses.replace(
                 was, type_line=" ".join(supertypes + ["Artifact \u2014 Treasure"]), power=None, toughness=None, loyalty=None,
                 oracle_text="{T}, Sacrifice this artifact: Add one mana of any color."))
+
+
+@dataclass(frozen=True)
+class BecomeElk:
+    """Oko, Thief of Crowns: "Target artifact or creature loses all abilities and becomes a green Elk creature with base power and toughness
+    3/3." For good (Game.become_card): its name, mana cost and supertypes stay; its other types, colors and abilities don't."""
+    target: str = "artifact or creature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            was = target.card
+            supertypes = [w for w in was.type_line.partition("\u2014")[0].split() if w in ("Legendary", "Snow", "World")]
+            game.become_card(target, dataclasses.replace(was, type_line=" ".join(supertypes + ["Creature \u2014 Elk"]), colors=("G",),
+                                                         power="3", toughness="3", loyalty=None, oracle_text=""))

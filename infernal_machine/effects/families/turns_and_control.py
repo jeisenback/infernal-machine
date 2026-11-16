@@ -156,3 +156,31 @@ class TakeInitiative:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.take_initiative(controller)
+
+
+@dataclass(frozen=True)
+class ExchangeFirst:
+    """Oko, Thief of Crowns: the first target of "Exchange control of target artifact or creature you control and target creature an
+    opponent controls with power 3 or less.": remembered for the second (ExchangeControl)."""
+    target: str = "artifact or creature you control"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None:
+            game.resolving_item.carried = target
+
+
+@dataclass(frozen=True)
+class ExchangeControl:
+    """The second target of an exchange of control: each player gains control of the permanent the other controlled. If either target is
+    gone, nothing is exchanged (CR 701.12b)."""
+    target: str = "creature an opponent controls with power 3 or less"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        first = game.resolving_item.carried if game.resolving_item is not None else None
+        if first is None or target is None or not (game.on_battlefield(first) and game.on_battlefield(target)):
+            return
+        mine, theirs = game.controller_of(first), game.controller_of(target)
+        if mine is None or theirs is None or mine is theirs:
+            return
+        game.gain_control(first, theirs)
+        game.gain_control(target, mine)

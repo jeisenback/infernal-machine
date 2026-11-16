@@ -1678,6 +1678,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     any time you could cast an instant." (`instant_loyalty`: `Game._can_activate` lets its loyalty abilities skip sorcery timing, still
     once each turn), "Target creature you don't control phases out." (`PhaseOutTarget`) and "Take two extra turns after this one."
     (`ExtraTurn(2)`).
+  - Oko, Thief of Crowns (`tests/test_oko_thief_of_crowns.py`): "Target artifact or creature loses all abilities and becomes a green
+    Elk creature with base power and toughness 3/3." (`BecomeElk`, for good through `Game.become_card`) and "Exchange control of target
+    artifact or creature you control and target creature an opponent controls with power 3 or less." (`ExchangeFirst` and
+    `ExchangeControl`, `gain_control` each way; nothing is exchanged if either target is gone, CR 701.12b).
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its
