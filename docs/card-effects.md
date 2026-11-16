@@ -1641,6 +1641,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Agent's controller the search's choices, CR 722.2, and `Game._found` exiles each card found for them, playable for as long as it
     remains exiled with mana of any type, in `tutor`, `fetch_basic_land`, `search_for_lands`, `search_library_or_graveyard`,
     `transmute_artifact` and `search_cast_free`).
+  - Contaminant Grafter (`tests/test_contaminant_grafter.py`): "Whenever one or more creatures you control deal combat damage to one or
+    more players, proliferate." (the event `creatures_combat_damage_players`, fired once for each player whose creatures hit anyone in
+    the damage step, however many players were hit; "to a player" stays once per player hit).
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its

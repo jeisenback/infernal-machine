@@ -248,6 +248,8 @@ declare("first_life_loss", re.compile(r"Whenever you lose life for the first tim
         to="you", happens="life_lost", accepts=fact("first"))
 declare("creatures_combat_damage", re.compile(r"Whenever one or more creatures you control deal combat damage to a player, (.+)",
                                           re.I))
+declare("creatures_combat_damage_players", re.compile(r"Whenever one or more creatures you control deal combat damage to one or more "
+                                                  r"players, (.+)", re.I))  # Contaminant Grafter: once, however many players were hit
 declare("zero_power_combat_damage", re.compile(r"Whenever one or more creatures you control with base power 0 deal combat damage "
                                            r"to a player, (.+)", re.I))
 declare("artifact_creatures_combat_damage", re.compile(r"Whenever one or more artifact creatures you control deal combat damage to a "
