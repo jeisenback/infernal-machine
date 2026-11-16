@@ -2689,6 +2689,138 @@
    "colors": [
     "W"
    ]
+  },
+  {
+   "name": "Leaf-Crowned Elder",
+   "mana_cost": "{2}{G}{G}",
+   "type_line": "Creature — Treefolk Shaman",
+   "oracle_text": "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with this creature, you may reveal it. If you do, you may play that card without paying its mana cost.",
+   "power": "3",
+   "toughness": "5",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Wolf-Skull Shaman",
+   "mana_cost": "{1}{G}",
+   "type_line": "Creature — Elf Shaman",
+   "oracle_text": "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with this creature, you may reveal it. If you do, create a 2/2 green Wolf creature token.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Sensation Gorger",
+   "mana_cost": "{1}{R}{R}",
+   "type_line": "Creature — Goblin Shaman",
+   "oracle_text": "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with this creature, you may reveal it. If you do, each player discards their hand, then draws four cards.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Nightshade Schemers",
+   "mana_cost": "{4}{B}",
+   "type_line": "Creature — Faerie Wizard",
+   "oracle_text": "Flying\nKinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with this creature, you may reveal it. If you do, each opponent loses 2 life.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Wandering Graybeard",
+   "mana_cost": "{3}{W}{W}",
+   "type_line": "Creature — Giant Wizard",
+   "oracle_text": "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with this creature, you may reveal it. If you do, you gain 4 life.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Mudbutton Clanger",
+   "mana_cost": "{R}",
+   "type_line": "Creature — Goblin Warrior",
+   "oracle_text": "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with this creature, you may reveal it. If you do, this creature gets +1/+1 until end of turn.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Kithkin Zephyrnaut",
+   "mana_cost": "{2}{W}",
+   "type_line": "Creature — Kithkin Soldier",
+   "oracle_text": "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with this creature, you may reveal it. If you do, this creature gets +2/+2 and gains flying and vigilance until end of turn.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Ink Dissolver",
+   "mana_cost": "{1}{U}",
+   "type_line": "Creature — Merfolk Wizard",
+   "oracle_text": "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with this creature, you may reveal it. If you do, each opponent mills three cards.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Waterspout Weavers",
+   "mana_cost": "{3}{U}{U}",
+   "type_line": "Creature — Merfolk Wizard",
+   "oracle_text": "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with this creature, you may reveal it. If you do, each creature you control gains flying until end of turn.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Squeaking Pie Grubfellows",
+   "mana_cost": "{3}{B}",
+   "type_line": "Creature — Goblin Shaman",
+   "oracle_text": "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with this creature, you may reveal it. If you do, each opponent discards a card.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Winnower Patrol",
+   "mana_cost": "{2}{G}",
+   "type_line": "Creature — Elf Warrior",
+   "oracle_text": "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with this creature, you may reveal it. If you do, put a +1/+1 counter on this creature.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Pyroclast Consul",
+   "mana_cost": "{3}{R}{R}",
+   "type_line": "Creature — Elemental Shaman",
+   "oracle_text": "Kinship — At the beginning of your upkeep, you may look at the top card of your library. If it shares a creature type with this creature, you may reveal it. If you do, this creature deals 2 damage to each creature.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

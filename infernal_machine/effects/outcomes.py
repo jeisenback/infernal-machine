@@ -419,6 +419,7 @@ from .families.library_and_hand import (  # noqa: F401
 )
 from .families.library import (  # noqa: F401
     _InsteadSearch,
+    Kinship,
     _card_matches_kind,
     BASIC_LAND_TYPES,
     OwnerPutsSecondOrBottom,
@@ -2835,6 +2836,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"reveal the top card of your library\. If it's a creature card that shares a creature type with a creature you control, "
                 r"you may cast it without paying its mana cost\. If you don't cast it, put it on the bottom of your library\.", re.I),
      lambda m: RevealTopCastKindredFree()),  # Descendants' Path
+    (re.compile(r"(?:you may )?look at the top card of your library\. If it shares a creature type with (?:this creature|CARDNAME), you may "
+                r"reveal it\. If you do, ([^.]+)\.", re.I), lambda m: _kinship(m[1])),  # Kinship (Wolf-Skull Shaman, ...)
     (re.compile(r"if this spell was cast from a graveyard, you may play cards this way without paying their mana costs\.", re.I),
      lambda m: _FreeIfFromGraveyard()),  # Ignite the Future, folded into the ExileTop before it
     (re.compile(r"for each player, choose target nonenchantment, nonland permanent that player controls\. Those permanents' owners shuffle "
@@ -3703,7 +3706,25 @@ def _template(sentence: str) -> Any:
             return effect
     if m := _UNTIL_EOT_FIRST.fullmatch(sentence):  # Triumph of the Hordes: "Until end of turn, creatures you control get ... and gain ..."
         return _template(f"{m[1][0].upper()}{m[1][1:]} until end of turn.")
+    if m := _EACH_YOURS_UNTIL_EOT.fullmatch(sentence):
+        return _template(f"Creatures you control {'gain' if m[1].lower() == 'gains' else 'get'} {m[2]} until end of turn.")
     return _delayed_trigger(sentence)
+
+
+def _kinship(reward: str) -> Kinship | None:
+    """The kinship reward after "If you do,": the card itself played for free, or a sentence the templates read whose effects have no
+    target and act on nothing or on this creature; else None."""
+    if re.fullmatch(r"you may play that card without paying its mana cost", reward, re.I):
+        return Kinship((), play_free=True)  # Leaf-Crowned Elder
+    effects = _parse([reward[0].upper() + reward[1:] + "."])
+    if not effects or any(target_kind(e) or binding(e) not in (None, SOURCE) for e in effects):
+        return None
+    return Kinship(tuple(effects))
+
+
+# "Each creature you control gains flying until end of turn." says what "Creatures you control gain flying until end of turn." says
+# (Waterspout Weavers); only a sentence with one verb is rewritten.
+_EACH_YOURS_UNTIL_EOT = re.compile(r"each creature you control (gains|gets) ((?!.*\b(?:gains?|gets?)\b)[^.]*) until end of turn\.", re.I)
 
 
 # "Until end of turn, <a pump>." says what "<a pump> until end of turn." says; only a sentence that gets or gains is moved, and never

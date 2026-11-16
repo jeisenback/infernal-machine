@@ -1689,6 +1689,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Explore on entering (`tests/test_explore_on_entering.py`, #795): "When this creature enters, it explores." (`ExploreSelf`, bound to
     `DEAD_SOURCE`: a creature gone by then still explores, without the +1/+1 counter, CR 701.44; `Game.explore` puts the counter only on
     a creature on the battlefield). Fifteen cards, among them Cenote Scout and Merfolk Branchwalker.
+  - Kinship (`tests/test_kinship.py`, #796): "At the beginning of your upkeep, you may look at the top card of your library. If it shares a
+    creature type with this creature, you may reveal it. If you do, <reward>." (`Kinship`, `Game.kinship`: a creature or kindred card that
+    shares a type may be revealed; the reward is a sentence the other templates read, with no target, its "this creature" only while the
+    creature is still there; Leaf-Crowned Elder's "you may play that card without paying its mana cost" casts a nonland card for free).
+    "Each creature you control gains/gets ... until end of turn." is read as "Creatures you control gain/get ..." (Waterspout Weavers).
+    Twelve cards, among them Leaf-Crowned Elder and Wolf-Skull Shaman.
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its
