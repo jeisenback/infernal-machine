@@ -17,6 +17,7 @@ import socket
 from infernal_machine.game import CHANGE_WHICH_PROMPT
 from infernal_machine.game import TARGET_PROMPT
 from infernal_machine.game import CAST
+from infernal_machine.combat import Attack
 
 
 class ScriptedPlayer:
@@ -560,3 +561,54 @@ def wording_unlocked(test, names):
             test.assertIsNotNone(card, f"{name} is not in tests/real_oracle_texts.json: add it with tools/add_real_cards.py")
             test.assertEqual(unsupported_lines(card), [], name)
             test.assertTrue(play_smoke.play(card), f"{name}: no way to cast or play it")
+
+
+# --- Shared drivers for targets, steps and combat damage (issue #811) ----------------------------------------------------------------------
+
+
+def choose(game, *targets):
+    """Policy: the first option that names one of `targets` (permanents or players, in order), as `game` labels it when asked; else
+    pass, or the first option. Labels are worked out at each question, so a permanent's number, power and toughness never go stale."""
+    def policy(prompt, options):
+        for target in targets:
+            if isinstance(target, Permanent) and not game.on_battlefield(target):
+                continue  # (gone: never offered)
+            label = game._target_label(target)
+            for i, option in enumerate(options):
+                if label in option:
+                    return i
+        return options.index(PASS) if PASS in options else 0
+    return policy
+
+
+def untap_step(game, seat):
+    """A new turn begins for `seat`, with its untap step (CR 502), as the engine runs it."""
+    game.turn += 1
+    game.active = seat.index
+    begin(game, "untap", seat)
+
+
+def end_step(game, seat):
+    """`seat`'s end step (CR 513): its "at the beginning of the end step" triggers, resolved."""
+    game.active = seat.index
+    begin(game, "end", seat)
+
+
+def next_turn(game, seat):
+    """The active player's turn ends (its cleanup step) and `seat`'s turn begins with its untap step; left in `seat`'s first main phase.
+    `seat` an opponent: "on an opponent's turn"; `seat` the player whose turn it was (alone at the table): "your next turn"."""
+    end_turn(game, game.seats[game.active])
+    untap_step(game, seat)
+    game.step = "main1"
+
+
+def combat_damage(game, attacker, defender, blockers=()):
+    """`attacker` (its controller's) attacks the player `defender`, blocked by `blockers` if any (CR 509.1h: blocked, even if they leave),
+    and combat damage is dealt, first strike first (CR 510.4); then the state is checked and the stack resolved."""
+    game.combat.attacks = [Attack(attacker, game.controller(attacker), defender, list(blockers), blocked=bool(blockers))]
+    if game.combat.has_first_strike():
+        game.combat.deal_damage(first_strike_step=True)
+        game._check_state()
+    game.combat.deal_damage(first_strike_step=False)
+    game._check_state()
+    run_stack(game)
