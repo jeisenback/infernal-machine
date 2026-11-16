@@ -9,12 +9,16 @@ from ..common import Quantity
 from ..targets import PREVIOUS_TARGET, SOURCE
 from .base import Condition
 from ...cards import Card
+from ...prompts import PromptKind
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
 
 
 BASIC_LAND_TYPES = ("Plains", "Island", "Swamp", "Mountain", "Forest")
+
+
+BOTTOM_PROMPT = PromptKind("may_bottom", "Put on the bottom of your library: ")  # followed by the card's name; Yes or No
 
 
 def _card_matches_kind(kind: str, card: Card) -> bool:
@@ -117,6 +121,7 @@ class RevealTopToHand:
     life equal to its mana value." after it (see _CONDITIONAL)."""
     lose_life: bool = False
     only: str = ""  # Summon: Esper Maduin: "If it's a permanent card, put it into your hand." (otherwise it stays on top)
+    may_bottom: bool = False  # Ajani, Sleeper Agent: "Otherwise, you may put it on the bottom of your library."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if not controller.library:
@@ -124,6 +129,8 @@ class RevealTopToHand:
         card = controller.library[0]
         game.broadcast({"event": "revealed_top", "seat": controller.index, "cards": [card.name]})
         if self.only and not _card_matches_kind(self.only, card):
+            if self.may_bottom and controller.player.choose(BOTTOM_PROMPT(card.name), ["Yes", "No"]) == 0:
+                controller.library.append(controller.library.pop(0))
             return
         controller.hand.append(controller.library.pop(0))
         if self.lose_life:

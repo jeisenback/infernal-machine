@@ -112,16 +112,21 @@ class DistributeCounters:
     counter: str
     kind: str  # "creature" or "creature you control"
     another: bool = False  # "other target creatures": not the source itself
+    grant: frozenset[str] = frozenset()  # Ajani, Sleeper Agent: "They gain vigilance until end of turn." (each creature given one)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         source = game.resolving_item.card.name if game.resolving_item is not None else "the ability"
+        given: list = []
         for _ in range(game.amount(self.count)):
             options = [p for _, p in game.target_options(self.kind, controller, game.resolving_colors)]
             options = [p for p in options if not (self.another and p is game.resolving_source)]
             if not options:
-                return
+                break
             pick = controller.player.choose(DISTRIBUTE_PROMPT(source), [game.label(p) for p in options]) if len(options) > 1 else 0
             game.put_counters(options[pick], self.counter, 1)
+            given += [options[pick]] if not any(options[pick] is p for p in given) else []
+        for permanent in given if self.grant else ():
+            game.modify_until_end_of_turn(permanent, Modifier(keywords=self.grant))
 
 
 @dataclass(frozen=True)
