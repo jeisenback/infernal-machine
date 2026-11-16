@@ -7010,7 +7010,8 @@ class Game:
 
     def explore(self, seat: Seat, creature: Permanent) -> None:
         """`creature` explores (CR 701.44a): `seat` reveals the top card of their library; a land card goes into their hand, anything else
-        (or no card) puts a +1/+1 counter on the creature, and a nonland card may then go into the graveyard."""
+        (or no card) puts a +1/+1 counter on the creature, and a nonland card may then go into the graveyard. A creature that has left the
+        battlefield still explores, without the counter (CR 701.44)."""
         top = seat.library[0] if seat.library else None
         if top is not None:
             self.broadcast({"event": "revealed", "seat": seat.index, "card": top.name})
@@ -7018,7 +7019,8 @@ class Game:
             seat.library.pop(0)
             seat.hand.append(top)
             return
-        self.put_counters(creature, "+1/+1", 1, seat)
+        if self.on_battlefield(creature):
+            self.put_counters(creature, "+1/+1", 1, seat)
         if top is not None and seat.player.choose(EXPLORE_PROMPT(top.name), [KEEP_ON_TOP, PUT_IN_GRAVEYARD]) == 1:
             seat.library.pop(0)
             self._move_card(seat, top, "graveyard")

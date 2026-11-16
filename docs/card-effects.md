@@ -1686,6 +1686,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     either of those creatures deals combat damage, you draw a card." (`WatchCombatDamage`: a delayed ability about each creature with
     `DelayedTrigger.until_your_turn`, ended as the controller's next turn begins) and "Tap up to two target nonland permanents. They
     don't untap during their controller's next untap step." (`Tap.skip_untap`).
+  - Explore on entering (`tests/test_explore_on_entering.py`, #795): "When this creature enters, it explores." (`ExploreSelf`, bound to
+    `DEAD_SOURCE`: a creature gone by then still explores, without the +1/+1 counter, CR 701.44; `Game.explore` puts the counter only on
+    a creature on the battlefield). Fifteen cards, among them Cenote Scout and Merfolk Branchwalker.
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its
