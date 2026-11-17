@@ -20,6 +20,7 @@ from .outcomes import (
     Condition,
     DefineX,
     LevelUp,
+    PutCounters,
     PutCountersOnSource,
     PutThisFromCommandZone,
     ReturnThisFromGraveyard,
@@ -126,6 +127,7 @@ _WATERBEND = re.compile(r"Waterbend \{(\d+|X)\}")
 
 
 # Station: Adagia, Kavaron and the other Planets. The abilities after it are written "12+ | <ability>".
+_SCAVENGE = re.compile(r"Scavenge ((?:\{[^}]+\})+)")  # (cost, Exile this card from your graveyard: Put a number of +1/+1 counters ...)
 _STATION = re.compile(r"Station")  # (Tap another creature you control: Put charge counters equal to its power on this Planet. Station only as a sorcery.)
 
 
@@ -253,6 +255,12 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
         if _STATION.fullmatch(line):  # Station: tap another creature, charge counters equal to its power, at sorcery speed
             abilities.append(ActivatedAbility(line, (DefineX(Amount("tapped_power")), PutCountersOnSource("X", "charge")),
                                               sorcery_speed=True, tap_creatures=1))
+            continue
+        if (m := _SCAVENGE.fullmatch(line)) and (card.power or "").isdigit():
+            # CR 702.97a: "[Cost], Exile this card from your graveyard: Put a number of +1/+1 counters equal to the power of the card you
+            # exiled on target creature. Activate only as a sorcery." (the printed power: a card with a "*" one is not read)
+            abilities.append(ActivatedAbility(line, (PutCounters(int(card.power or 0), "+1/+1", "creature"),), mana_cost=m[1],
+                                              sorcery_speed=True, exile_from_graveyard=True, from_graveyard=True))
             continue
         body, discount = _channel_body(line)  # Channel \u2014 {1}{G}, Discard this card: ... (Boseiju)
         body = _COST_ABILITY_WORD.sub("", body)  # Delirium \u2014 {2}{B}: ... (the word is only a label)
