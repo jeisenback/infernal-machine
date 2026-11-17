@@ -1712,6 +1712,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Sunburst (`tests/test_sunburst.py`, #801): "Sunburst" (CR 702.44a, `has_sunburst`): it enters with a +1/+1 counter for each color of
     mana spent to cast it if it's a creature, and a charge counter for each otherwise; none if it wasn't cast (the colors are converge's,
     `colors_spent` of the mana spent on it). Ten cards, among them Pentad Prism and Etched Oracle.
+  - Assist (`tests/test_assist.py`, #802): "Assist" (CR 702.132a, `has_assist`, `Casting._assist`): as the spell is cast its caster may choose
+    another player (`ASSIST_PROMPT`, "No one" first), who pays any amount of what is left of its generic mana with their own mana
+    (`ASSIST_PAY_PROMPT`), the caster paying the rest. A spell is offered only when its caster could pay it all. Ten cards, among them
+    Charging Binox and Huddle Up.
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its

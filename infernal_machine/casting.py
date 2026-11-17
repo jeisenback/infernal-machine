@@ -20,7 +20,7 @@ from .effects import (FREE_WAY, AlternativeCost, AttachAura, Cascade, CopySpellT
                       chosen_cost_reductions, conditional_cost_reduction, cost_increases, cost_reductions, eminence_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
                       mana_spent_trigger, non_hand_cost_reduction, overloaded_effects, reduced_by_greatest, reduced_by_total_power,
-                      replicate_cost, restricted_mana, rules_statics, sacrifice_discount, self_cost_reduction, collect_evidence_of, teamwork_of, storm_kind, strive_cost, target_kind, triggered_abilities,
+                      replicate_cost, restricted_mana, rules_statics, sacrifice_discount, self_cost_reduction, collect_evidence_of, teamwork_of, has_assist, storm_kind, strive_cost, target_kind, triggered_abilities,
                       x_limited_by_players, x_spell_discount)
 from .filters import has_type, parse_filter
 from .mana import Cost, cost_of, parse_cost
@@ -152,8 +152,10 @@ class Caster:
             if harmonizer is not None:
                 harmonized = max(0, self.game.power(harmonizer))
                 self.game.tap(harmonizer)
+        assisted = self._assist(seat, card, g._checked(self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra,
+                                                                         delve=delve + sacrificing + harmonized)).generic)
         cost = g._checked(self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra,
-                                          delve=delve + sacrificing + harmonized))
+                                          delve=delve + sacrificing + harmonized + assisted))
         with self.game._paying_for(seat, paying):
             tapped = g._checked(self.game._pay_cost(seat, cost))
         self.game._spend_mana(seat, tapped)
@@ -161,7 +163,7 @@ class Caster:
                          and self.game._restricted_mana_ok(p, limited, paying) for p in tapped)
         if seat.next_uncounterable_turn == self.game.turn:  # Mistrise Village: "The next spell you cast this turn can't be countered."
             no_counter, seat.next_uncounterable_turn = True, None
-        spent = cost.generic + len(cost.colored) + len(cost.twobrid) + len(cost.phyrexian)  # "mana spent to cast it"
+        spent = assisted + cost.generic + len(cost.colored) + len(cost.twobrid) + len(cost.phyrexian)  # "mana spent to cast it"
         delved: list[Card] = []
         for _ in range(delve):
             exiled = seat.graveyard[seat.player.choose(g.DELVE_PROMPT(card.name), [c.name for c in seat.graveyard])]
@@ -336,6 +338,24 @@ class Caster:
         self.game.broadcast({"event": "collected_evidence", "seat": seat.index, "cards": [c.name for c in chosen]})
         self.game._left_graveyard(seat, chosen)
         return True
+
+    def _assist(self, seat: g.Seat, card: Card, generic: int) -> int:
+        """Assist (CR 702.132a): as the spell is cast, its caster may choose another player, who pays any amount of its generic mana
+        (`generic`, what is left of it) with their own mana; how much they paid, the caster paying the rest. A spell is offered only when
+        its caster can pay it all, so the help is never needed to cast it."""
+        others = [s for s in self.game.live_seats() if s is not seat]
+        if not generic or not others or not has_assist(card):
+            return 0
+        pick = seat.player.choose(g.ASSIST_PROMPT(card.name), [g.ASSIST_NONE] + [f"Player: {s.name} (seat {s.index})" for s in others])
+        if not pick:
+            return 0
+        helper = others[pick - 1]
+        most = next(n for n in range(generic, -1, -1) if not n or self.game._pay_cost(helper, cost_of("{%d}" % n)) is not None)
+        paid = helper.player.choose(g.ASSIST_PAY_PROMPT(card.name), [str(n) for n in range(most + 1)])
+        if paid:
+            self.game._spend_mana(helper, g._checked(self.game._pay_cost(helper, cost_of("{%d}" % paid))))
+            self.game.broadcast({"event": "assisted", "seat": helper.index, "card": card.name, "mana": paid})
+        return paid
 
     def _pay_teamwork(self, seat: g.Seat, card: Card) -> bool:
         """Teamwork N: its caster may tap any number of untapped creatures they control with total power N or more (after the mana is
