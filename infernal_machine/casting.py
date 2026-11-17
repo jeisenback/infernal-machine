@@ -350,10 +350,13 @@ class Caster:
         if not pick:
             return 0
         helper = others[pick - 1]
-        most = next(n for n in range(generic, -1, -1) if not n or self.game._pay_cost(helper, cost_of("{%d}" % n)) is not None)
+        with self.game._paying_for(seat, card):  # (their mana is spent on this spell: Cavern of Souls' mana counts for it)
+            most = next(n for n in range(generic, -1, -1) if not n or self.game._pay_cost(helper, cost_of("{%d}" % n)) is not None)
         paid = helper.player.choose(g.ASSIST_PAY_PROMPT(card.name), [str(n) for n in range(most + 1)])
         if paid:
-            self.game._spend_mana(helper, g._checked(self.game._pay_cost(helper, cost_of("{%d}" % paid))))
+            with self.game._paying_for(seat, card):
+                tapped = g._checked(self.game._pay_cost(helper, cost_of("{%d}" % paid)))
+            self.game._spend_mana(helper, tapped)
             self.game.broadcast({"event": "assisted", "seat": helper.index, "card": card.name, "mana": paid})
         return paid
 

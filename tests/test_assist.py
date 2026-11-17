@@ -5,15 +5,16 @@ and a spell without assist asks no one."""
 
 import unittest
 
-from infernal_machine.game import ASSIST_PAY_PROMPT, ASSIST_PROMPT, CAST
+from infernal_machine.game import ASSIST_PAY_PROMPT, ASSIST_PROMPT, CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import BEAR, lands, run_stack, table3, wording_unlocked
+from tests.helpers import BEAR, lands, real, run_stack, table3, wording_unlocked
 from tests.real import REAL
 
 CARDS = ["Bloodborn Scoundrels", "Charging Binox", "Huddle Up", "Lava-Field Overlord", "Magma Hellion", "Play of the Game", "Skystreamer",
          "Spellweaver Duo"]
 NEED_A_TARGET = ["Bring Down", "Out of Bounds"]  # (a creature with power 4 or greater, a spell: the smoke table has none, so only read)
 BINOX = REAL["Charging Binox"]
+ZIGGURAT = real("Ancient Ziggurat", "", "Land", "{T}: Add one mana of any color. Spend this mana only to cast a creature spell.")
 
 # The guards these tests are there to catch (python tools/mutate.py tests.test_assist).
 MUTATIONS = [
@@ -21,6 +22,8 @@ MUTATIONS = [
      "        if not generic or not others:\n            return 0", "only a spell with assist"),
     ("infernal_machine/casting.py", 'most = next(n for n in range(generic, -1, -1) if not n or self.game._pay_cost(helper, cost_of("{%d}" % n)) is not None)',
      "most = generic", "the helper pays only what they can"),
+    ("infernal_machine/casting.py", "        with self.game._paying_for(seat, card):  # (their mana is spent on this spell",
+     "        if True:  # (their mana is spent on this spell", "the helper's mana is spent on this spell"),
     ("infernal_machine/casting.py", "delve=delve + sacrificing + harmonized + assisted))", "delve=delve + sacrificing + harmonized))",
      "the caster pays only the rest"),
 ]
@@ -67,6 +70,14 @@ class AssistTests(unittest.TestCase):
         _, players, mine, theirs = cast(BINOX, theirs=10)
         (asked,) = [options for prompt, options in players[1].prompts if ASSIST_PAY_PROMPT.matches(prompt)]
         self.assertEqual((asked[-1], mine, theirs), ("7", 7, 3))
+
+    def test_mana_the_helper_may_spend_only_on_such_a_spell_counts(self):
+        game, players = table3(helped_by(1), pays_most)
+        a, b, _ = game.seats
+        a.hand, a.battlefield, b.battlefield = [BINOX], lands(8), [Permanent(ZIGGURAT), Permanent(ZIGGURAT)]
+        game._perform(a, CAST + "Charging Binox")
+        (asked,) = [options for prompt, options in players[1].prompts if ASSIST_PAY_PROMPT.matches(prompt)]
+        self.assertEqual((asked, [p.tapped for p in b.battlefield]), (["0", "1", "2"], [True, True]))
 
     def test_with_no_one_chosen_the_caster_pays_it_all(self):
         _, players, mine, theirs = cast(BINOX, helper=None)
