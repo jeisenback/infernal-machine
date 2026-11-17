@@ -117,6 +117,15 @@ _ENTERS_PER_DELVED = re.compile(r"This creature enters with a \+1/\+1 counter on
 _ENTERS_PER_AMOUNT = re.compile(rf"{_SELF} enters with a \+1/\+1 counter on it for each (.+)\.", re.I)
 
 
+SUNBURST = re.compile(r"Sunburst")  # CR 702.44a: a counter for each color of mana spent to cast it (Game._enter)
+
+
+def has_sunburst(card: Card) -> bool:
+    """Sunburst: "This enters with a +1/+1 counter on it for each color of mana spent to cast it if it's a creature, and with a charge
+    counter on it for each color otherwise." (CR 702.44a)"""
+    return any(SUNBURST.fullmatch(line) for line in rules_lines(card))
+
+
 @lru_cache(maxsize=None)
 def entering_counters_amount(card: Card) -> "Amount | None":
     """How many +1/+1 counters the card enters with by an amount the game works out as it enters, or None."""
@@ -130,7 +139,7 @@ def is_enters_with_counters(line: str) -> bool:
     line = _ABILITY_WORD.sub("", line) if _ENTERS_PER_AMOUNT.fullmatch(_ABILITY_WORD.sub("", line)) else line  # Crystalline Crawler: "Converge — ..."
     if r := _IF_ATTACKED.search(line):
         line = _ABILITY_WORD.sub("", line[:r.start()] + ".")
-    return (_ENTERS_WITH.fullmatch(line) is not None or _ENTERS_PER_KICK.fullmatch(line) is not None
+    return (_ENTERS_WITH.fullmatch(line) is not None or _ENTERS_PER_KICK.fullmatch(line) is not None or SUNBURST.fullmatch(line) is not None
             or _ESCAPES_WITH.fullmatch(line) is not None or _ENTERS_PER_DELVED.fullmatch(line) is not None
             or ((m := _ENTERS_PER_AMOUNT.fullmatch(line)) is not None and _amount(m[1]) is not None))
 

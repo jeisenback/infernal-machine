@@ -1709,6 +1709,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Unleash (`tests/test_unleash.py`, #800): "Unleash" (CR 702.98a): its controller chooses as it enters whether it gets a +1/+1 counter
     (`UNLEASH_PROMPT`, `unleashes`), and it can't block as long as it has a +1/+1 counter on it, however it got one (the "unleashed" combat
     restriction, gone with its abilities). Eleven cards, among them Rakdos Cackler and Thrill-Kill Assassin.
+  - Sunburst (`tests/test_sunburst.py`, #801): "Sunburst" (CR 702.44a, `has_sunburst`): it enters with a +1/+1 counter for each color of
+    mana spent to cast it if it's a creature, and a charge counter for each otherwise; none if it wasn't cast (the colors are converge's,
+    `colors_spent` of the mana spent on it). Ten cards, among them Pentad Prism and Etched Oracle.
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its
