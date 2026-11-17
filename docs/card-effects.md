@@ -1703,6 +1703,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Scavenge (`tests/test_scavenge.py`, #798): "Scavenge {cost}" (CR 702.97a) is read as the ability its reminder text gives, "{cost}, Exile
     this card from your graveyard: Put N +1/+1 counters on target creature. Activate only as a sorcery.", N the card's printed power (a
     card whose power is "*" is not read). Eleven cards, among them Deadbridge Goliath and Slitherhead.
+  - Fading (`tests/test_fading.py`, #799): "Fading N" (CR 702.32a): it enters with N fade counters (`statics.enters_with_counters`), and at
+    the beginning of its controller's upkeep a fade counter is removed, or, with none to remove, it is sacrificed (`Fade`, beside
+    vanishing's `Vanish`). Eleven cards, among them Blastoderm and Cloudskate.
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its

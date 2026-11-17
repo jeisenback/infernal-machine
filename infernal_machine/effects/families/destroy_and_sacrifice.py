@@ -228,6 +228,21 @@ class Vanish:
 
 
 @dataclass(frozen=True)
+class Fade:
+    """Fading (CR 702.32a): "At the beginning of your upkeep, remove a fade counter from this permanent. If you can't, sacrifice it."
+    (unlike vanishing, it is sacrificed only at an upkeep that finds no counter to remove)."""
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        if target.counters.get("fade", 0) > 0:
+            game.remove_counters(target, "fade", 1)
+        else:
+            game._leave_battlefield(target, "sacrificed")
+
+
+@dataclass(frozen=True)
 class ReturnSelfAtNextEndStep:
     """Sakashima the Impostor's copy: "{2}{U}{U}: Return CARDNAME to its owner's hand at the beginning of the next end step." """
     binds = SOURCE
