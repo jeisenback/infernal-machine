@@ -227,7 +227,8 @@ def attack_taxes(card: Card) -> list[AttackTax]:
 class CombatRestriction:
     """A static ability that limits who attacks or blocks: `kind` is "no_attack_tribe" (Inklings can't attack you),
     "no_attack_enchanted" (creatures enchanted by an Aura you control can't attack you), "block_only_flying" (Brazen Borrower)
-    or "weaker_cant_block" (Elusive Otter: creatures with less power can't block it). The blocking ones take a creature test
+    "weaker_cant_block" (Elusive Otter: creatures with less power can't block it) or "unleashed" (it can't block while it has a +1/+1
+    counter on it). The blocking ones take a creature test
     in `what` ("power<=2", "type:Artifact", "color:U", "keyword:flying"): "not_blocked_by" (can't be blocked by creatures that
     pass it), "only_blocked_by" (can't be blocked except by creatures that pass it), "cant_block" (can't block attackers that pass
     it); and a number in `what`: "max_blockers" (can't be blocked by more than N creatures), "min_blockers" (can't be blocked
@@ -242,6 +243,14 @@ _COLORS = "|".join(_COLOR_LETTER)
 
 def _power_test(m: re.Match, first: int) -> str:
     return f"power{'<=' if m[first + 1].lower() == 'less' else '>='}{m[first]}"
+
+
+UNLEASH = re.compile(r"Unleash")  # CR 702.98a: it may enter with a +1/+1 counter (Game), and can't block while it has one
+
+
+def unleashes(card: Card) -> bool:
+    """Unleash: "You may have this creature enter with a +1/+1 counter on it." (CR 702.98a)"""
+    return any(UNLEASH.fullmatch(line) for line in rules_lines(card))
 
 
 _COMBAT_RESTRICTIONS = [
@@ -278,6 +287,7 @@ _COMBAT_RESTRICTIONS = [
     (re.compile(r"Each creature that's enchanted by an Aura you control can't attack you or planeswalkers you control\."),
      lambda m: CombatRestriction("no_attack_enchanted")),
     (re.compile(rf"{_SELF} can block only creatures with flying\.", re.I), lambda m: CombatRestriction("block_only_flying")),
+    (UNLEASH, lambda m: CombatRestriction("unleashed")),  # CR 702.98a: "It can't block as long as it has a +1/+1 counter on it."
     (re.compile(rf"Creatures with power less than {_SELF}'s power can't block it\.|"
                 r"Creatures with power less than this creature's power can't block it\.", re.I),
      lambda m: CombatRestriction("weaker_cant_block")),
