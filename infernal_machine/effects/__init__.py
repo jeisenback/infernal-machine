@@ -301,6 +301,7 @@ from .statics import (  # noqa: F401
     color_choice_excludes,
     combat_restrictions,
     unleashes,
+    riots,
     has_sunburst,
     DamageModifier,
     damage_modifiers,

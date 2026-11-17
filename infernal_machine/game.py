@@ -32,7 +32,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
 from .effects.common import colors_spent
 from .effects import (HEXPROOF_FROM_COLOR, instant_loyalty, vehicle_crew, exiled_abilities_kind, opposes_searches, CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, embalm_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, unleashes, has_sunburst, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, begins_with_luck, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, embalm_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, unleashes, riots, has_sunburst, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, begins_with_luck, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -237,6 +237,8 @@ PUT_PERMANENT_PROMPT = PromptKind("put_permanent", "Put a nonland permanent card
 SET_ASIDE_PROMPT = PromptKind("set_aside", "Choose a nonland card exiled this way; it can't be cast")
 UNLEASH_PROMPT = PromptKind("unleash", "Unleash: enter with a +1/+1 counter? ")  # then the card's name; it can't block while it has one
 UNLEASHED, NOT_UNLEASHED = "Enter with a +1/+1 counter", "Enter without it"
+RIOT_PROMPT = PromptKind("riot", "Riot: a +1/+1 counter or haste for ")  # then the card's name; options: RIOT_COUNTER, RIOT_HASTE
+RIOT_COUNTER, RIOT_HASTE = "Enter with a +1/+1 counter", "It gains haste"
 KINSHIP_PROMPT = PromptKind("kinship", "Reveal the top card of your library for kinship with ")  # then the source's name: Reveal or not
 CAST_FREE_EXILED_PROMPT = PromptKind("cast_free_exiled", "Cast a spell from among the other exiled cards without paying its mana cost")  # then NONE_TAKEN
 CHOOSE_EXILED_WITH_PROMPT = PromptKind("choose_exiled_with", "Choose a card exiled with this permanent")
@@ -394,6 +396,7 @@ class Permanent:
     cast: bool = False  # it came from a spell that was cast ("When it enters, if you cast it")
     mana_types_spent: tuple[frozenset[str], ...] = ()  # the types each mana spent to cast it could be (Deceit: "if {U}{U} was spent to cast it")
     blitzed: bool = False  # Blitz, Jaxis's copy: it has haste and "When this creature dies, draw a card." (CR 702.152a)
+    rioted: bool = False  # Riot, its controller chose haste as it entered: it has haste for as long as it stays (CR 702.136a)
     returns_when_dies: int = 0  # Malakir Rebirth: the turn it gained "When this creature dies, return it to the battlefield tapped"
     returns_with_counter: str = ""  # Undying Malice: "... with a +1/+1 counter on it" (the kind of counter it comes back with)
     animated_until: int | None = None  # Karn, the Great Creator: animated "until your next turn", the index of the seat whose turn ends it
@@ -5368,7 +5371,7 @@ class Game:
             return False  # CR 613.1f: a later "loses flying" (Colossus Hammer) wins over the printed or granted keyword
         printed = has_keyword(permanent.card, keyword) and not self.loses_abilities(permanent)
         return printed or permanent.counters.get(keyword, 0) > 0 or any(keyword in m.keywords for m in mods) \
-            or (keyword == "haste" and permanent.blitzed)  # CR 122.1b: a keyword counter; CR 702.152a
+            or (keyword == "haste" and (permanent.blitzed or permanent.rioted))  # CR 122.1b: a keyword counter; CR 702.152a, 702.136a
 
     def _stripped(self) -> set[int]:
         """`id`s of the permanents an Aura or Equipment takes every ability from (Infinite Coursework): one pass over the board
@@ -7422,6 +7425,11 @@ class Game:
         if has_sunburst(permanent.card) and (colors := colors_spent(permanent.mana_types_spent)):  # CR 702.44a: none if it wasn't cast
             kind = "+1/+1" if "Creature" in permanent.card.type_line else "charge"
             counters[kind] = counters.get(kind, 0) + colors
+        if riots(permanent.card):  # Riot (CR 702.136a): the controller chooses as it enters; the haste is the effect's, kept for good
+            if seat.player.choose(RIOT_PROMPT(permanent.card.name), [RIOT_COUNTER, RIOT_HASTE]) == 0:
+                counters["+1/+1"] = counters.get("+1/+1", 0) + 1
+            else:
+                permanent.rioted = True
         if unleashes(permanent.card) and seat.player.choose(UNLEASH_PROMPT(permanent.card.name), [UNLEASHED, NOT_UNLEASHED]) == 0:
             counters["+1/+1"] = counters.get("+1/+1", 0) + 1  # Unleash (CR 702.98a): the controller chooses as it enters
         if extra_when_copy and permanent.real_card is not None and "Creature" in permanent.card.type_line:

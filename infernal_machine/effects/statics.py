@@ -140,6 +140,7 @@ def is_enters_with_counters(line: str) -> bool:
     if r := _IF_ATTACKED.search(line):
         line = _ABILITY_WORD.sub("", line[:r.start()] + ".")
     return (_ENTERS_WITH.fullmatch(line) is not None or _ENTERS_PER_KICK.fullmatch(line) is not None or SUNBURST.fullmatch(line) is not None
+            or RIOT.fullmatch(line) is not None
             or _ESCAPES_WITH.fullmatch(line) is not None or _ENTERS_PER_DELVED.fullmatch(line) is not None
             or ((m := _ENTERS_PER_AMOUNT.fullmatch(line)) is not None and _amount(m[1]) is not None))
 
@@ -255,6 +256,14 @@ def _power_test(m: re.Match, first: int) -> str:
 
 
 UNLEASH = re.compile(r"Unleash")  # CR 702.98a: it may enter with a +1/+1 counter (Game), and can't block while it has one
+
+
+RIOT = re.compile(r"Riot")  # CR 702.136a: as it enters, a +1/+1 counter or haste, its controller's choice (Game._enter)
+
+
+def riots(card: Card) -> bool:
+    """Riot: "You may have this creature enter with a +1/+1 counter on it. If you don't, it gains haste." (CR 702.136a)"""
+    return any(RIOT.fullmatch(line) for line in rules_lines(card))
 
 
 def unleashes(card: Card) -> bool:

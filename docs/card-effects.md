@@ -1723,6 +1723,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     caster may sacrifice a creature with power N or greater (`CASUALTY_PROMPT`, "Don't sacrifice" first); when they do, the spell is
     copied by a trigger of its own (Twinning Staff adds to it apart). Nine cards, among them A Little Chat and Illicit Shipment ("Casualty X"
     is not read).
+  - Riot (`tests/test_riot.py`, #805): "Riot" (CR 702.136a, `riots`, `RIOT_PROMPT`): as it enters its controller chooses a +1/+1 counter
+    or haste; the haste is the effect's (`Permanent.rioted`), so it stays when the creature loses its abilities. Eight cards, among them
+    Zhur-Taa Goblin and Burning-Tree Vandal.
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its
