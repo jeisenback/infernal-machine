@@ -2943,6 +2943,130 @@
    "colors": [
     "U"
    ]
+  },
+  {
+   "name": "Deadbridge Goliath",
+   "mana_cost": "{2}{G}{G}",
+   "type_line": "Creature — Insect",
+   "oracle_text": "Scavenge {4}{G}{G} ({4}{G}{G}, Exile this card from your graveyard: Put a number of +1/+1 counters equal to this card's power on target creature. Scavenge only as a sorcery.)",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Dreg Mangler",
+   "mana_cost": "{1}{B}{G}",
+   "type_line": "Creature — Plant Zombie",
+   "oracle_text": "Haste\nScavenge {3}{B}{G} ({3}{B}{G}, Exile this card from your graveyard: Put a number of +1/+1 counters equal to this card's power on target creature. Scavenge only as a sorcery.)",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "B",
+    "G"
+   ]
+  },
+  {
+   "name": "Drudge Beetle",
+   "mana_cost": "{1}{G}",
+   "type_line": "Creature — Insect",
+   "oracle_text": "Scavenge {5}{G} ({5}{G}, Exile this card from your graveyard: Put a number of +1/+1 counters equal to this card's power on target creature. Scavenge only as a sorcery.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Golgari Decoy",
+   "mana_cost": "{3}{G}",
+   "type_line": "Creature — Elf Rogue",
+   "oracle_text": "All creatures able to block this creature do so.\nScavenge {3}{G}{G} ({3}{G}{G}, Exile this card from your graveyard: Put a number of +1/+1 counters equal to this card's power on target creature. Scavenge only as a sorcery.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Korozda Monitor",
+   "mana_cost": "{2}{G}{G}",
+   "type_line": "Creature — Lizard",
+   "oracle_text": "Trample\nScavenge {5}{G}{G} ({5}{G}{G}, Exile this card from your graveyard: Put a number of +1/+1 counters equal to this card's power on target creature. Scavenge only as a sorcery.)",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Sewer Shambler",
+   "mana_cost": "{2}{B}",
+   "type_line": "Creature — Zombie",
+   "oracle_text": "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)\nScavenge {2}{B} ({2}{B}, Exile this card from your graveyard: Put a number of +1/+1 counters equal to this card's power on target creature. Scavenge only as a sorcery.)",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Slitherhead",
+   "mana_cost": "{B/G}",
+   "type_line": "Creature — Plant Zombie",
+   "oracle_text": "Scavenge {0} ({0}, Exile this card from your graveyard: Put a number of +1/+1 counters equal to this card's power on target creature. Scavenge only as a sorcery.)",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "B",
+    "G"
+   ]
+  },
+  {
+   "name": "Sluiceway Scorpion",
+   "mana_cost": "{2}{B}{G}",
+   "type_line": "Creature — Scorpion",
+   "oracle_text": "Deathtouch (Any amount of damage this deals to a creature is enough to destroy it.)\nScavenge {1}{B}{G} ({1}{B}{G}, Exile this card from your graveyard: Put a number of +1/+1 counters equal to this card's power on target creature. Scavenge only as a sorcery.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "B",
+    "G"
+   ]
+  },
+  {
+   "name": "Terrus Wurm",
+   "mana_cost": "{6}{B}",
+   "type_line": "Creature — Zombie Wurm",
+   "oracle_text": "Scavenge {6}{B} ({6}{B}, Exile this card from your graveyard: Put a number of +1/+1 counters equal to this card's power on target creature. Scavenge only as a sorcery.)",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Thrashing Mossdog",
+   "mana_cost": "{3}{G}",
+   "type_line": "Creature — Plant Dog",
+   "oracle_text": "Reach (This creature can block creatures with flying.)\nScavenge {4}{G}{G} ({4}{G}{G}, Exile this card from your graveyard: Put a number of +1/+1 counters equal to this card's power on target creature. Scavenge only as a sorcery.)",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Zanikev Locust",
+   "mana_cost": "{5}{B}",
+   "type_line": "Creature — Insect",
+   "oracle_text": "Flying\nScavenge {2}{B}{B} ({2}{B}{B}, Exile this card from your graveyard: Put a number of +1/+1 counters equal to this card's power on target creature. Scavenge only as a sorcery.)",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "B"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
@@ -2966,6 +3090,17 @@
    "colors": [
     "U",
     "W"
+   ]
+  },
+  {
+   "name": "Dodgy Jalopy",
+   "mana_cost": "{2}{G}",
+   "type_line": "Artifact — Vehicle",
+   "oracle_text": "Trample\nDodgy Jalopy's power is equal to the greatest mana value among creatures you control.\nCrew 3\nScavenge {2}{G} ({2}{G}, Exile this card from your graveyard: Put a number of +1/+1 counters equal to this card's power on target creature. Scavenge only as a sorcery.)",
+   "power": "*",
+   "toughness": "5",
+   "colors": [
+    "G"
    ]
   }
  ]
