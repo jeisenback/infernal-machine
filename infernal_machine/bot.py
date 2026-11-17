@@ -20,7 +20,7 @@ from .undercity import HELPS_ITS_TARGET
 from .effects import CONSULT_NAME_PROMPT, MOVE_COUNTERS_PROMPT, PACT_TAKE_PROMPT
 from .zones import CAST_PREFIXES, LAND_PREFIXES, PLOT
 from .effects import TEMPT_PROMPT
-from .game import (CAST_FUSED, CAST_FACE_DOWN, CAST_FORETOLD, CAST_DISTURB, ENCORE, ETERNALIZE, UNEARTH, SUSPEND, FORETELL, ACTIVATE_HAND,
+from .game import (CAST_FUSED, CAST_FACE_DOWN, CAST_FORETOLD, CAST_DISTURB, ENCORE, ETERNALIZE, EMBALM, UNEARTH, SUSPEND, FORETELL, ACTIVATE_HAND,
                    ACTIVATE_GRAVEYARD, ACTIVATE_COMMAND, UNLOCK, TURN_UP, NINJUTSU, COMMAND_ZONE_PROMPT, COMMANDER_TAX, COST_PROMPT, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, COMPANION, CAST_PREPARED, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS, SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
                    MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, EXPLOIT_PROMPT, REPLICATE_PROMPT, SCAPESHIFT_PROMPT,
@@ -29,7 +29,7 @@ from .game import (CAST_FUSED, CAST_FACE_DOWN, CAST_FORETOLD, CAST_DISTURB, ENCO
 
 MANA_ONLY = re.compile(r"(?:\{(?:\d+|[WUBRGCS]|[WUBRG2]/[WUBRGP])\})+")  # a cost of mana symbols alone ({2}{U}, {G/W})
 OTHER_CASTS = (CAST_FUSED, CAST_FACE_DOWN, CAST_FORETOLD, CAST_DISTURB)  # with "routes", weighed with the other casts
-OTHER_ROUTES = (ENCORE, ETERNALIZE, UNEARTH, SUSPEND, FORETELL, ACTIVATE_HAND, ACTIVATE_GRAVEYARD, ACTIVATE_COMMAND, UNLOCK, TURN_UP)  # with "routes", once nothing is cast
+OTHER_ROUTES = (ENCORE, ETERNALIZE, EMBALM, UNEARTH, SUSPEND, FORETELL, ACTIVATE_HAND, ACTIVATE_GRAVEYARD, ACTIVATE_COMMAND, UNLOCK, TURN_UP)  # with "routes", once nothing is cast
 FACE_DOWN_COST = 3  # CR 702.37c: a face-down spell costs {3}
 MIN_LANDS = 2
 MAX_LANDS = 5
@@ -113,7 +113,7 @@ class BotPlayer:
         takes the card that completes a combo the deck holds, with what is on the battlefield and in the hand; `combos` are the deck's combos
         as tuples of card names, or come from the Commander Spellbook cache, and the judgment does nothing for a deck the cache doesn't know),
         "routes" (the other ways to play a card: a fused split card, a face-down, foretold or disturbed spell are weighed with the other
-        casts; ninjutsu whenever it is offered; and in a main phase with nothing left to cast, encore, eternalize, unearth, suspend,
+        casts; ninjutsu whenever it is offered; and in a main phase with nothing left to cast, encore, eternalize, embalm, unearth, suspend,
         foretell, an ability from the hand, graveyard or command zone, unlocking a door, turning a creature face up),
         "sink" (mana still unspent in its second main phase or at an opponent's end step goes on an ability that costs only mana),
         "win" (Thassa's Oracle's line: it casts the Oracle once its library is down to ORACLE_LIBRARY cards; it keeps Demonic Consultation

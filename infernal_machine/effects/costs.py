@@ -329,6 +329,7 @@ _ETERNALIZE = re.compile(r"Eternalize(?: ((?:\{[^}]+\})+)|\u2014((?:\{[^}]+\})+)
 
 
 _UNEARTH = re.compile(r"Unearth ((?:\{[^}]+\})+)")
+_EMBALM = re.compile(r"Embalm ((?:\{[^}]+\})+)")
 
 
 _MADNESS = re.compile(r"Madness ((?:\{[^}]+\})+)")
@@ -372,6 +373,11 @@ def eternalize_discards(card: Card) -> bool:
 
 
 @lru_cache(maxsize=None)
+def embalm_cost(card: Card) -> str | None:
+    """Embalm {cost}: from the graveyard, as a sorcery, exile it to make a token copy that is a white Zombie with no mana cost (CR 702.128a)."""
+    return next((m[1] for line in rules_lines(card) if (m := _EMBALM.fullmatch(line))), None)
+
+
 def encore_cost(card: Card) -> str | None:
     """Encore {cost}: from the graveyard, for each opponent a token copy attacks that opponent this turn."""
     return next((m[1] for line in rules_lines(card) if (m := _ENCORE.fullmatch(line))), None)
@@ -855,7 +861,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _SACRIFICE_DISCOUNT, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _FREE_IF_LANDS, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _COLLECT_EVIDENCE, _TEAMWORK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _MIRACLE, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
+    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _SACRIFICE_DISCOUNT, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _FREE_IF_LANDS, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _COLLECT_EVIDENCE, _TEAMWORK, _RETRACE, _ENCORE, _ETERNALIZE, _EMBALM, _UNEARTH, _MADNESS, _MIRACLE, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _IMPENDING, _DASH, _SPECTACLE, _BLITZ, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_DISCARD, _SPLICE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
