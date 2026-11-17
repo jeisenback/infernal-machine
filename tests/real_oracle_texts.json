@@ -3067,6 +3067,123 @@
    "colors": [
     "B"
    ]
+  },
+  {
+   "name": "Ancient Hydra",
+   "mana_cost": "{4}{R}",
+   "type_line": "Creature — Hydra",
+   "oracle_text": "Fading 5 (This creature enters with five fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\n{1}, Remove a fade counter from this creature: It deals 1 damage to any target.",
+   "power": "5",
+   "toughness": "1",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Blastoderm",
+   "mana_cost": "{2}{G}{G}",
+   "type_line": "Creature — Beast",
+   "oracle_text": "Shroud (This creature can't be the target of spells or abilities.)\nFading 3 (This creature enters with three fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Cloudskate",
+   "mana_cost": "{1}{U}",
+   "type_line": "Creature — Illusion",
+   "oracle_text": "Flying\nFading 3 (This creature enters with three fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Defender en-Vec",
+   "mana_cost": "{3}{W}",
+   "type_line": "Creature — Human Cleric",
+   "oracle_text": "Fading 4 (This creature enters with four fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\nRemove a fade counter from this creature: Prevent the next 2 damage that would be dealt to any target this turn.",
+   "power": "2",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Jolting Merfolk",
+   "mana_cost": "{2}{U}{U}",
+   "type_line": "Creature — Merfolk",
+   "oracle_text": "Fading 4 (This creature enters with four fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\nRemove a fade counter from this creature: Tap target creature.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Phyrexian Prowler",
+   "mana_cost": "{3}{B}",
+   "type_line": "Creature — Phyrexian Zombie Mercenary",
+   "oracle_text": "Fading 3 (This creature enters with three fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\nRemove a fade counter from this creature: This creature gets +1/+1 until end of turn.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Rejuvenation Chamber",
+   "mana_cost": "{3}",
+   "type_line": "Artifact",
+   "oracle_text": "Fading 2 (This artifact enters with two fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\n{T}: You gain 2 life.",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Rusting Golem",
+   "mana_cost": "{4}",
+   "type_line": "Artifact Creature — Golem",
+   "oracle_text": "Fading 5 (This creature enters with five fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\nRusting Golem's power and toughness are each equal to the number of fade counters on it.",
+   "power": "*",
+   "toughness": "*",
+   "colors": []
+  },
+  {
+   "name": "Skyshroud Behemoth",
+   "mana_cost": "{5}{G}{G}",
+   "type_line": "Creature — Beast",
+   "oracle_text": "Fading 2 (This creature enters with two fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\nThis creature enters tapped.",
+   "power": "10",
+   "toughness": "10",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Skyshroud Ridgeback",
+   "mana_cost": "{G}",
+   "type_line": "Creature — Beast",
+   "oracle_text": "Fading 2 (This creature enters with two fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Woodripper",
+   "mana_cost": "{3}{G}{G}",
+   "type_line": "Creature — Beast",
+   "oracle_text": "Fading 3 (This creature enters with three fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\n{1}, Remove a fade counter from this creature: Destroy target artifact.",
+   "power": "4",
+   "toughness": "6",
+   "colors": [
+    "G"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

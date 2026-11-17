@@ -273,6 +273,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     ExileSelf,
     ReturnSelfAtNextEndStep,
     Vanish,
+    Fade,
     SacrificeSelfThenCreate,
     SacrificeUnlessPay,
     TargetSacrifices,

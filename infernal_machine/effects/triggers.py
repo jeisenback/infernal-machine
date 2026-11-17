@@ -22,6 +22,7 @@ from .outcomes import (
     MayDiscardThen,
     Conditional,
     Vanish,
+    Fade,
     FlipUntilLose,
     SubjectDamagesEachOpponent,
     DamageFromSubject,
@@ -410,6 +411,8 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
             abilities.append(TriggeredAbility("enters", (Hideaway(int(m[1])),), False, line))
         if VANISHING.fullmatch(line):  # its time counters come with it as it enters (statics.enters_with_counters)
             abilities.append(TriggeredAbility("upkeep", (Vanish(),), False, line))
+        if FADING.fullmatch(line):  # its fade counters come with it as it enters (statics.enters_with_counters)
+            abilities.append(TriggeredAbility("upkeep", (Fade(),), False, line))
     for line in rules_lines(card):  # persist and undying are keywords that come back from the graveyard
         words = {word.strip().lower() for word in line.split(",")}
         if "exploit" in words:  # CR 702.110: when it enters, you may sacrifice a creature
@@ -461,6 +464,7 @@ _BLOCK_KEYWORD = re.compile(r"(bushido|afflict|rampage) (\d+)")
 
 
 _HIDEAWAY = re.compile(r"Hideaway (\d+)")
+FADING = re.compile(r"Fading (\d+)")  # CR 702.32a: the counters are statics.enters_with_counters', the upkeep trigger here
 VANISHING = re.compile(r"Vanishing (\d+)")  # CR 702.63a: the counters are statics.enters_with_counters', the upkeep trigger here
 
 _OFFSPRING_LINE = re.compile(r"Offspring (?:\{[^}]+\})+")
