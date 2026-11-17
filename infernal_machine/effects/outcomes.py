@@ -3477,6 +3477,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: (lambda x: PumpSourceX(x.power, x.toughness))(_pump_x(m[1], m[2], m[3], m[4], "creature"))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
     (re.compile(rf"(?i:attacking creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), attacking=True)),  # Warren Warleader
+    # Battle cry (CR 702.91a): "each other attacking creature gets +1/+0": only its controller's creatures attack in a combat (CR 506.2)
+    (re.compile(rf"(?i:each other attacking creature|other attacking creatures(?: you control)?) {_CHANGE}"),
+     lambda m: PumpEach(_modifier(m, 1), attacking=True, other=True)),
     (re.compile(rf"(?i:other creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), other=True)),  # Summon: Esper Maduin
     (re.compile(rf"(?i:tokens you control gain) {_KEYWORDS} (?i:until (end of turn|your next turn))\."),  # For the Common Good: every token
      lambda m: KindsGainUntilEndOfTurn("token", _keyword_list(m[1]), until_next_turn=m[2].lower() == "your next turn")),

@@ -3516,6 +3516,106 @@
    "colors": [
     "U"
    ]
+  },
+  {
+   "name": "Accorder Paladin",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Human Knight",
+   "oracle_text": "Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)",
+   "power": "3",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Goblin Wardriver",
+   "mana_cost": "{R}{R}",
+   "type_line": "Creature — Goblin Warrior",
+   "oracle_text": "Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Hero of Bladehold",
+   "mana_cost": "{2}{W}{W}",
+   "type_line": "Creature — Human Knight",
+   "oracle_text": "Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)\nWhenever this creature attacks, create two 1/1 white Soldier creature tokens that are tapped and attacking.",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Iraxxa, Empress of Mars",
+   "mana_cost": "{2}{R}{R}",
+   "type_line": "Legendary Creature — Alien Warrior",
+   "oracle_text": "Trample\nBattle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)\nParadox — Whenever you cast a spell from anywhere other than your hand, create a 2/2 red Alien Warrior creature token.",
+   "power": "5",
+   "toughness": "4",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Kuldotha Ringleader",
+   "mana_cost": "{4}{R}",
+   "type_line": "Creature — Giant Berserker",
+   "oracle_text": "Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)\nThis creature attacks each combat if able.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Loxodon Partisan",
+   "mana_cost": "{4}{W}",
+   "type_line": "Creature — Elephant Soldier",
+   "oracle_text": "Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Primaris Chaplain",
+   "mana_cost": "{2}{W}{B}",
+   "type_line": "Creature — Astartes Cleric",
+   "oracle_text": "Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)\nRosarius — Whenever this creature attacks, it gains indestructible until end of turn.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "B",
+    "W"
+   ]
+  },
+  {
+   "name": "Rhox Veteran",
+   "mana_cost": "{3}{W}",
+   "type_line": "Creature — Rhino Soldier",
+   "oracle_text": "Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)\nWhenever this creature attacks, tap target creature an opponent controls.",
+   "power": "2",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Sanguine Evangelist",
+   "mana_cost": "{2}{W}",
+   "type_line": "Creature — Vampire Cleric",
+   "oracle_text": "Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)\nWhen this creature enters or dies, create a 1/1 black Bat creature token with flying.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
