@@ -300,6 +300,7 @@ from .statics import (  # noqa: F401
     CloneRule,
     color_choice_excludes,
     combat_restrictions,
+    unleashes,
     DamageModifier,
     damage_modifiers,
     damage_prevention,

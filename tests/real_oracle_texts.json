@@ -3184,6 +3184,131 @@
    "colors": [
     "G"
    ]
+  },
+  {
+   "name": "Bloodfray Giant",
+   "mana_cost": "{2}{R}{R}",
+   "type_line": "Creature — Giant",
+   "oracle_text": "Trample\nUnleash (You may have this creature enter with a +1/+1 counter on it. It can't block as long as it has a +1/+1 counter on it.)",
+   "power": "4",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Carnival Hellsteed",
+   "mana_cost": "{4}{B}{R}",
+   "type_line": "Creature — Nightmare Horse",
+   "oracle_text": "First strike, haste\nUnleash (You may have this creature enter with a +1/+1 counter on it. It can't block as long as it has a +1/+1 counter on it.)",
+   "power": "5",
+   "toughness": "4",
+   "colors": [
+    "B",
+    "R"
+   ]
+  },
+  {
+   "name": "Dead Reveler",
+   "mana_cost": "{2}{B}",
+   "type_line": "Creature — Zombie",
+   "oracle_text": "Unleash (You may have this creature enter with a +1/+1 counter on it. It can't block as long as it has a +1/+1 counter on it.)",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Gore-House Chainwalker",
+   "mana_cost": "{1}{R}",
+   "type_line": "Creature — Human Warrior",
+   "oracle_text": "Unleash (You may have this creature enter with a +1/+1 counter on it. It can't block as long as it has a +1/+1 counter on it.)",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Grim Roustabout",
+   "mana_cost": "{1}{B}",
+   "type_line": "Creature — Skeleton Warrior",
+   "oracle_text": "Unleash (You may have this creature enter with a +1/+1 counter on it. It can't block as long as it has a +1/+1 counter on it.)\n{1}{B}: Regenerate this creature.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Hellhole Flailer",
+   "mana_cost": "{1}{B}{R}",
+   "type_line": "Creature — Ogre Warrior",
+   "oracle_text": "Unleash (You may have this creature enter with a +1/+1 counter on it. It can't block as long as it has a +1/+1 counter on it.)\n{2}{B}{R}, Sacrifice this creature: It deals damage equal to its power to target player or planeswalker.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "B",
+    "R"
+   ]
+  },
+  {
+   "name": "Rakdos Cackler",
+   "mana_cost": "{B/R}",
+   "type_line": "Creature — Devil",
+   "oracle_text": "Unleash (You may have this creature enter with a +1/+1 counter on it. It can't block as long as it has a +1/+1 counter on it.)",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "B",
+    "R"
+   ]
+  },
+  {
+   "name": "Rakdos Drake",
+   "mana_cost": "{2}{B}",
+   "type_line": "Creature — Drake",
+   "oracle_text": "Flying\nUnleash (You may have this creature enter with a +1/+1 counter on it. It can't block as long as it has a +1/+1 counter on it.)",
+   "power": "1",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Spawn of Rix Maadi",
+   "mana_cost": "{3}{B}{R}",
+   "type_line": "Creature — Horror",
+   "oracle_text": "Unleash (You may have this creature enter with a +1/+1 counter on it. It can't block as long as it has a +1/+1 counter on it.)",
+   "power": "5",
+   "toughness": "3",
+   "colors": [
+    "B",
+    "R"
+   ]
+  },
+  {
+   "name": "Splatter Thug",
+   "mana_cost": "{2}{R}",
+   "type_line": "Creature — Human Warrior",
+   "oracle_text": "First strike\nUnleash (You may have this creature enter with a +1/+1 counter on it. It can't block as long as it has a +1/+1 counter on it.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Thrill-Kill Assassin",
+   "mana_cost": "{1}{B}",
+   "type_line": "Creature — Human Assassin",
+   "oracle_text": "Deathtouch\nUnleash (You may have this creature enter with a +1/+1 counter on it. It can't block as long as it has a +1/+1 counter on it.)",
+   "power": "1",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
