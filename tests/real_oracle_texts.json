@@ -2821,6 +2821,128 @@
    "colors": [
     "R"
    ]
+  },
+  {
+   "name": "Sacred Cat",
+   "mana_cost": "{W}",
+   "type_line": "Creature — Cat",
+   "oracle_text": "Lifelink\nEmbalm {W} ({W}, Exile this card from your graveyard: Create a token that's a copy of it, except it's a white Zombie Cat with no mana cost. Embalm only as a sorcery.)",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Angel of Sanctions",
+   "mana_cost": "{3}{W}{W}",
+   "type_line": "Creature — Angel",
+   "oracle_text": "Flying\nWhen this creature enters, you may exile target nonland permanent an opponent controls until this creature leaves the battlefield.\nEmbalm {5}{W} ({5}{W}, Exile this card from your graveyard: Create a token that's a copy of it, except it's a white Zombie Angel with no mana cost. Embalm only as a sorcery.)",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Aven Wind Guide",
+   "mana_cost": "{2}{W}{U}",
+   "type_line": "Creature — Bird Warrior",
+   "oracle_text": "Flying, vigilance\nCreature tokens you control have flying and vigilance.\nEmbalm {4}{W}{U} ({4}{W}{U}, Exile this card from your graveyard: Create a token that's a copy of it, except it's a white Zombie Bird Warrior with no mana cost. Embalm only as a sorcery.)",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Anointer Priest",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Human Cleric",
+   "oracle_text": "Whenever a creature token you control enters, you gain 1 life.\nEmbalm {3}{W} ({3}{W}, Exile this card from your graveyard: Create a token that's a copy of it, except it's a white Zombie Human Cleric with no mana cost. Embalm only as a sorcery.)",
+   "power": "1",
+   "toughness": "3",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Honored Hydra",
+   "mana_cost": "{5}{G}",
+   "type_line": "Creature — Snake Hydra",
+   "oracle_text": "Trample\nEmbalm {3}{G} ({3}{G}, Exile this card from your graveyard: Create a token that's a copy of it, except it's a white Zombie Snake Hydra with no mana cost. Embalm only as a sorcery.)",
+   "power": "6",
+   "toughness": "6",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Heart-Piercer Manticore",
+   "mana_cost": "{2}{R}{R}",
+   "type_line": "Creature — Manticore",
+   "oracle_text": "When this creature enters, you may sacrifice another creature. When you do, this creature deals damage equal to that creature's power to any target.\nEmbalm {5}{R} ({5}{R}, Exile this card from your graveyard: Create a token that's a copy of it, except it's a white Zombie Manticore with no mana cost. Embalm only as a sorcery.)",
+   "power": "4",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Oketra's Attendant",
+   "mana_cost": "{3}{W}{W}",
+   "type_line": "Creature — Bird Soldier",
+   "oracle_text": "Flying\nCycling {2} ({2}, Discard this card: Draw a card.)\nEmbalm {3}{W}{W} ({3}{W}{W}, Exile this card from your graveyard: Create a token that's a copy of it, except it's a white Zombie Bird Soldier with no mana cost. Embalm only as a sorcery.)",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Aven Initiate",
+   "mana_cost": "{3}{U}",
+   "type_line": "Creature — Bird Warrior",
+   "oracle_text": "Flying\nEmbalm {6}{U} ({6}{U}, Exile this card from your graveyard: Create a token that's a copy of it, except it's a white Zombie Bird Warrior with no mana cost. Embalm only as a sorcery.)",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Unwavering Initiate",
+   "mana_cost": "{2}{W}",
+   "type_line": "Creature — Human Warrior",
+   "oracle_text": "Vigilance\nEmbalm {4}{W} ({4}{W}, Exile this card from your graveyard: Create a token that's a copy of it, except it's a white Zombie Human Warrior with no mana cost. Embalm only as a sorcery.)",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Labyrinth Guardian",
+   "mana_cost": "{1}{U}",
+   "type_line": "Creature — Illusion Warrior",
+   "oracle_text": "When this creature becomes the target of a spell, sacrifice it.\nEmbalm {3}{U} ({3}{U}, Exile this card from your graveyard: Create a token that's a copy of it, except it's a white Zombie Illusion Warrior with no mana cost. Embalm only as a sorcery.)",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Tah-Crop Skirmisher",
+   "mana_cost": "{1}{U}",
+   "type_line": "Creature — Snake Warrior",
+   "oracle_text": "Embalm {3}{U} ({3}{U}, Exile this card from your graveyard: Create a token that's a copy of it, except it's a white Zombie Snake Warrior with no mana cost. Embalm only as a sorcery.)",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "U"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

@@ -32,7 +32,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
 from .effects.common import colors_spent
 from .effects import (HEXPROOF_FROM_COLOR, instant_loyalty, vehicle_crew, exiled_abilities_kind, opposes_searches, CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, begins_with_luck, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, embalm_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, begins_with_luck, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -75,6 +75,7 @@ _COLOR_LETTERS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": 
 EVERYTHING = 10**9  # more damage than there will ever be: "prevent all damage"
 SHUFFLED = "library_shuffled"  # where a card goes when it is shuffled into its owner's library instead of a graveyard
 ETERNALIZE = "Eternalize: "  # followed by the card's name
+EMBALM = "Embalm: "  # followed by the card's name
 UNEARTH = "Unearth: "  # followed by the card's name
 SUSPEND = "Suspend: "  # followed by the card's name
 COMPANION = "Companion: "  # followed by the companion's name: pay {3} and put it into the hand from outside the game
@@ -1232,6 +1233,8 @@ class Game:
                 if (cost := eternalize_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None \
                         and (seat.hand or not eternalize_discards(card)):
                     actions.append(ETERNALIZE + card.name)
+                if (cost := embalm_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
+                    actions.append(EMBALM + card.name)
                 if (cost := unearth_cost(card)) and not self.caged(card) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
                     actions.append(UNEARTH + card.name)
         actions += EXILE.offers(self, seat, sorcery_timing)
@@ -2033,6 +2036,8 @@ class Game:
             self._unearth(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(UNEARTH)))
         elif action.startswith(ETERNALIZE):
             self._eternalize(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(ETERNALIZE)))
+        elif action.startswith(EMBALM):
+            self._embalm(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(EMBALM)))
         elif action.startswith(ENCORE):
             self._encore(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(ENCORE)))
         elif action.startswith(UNLOCK):
@@ -5521,13 +5526,24 @@ class Game:
         self._spend_mana(seat, tapped)
         if eternalize_discards(card):  # "Eternalize\u2014{3}{U}{U}, Discard a card."
             self.discard(seat, 1)
+        self._zombie_copy(seat, card, "eternalize", "B", "4", "4")
+
+    def _embalm(self, seat: Seat, card: Card) -> None:
+        """Embalm: pay its cost and exile it from the graveyard; create a token copy that is a white Zombie with no mana cost, its
+        power and toughness the card's own (CR 702.128a)."""
+        self._spend_mana(seat, _checked(self._payment(seat, dataclasses.replace(card, mana_cost=embalm_cost(card)))))
+        self._zombie_copy(seat, card, "embalm", "W", card.power, card.toughness)
+
+    def _zombie_copy(self, seat: Seat, card: Card, event: str, color: str, power: str | None, toughness: str | None) -> None:
+        """Eternalize and embalm, once paid: `card` is exiled from the graveyard and a token copy of it made that is a Zombie in addition
+        to its other types, of only `color`, with no mana cost and the given power and toughness."""
         seat.graveyard.remove(card)
-        self.broadcast({"event": "eternalize", "seat": seat.index, "card": card.name})
+        self.broadcast({"event": event, "seat": seat.index, "card": card.name})
         self._move_card(seat, card, "exile")
         self._left_graveyard(seat, [card])
         kind, _, subtypes = card.type_line.partition(" \u2014 ")
-        token = dataclasses.replace(card, type_line=f"Token {kind} \u2014 Zombie {subtypes}".strip(), mana_cost="", cmc=0, colors=("B",),
-                                    power="4", toughness="4")
+        token = dataclasses.replace(card, type_line=f"Token {kind} \u2014 Zombie {subtypes}".strip(), mana_cost="", cmc=0, colors=(color,),
+                                    power=power, toughness=toughness)
         self.create_tokens(seat, token, 1)
 
     def attacking_tokens(self, seat: Seat, token: Card, count: int, haste: bool, at_end: str | None) -> None:

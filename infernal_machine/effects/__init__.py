@@ -412,6 +412,7 @@ from .costs import (  # noqa: F401
     devour,
     echo_cost,
     encore_cost,
+    embalm_cost,
     eternalize_cost,
     eternalize_discards,
     entwine_cost,

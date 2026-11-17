@@ -109,6 +109,8 @@ winner = game.play()
   - Eternalize {cost}: from the graveyard at sorcery speed, pay it and exile the card to create a token copy that is a
     4/4 black Zombie (plus the card's own creature types) with no mana cost (CR 702.129a). "Eternalize—{cost}, Discard a
     card." also discards a card as part of the cost, and is only offered when there is one in hand.
+  - Embalm {cost}: the same, except the token copy is a white Zombie (plus the card's own creature types) with the card's own
+    power and toughness and no mana cost (CR 702.128a).
   - Offspring {N}: offered like a kicker as the creature spell is cast; if it was paid, a 1/1 token copy of the creature
     enters with it (CR 702.175a) and has the creature's own abilities. The token was not cast, so it does not make another
     token.
