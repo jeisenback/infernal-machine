@@ -1719,6 +1719,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Battle cry (`tests/test_battle_cry.py`, #803): "Battle cry" (CR 702.91a) is the attack trigger its reminder text gives, "Each other
     attacking creature gets +1/+0 until end of turn." (`PumpEach` with `attacking` and `other`; the sentence, and "Other attacking
     creatures [you control] get ...", read on their own too). Nine cards, among them Hero of Bladehold and Goblin Wardriver.
+  - Casualty (`tests/test_casualty.py`, #804): "Casualty N" (CR 702.153a, `casualty_of`, `Casting._casualty`): as the spell is cast its
+    caster may sacrifice a creature with power N or greater (`CASUALTY_PROMPT`, "Don't sacrifice" first); when they do, the spell is
+    copied by a trigger of its own (Twinning Staff adds to it apart). Nine cards, among them A Little Chat and Illicit Shipment ("Casualty X"
+    is not read).
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its

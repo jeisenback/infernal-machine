@@ -402,6 +402,7 @@ from .costs import (  # noqa: F401
     chosen_cost_reductions,
     conditional_cost_reduction,
     copies_per_sacrifice,
+    casualty_of,
     sacrifice_discount,
     collect_evidence_of,
     teamwork_of,

@@ -20,7 +20,7 @@ from .effects import (FREE_WAY, AlternativeCost, AttachAura, Cascade, CopySpellT
                       chosen_cost_reductions, conditional_cost_reduction, cost_increases, cost_reductions, eminence_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
                       mana_spent_trigger, non_hand_cost_reduction, overloaded_effects, reduced_by_greatest, reduced_by_total_power,
-                      replicate_cost, restricted_mana, rules_statics, sacrifice_discount, self_cost_reduction, collect_evidence_of, teamwork_of, has_assist, storm_kind, strive_cost, target_kind, triggered_abilities,
+                      replicate_cost, restricted_mana, rules_statics, sacrifice_discount, self_cost_reduction, collect_evidence_of, teamwork_of, has_assist, casualty_of, storm_kind, strive_cost, target_kind, triggered_abilities,
                       x_limited_by_players, x_spell_discount)
 from .filters import has_type, parse_filter
 from .mana import Cost, cost_of, parse_cost
@@ -185,6 +185,7 @@ class Caster:
             choice = options[seat.player.choose(g.SACRIFICE_COST_PROMPT(card.name), [self.game.label(p) for p in options])]
             self.game._leave_together([(choice, "sacrificed")])
         sacrificed = self.game._sacrifice_for_copies(seat, card)
+        casualty = self._casualty(seat, card)
         evidence = self._collect_evidence(seat, card)
         teamwork = self._pay_teamwork(seat, card)
         item = g.StackItem(card, seat, effects, targets, x=x, delved=tuple(delved), sacrificed_power=self.game.cost_sacrificed_power,
@@ -219,6 +220,9 @@ class Caster:
             copies += (len(before) - 1) if storm == "storm" else (self.game.graveyarded_count if self.game.graveyarded_turn == self.game.turn else 0)
         if copies and prepared is None:  # Replicate, Storm, Gravestorm: a trigger above the spell copies it
             ability = TriggeredAbility("cast", (CopySpellTimes(copies),), False, "Copy this spell")
+            self.game.stack.append(g.StackItem(card, seat, list(ability.effects), [], ability, carried=item))
+        if casualty and prepared is None:  # Casualty's "When you do, copy this spell." is a trigger of its own (CR 702.153a, 603.12)
+            ability = TriggeredAbility("cast", (CopySpellTimes(1),), False, "Casualty: copy this spell")
             self.game.stack.append(g.StackItem(card, seat, list(ability.effects), [], ability, carried=item))
         if has_keyword(card, "demonstrate") and prepared is None:
             ability = TriggeredAbility("cast", (Demonstrate(),), False, "Demonstrate")
@@ -338,6 +342,20 @@ class Caster:
         self.game.broadcast({"event": "collected_evidence", "seat": seat.index, "cards": [c.name for c in chosen]})
         self.game._left_graveyard(seat, chosen)
         return True
+
+    def _casualty(self, seat: g.Seat, card: Card) -> int:
+        """Casualty N (CR 702.153a): as the spell is cast its caster may sacrifice a creature with power N or greater; when they do, the
+        spell is copied (one copy, made with the others the cast makes). How many copies: 1 or 0."""
+        if (n := casualty_of(card)) is None:
+            return 0
+        options = [p for p in seat.battlefield if "Creature" in p.card.type_line and self.game.power(p) >= n]
+        if not options:
+            return 0
+        pick = seat.player.choose(g.CASUALTY_PROMPT(card.name), [g.CASUALTY_NONE] + [self.game.label(p) for p in options])
+        if not pick:
+            return 0
+        self.game._leave_together([(options[pick - 1], "sacrificed")])
+        return 1
 
     def _assist(self, seat: g.Seat, card: Card, generic: int) -> int:
         """Assist (CR 702.132a): as the spell is cast, its caster may choose another player, who pays any amount of its generic mana

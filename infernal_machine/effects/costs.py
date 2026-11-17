@@ -845,6 +845,7 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
 _SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid|Demonstrate|Convoke|Improvise|Split second|Rebound|Paradigm|Cipher)(?:, (?:Delve|Cascade|Devoid|Demonstrate|Convoke|Improvise|Split second|Rebound|Paradigm|Cipher))*")  # rules for casting, not effects
 
 
+_CASUALTY = re.compile(r"Casualty (\d+)")  # CR 702.153a: as you cast it, you may sacrifice a creature with power N or greater; then a copy
 _SACRIFICE_FOR_COPIES = re.compile(r"As an additional cost to cast this spell, you may sacrifice one or more creatures\. When you do, copy "
                                    r"this spell for each creature sacrificed this way\.")
 
@@ -860,6 +861,11 @@ def sacrifice_discount(card: Card) -> str | None:
 
 
 @lru_cache(maxsize=None)
+def casualty_of(card: Card) -> int | None:
+    """Casualty N: "As you cast this spell, you may sacrifice a creature with power N or greater. When you do, copy this spell." (the N)"""
+    return next((int(m[1]) for line in rules_lines(card) if (m := _CASUALTY.fullmatch(line))), None)
+
+
 def copies_per_sacrifice(card: Card) -> bool:
     """Plumb the Forbidden: you may sacrifice creatures as you cast it, and it is copied for each."""
     return any(_SACRIFICE_FOR_COPIES.fullmatch(line) for line in rules_lines(card))
@@ -867,7 +873,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _SACRIFICE_DISCOUNT, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _FREE_IF_LANDS, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _COLLECT_EVIDENCE, _TEAMWORK, _ASSIST, _RETRACE, _ENCORE, _ETERNALIZE, _EMBALM, _UNEARTH, _MADNESS, _MIRACLE, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
+    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _CASUALTY, _SACRIFICE_DISCOUNT, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _FREE_IF_LANDS, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _COLLECT_EVIDENCE, _TEAMWORK, _ASSIST, _RETRACE, _ENCORE, _ETERNALIZE, _EMBALM, _UNEARTH, _MADNESS, _MIRACLE, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _IMPENDING, _DASH, _SPECTACLE, _BLITZ, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_DISCARD, _SPLICE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
