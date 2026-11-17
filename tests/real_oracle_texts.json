@@ -3805,6 +3805,95 @@
     "G",
     "R"
    ]
+  },
+  {
+   "name": "Frost Breath",
+   "mana_cost": "{2}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Tap up to two target creatures. Those creatures don't untap during their controller's next untap step.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Frostveil Ambush",
+   "mana_cost": "{3}{U}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Tap up to two target creatures. Those creatures don't untap during their controller's next untap step.\nCycling {1} ({1}, Discard this card: Draw a card.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Snow Day",
+   "mana_cost": "{4}{U}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Tap up to two target creatures. Those creatures don't untap during their controller's next untap step.\nDraw two cards, then discard a card.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Chilling Grasp",
+   "mana_cost": "{2}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Tap up to two target creatures. Those creatures don't untap during their controller's next untap step.\nMadness {3}{U} (If you discard this card, discard it into exile. When you do, cast it for its madness cost or put it into your graveyard.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Will of the Naga",
+   "mana_cost": "{4}{U}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Delve (Each card you exile from your graveyard while casting this spell pays for {1}.)\nTap up to two target creatures. Those creatures don't untap during their controller's next untap step.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Decision Paralysis",
+   "mana_cost": "{3}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Tap up to two target creatures. Those creatures don't untap during their controller's next untap step.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Adverse Conditions",
+   "mana_cost": "{3}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Devoid (This card has no color.)\nTap up to two target creatures. Those creatures don't untap during their controller's next untap step. Create a 1/1 colorless Eldrazi Scion creature token. It has \"Sacrifice this token: Add {C}.\"",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "C"
+   ]
+  },
+  {
+   "name": "Saiba Trespassers",
+   "mana_cost": "{4}{U}",
+   "type_line": "Artifact Creature — Moonfolk Rogue",
+   "oracle_text": "Channel — {3}{U}, Discard this card: Tap up to two target creatures you don't control. Those creatures don't untap during their controller's next untap step.",
+   "power": "3",
+   "toughness": "5",
+   "colors": [
+    "U"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

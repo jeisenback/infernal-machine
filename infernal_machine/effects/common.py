@@ -308,7 +308,8 @@ _WHOLE_LINE = re.compile(
     r"|[Ee]xile the top card of each opponent's library\. You may play those cards for as long as they remain exiled\. If you cast a spell this way, you may spend mana as though it were mana of any color to cast it\."  # Brainstealer Dragon
     r"|[Cc]hoose up to two target creatures\. Until your next turn, whenever either of those creatures deals combat damage, you draw a "
     r"card\."  # Tamiyo, Field Researcher
-    r"|[Tt]ap up to two target nonland permanents\. They don't untap during their controller's next untap step\."  # Tamiyo
+    r"|[Tt]ap up to two target (?:nonland permanents|creatures(?: you don't control)?)\. (?:They|Those creatures) don't untap during "
+    r"their controller's next untap step\."  # Tamiyo, Frost Breath
     r"|[Rr]eveal the top card of your library\. If it's a creature or planeswalker card, put it into your hand\. Otherwise, you may put "
     r"it on the bottom of your library\."  # Ajani, Sleeper Agent
     r"|[Cc]hoose a color\. Another target creature you control gains toxic \d+ and hexproof from that color until end of turn\. It can't be "
