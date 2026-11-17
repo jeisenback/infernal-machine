@@ -1228,14 +1228,14 @@ class Game:
                 actions.append(SUSPEND + card.name)
         if sorcery_timing:
             for card in _unique(seat.graveyard):
-                if (cost := encore_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
+                if (cost := encore_cost(card)) and self._keyword_payment(seat, card, cost) is not None:
                     actions.append(ENCORE + card.name)
-                if (cost := eternalize_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None \
+                if (cost := eternalize_cost(card)) and self._keyword_payment(seat, card, cost) is not None \
                         and (seat.hand or not eternalize_discards(card)):
                     actions.append(ETERNALIZE + card.name)
-                if (cost := embalm_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
+                if (cost := embalm_cost(card)) and self._keyword_payment(seat, card, cost) is not None:
                     actions.append(EMBALM + card.name)
-                if (cost := unearth_cost(card)) and not self.caged(card) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
+                if (cost := unearth_cost(card)) and not self.caged(card) and self._keyword_payment(seat, card, cost) is not None:
                     actions.append(UNEARTH + card.name)
         actions += EXILE.offers(self, seat, sorcery_timing)
         actions += LIBRARY.offers(self, seat, sorcery_timing)
@@ -2500,6 +2500,14 @@ class Game:
         self.stack.append(StackItem(card, seat, effects, targets, ability))
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": labels, "tapped": [p.card.name for p in tapped]})
+
+    def _keyword_payment(self, seat: Seat, card: Card, cost: str) -> Payment | None:
+        """What to tap for the mana `cost` of encore, eternalize, embalm or unearth on `card` in the graveyard, or None. Each is an
+        activated ability (CR 702.128a, 702.129a, 702.141a, 702.84a): none for a card a Pithing Needle names, and its cost is an
+        ability's, with no spell's taxes or reductions (CR 601.2f applies to spells)."""
+        if self.name_locked(card):
+            return None
+        return self._pay_cost(seat, cost_of(cost))
 
     def _zone_ability_payable(self, seat: Seat, ability: ActivatedAbility) -> bool:
         """Whether `seat` can pay the cost of an ability that works from the graveyard or the command zone: its mana (an ability with
@@ -5496,7 +5504,7 @@ class Game:
     def _unearth(self, seat: Seat, card: Card) -> None:
         """Unearth: pay its cost and return it from the graveyard (it is not cast); it has haste, and is exiled at the beginning
         of the next end step or instead of leaving the battlefield some other way."""
-        tapped = _checked(self._payment(seat, dataclasses.replace(card, mana_cost=unearth_cost(card))))
+        tapped = _checked(self._keyword_payment(seat, card, _checked(unearth_cost(card))))
         self._spend_mana(seat, tapped)
         seat.graveyard.remove(card)
         self.broadcast({"event": "unearth", "seat": seat.index, "card": card.name})
@@ -5511,7 +5519,7 @@ class Game:
     def _encore(self, seat: Seat, card: Card) -> None:
         """Encore: pay its cost and exile it from the graveyard; for each opponent, a token copy with haste attacks that
         opponent this turn if able and is sacrificed at the beginning of the next end step."""
-        tapped = _checked(self._payment(seat, dataclasses.replace(card, mana_cost=encore_cost(card))))
+        tapped = _checked(self._keyword_payment(seat, card, _checked(encore_cost(card))))
         self._spend_mana(seat, tapped)
         seat.graveyard.remove(card)
         self.broadcast({"event": "encore", "seat": seat.index, "card": card.name})
@@ -5522,7 +5530,7 @@ class Game:
     def _eternalize(self, seat: Seat, card: Card) -> None:
         """Eternalize: pay its cost and exile it from the graveyard; create a token copy that is a 4/4 black Zombie with no mana
         cost (CR 702.129a). The token is a copy of the card as it is in the graveyard, so it keeps the card's other types."""
-        tapped = _checked(self._payment(seat, dataclasses.replace(card, mana_cost=eternalize_cost(card))))
+        tapped = _checked(self._keyword_payment(seat, card, _checked(eternalize_cost(card))))
         self._spend_mana(seat, tapped)
         if eternalize_discards(card):  # "Eternalize\u2014{3}{U}{U}, Discard a card."
             self.discard(seat, 1)
@@ -5531,7 +5539,7 @@ class Game:
     def _embalm(self, seat: Seat, card: Card) -> None:
         """Embalm: pay its cost and exile it from the graveyard; create a token copy that is a white Zombie with no mana cost, its
         power and toughness the card's own (CR 702.128a)."""
-        self._spend_mana(seat, _checked(self._payment(seat, dataclasses.replace(card, mana_cost=embalm_cost(card)))))
+        self._spend_mana(seat, _checked(self._keyword_payment(seat, card, _checked(embalm_cost(card)))))
         self._zombie_copy(seat, card, "embalm", "W", card.power, card.toughness)
 
     def _zombie_copy(self, seat: Seat, card: Card, event: str, color: str, power: str | None, toughness: str | None) -> None:

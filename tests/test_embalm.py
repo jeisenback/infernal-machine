@@ -6,21 +6,28 @@ abilities and no mana cost, and the card is exiled; it is offered only from the 
 import unittest
 
 from infernal_machine.game import EMBALM, Permanent
-from tests.helpers import FOREST, lands, run_stack, table3, wording_unlocked
+from tests.helpers import FOREST, lands, real, run_stack, table3, wording_unlocked
 from tests.real import REAL
 
 CARDS = ["Sacred Cat", "Angel of Sanctions", "Aven Wind Guide", "Anointer Priest", "Honored Hydra", "Heart-Piercer Manticore",
          "Oketra's Attendant", "Aven Initiate", "Unwavering Initiate", "Labyrinth Guardian", "Tah-Crop Skirmisher"]
 CAT = REAL["Sacred Cat"]
 HYDRA = REAL["Honored Hydra"]
+NEEDLE = real("Pithing Needle", "{1}", "Artifact", "As this artifact enters, choose a card name.\nActivated abilities of sources with the "
+              "chosen name can't be activated unless they're mana abilities.")
+SPHERE = real("Sphere of Resistance", "{2}", "Artifact", "Spells cost {1} more to cast.")
 
 # The guards these tests are there to catch (python tools/mutate.py tests.test_embalm).
 MUTATIONS = [
-    ("infernal_machine/game.py", "                if (cost := embalm_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:",
+    ("infernal_machine/game.py", "                if (cost := embalm_cost(card)) and self._keyword_payment(seat, card, cost) is not None:",
      "                if (cost := embalm_cost(card)):", "only with the mana to pay"),
     ("infernal_machine/game.py", 'self._zombie_copy(seat, card, "embalm", "W", card.power, card.toughness)',
      'self._zombie_copy(seat, card, "embalm", "B", "4", "4")', "a white token with the card's power and toughness"),
     ("infernal_machine/effects/costs.py", "_ENCORE, _ETERNALIZE, _EMBALM, _UNEARTH,", "_ENCORE, _ETERNALIZE, _UNEARTH,", "the line is read"),
+    ("infernal_machine/game.py", "        if self.name_locked(card):\n            return None\n        return self._pay_cost(seat, cost_of(cost))",
+     "        return self._pay_cost(seat, cost_of(cost))", "not for a card a Pithing Needle names"),
+    ("infernal_machine/game.py", "        return self._pay_cost(seat, cost_of(cost))", "        return self._payment(seat, dataclasses.replace(card, mana_cost=cost))",
+     "an ability's cost, with no spell tax"),
 ]
 
 
@@ -58,6 +65,15 @@ class EmbalmTests(unittest.TestCase):
         self.assertNotIn(EMBALM + "Honored Hydra", game.legal_actions(a))
         game.active, a.graveyard, a.hand = 0, [], [HYDRA]
         self.assertNotIn(EMBALM + "Honored Hydra", game.legal_actions(a))
+
+    def test_it_is_an_activated_ability_not_a_spell(self):
+        game, a = setup(HYDRA, 4)
+        a.battlefield.append(Permanent(SPHERE))  # (spells cost {1} more: not this)
+        self.assertIn(EMBALM + "Honored Hydra", game.legal_actions(a))
+        needle = Permanent(NEEDLE)
+        needle.chosen_name = "Honored Hydra"
+        game.seats[1].battlefield = [needle]
+        self.assertNotIn(EMBALM + "Honored Hydra", game.legal_actions(a))  # Pithing Needle: no activated abilities of it
 
 
 if __name__ == "__main__":

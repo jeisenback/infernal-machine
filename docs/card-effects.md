@@ -1698,6 +1698,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Embalm (`tests/test_embalm.py`, #797): "Embalm {cost}" (CR 702.128a, `embalm_cost`, `Game._embalm`): from the graveyard at sorcery
     speed, pay it and exile the card for a token copy that is a white Zombie in addition to its types, with its own power and toughness
     and no mana cost (made as eternalize's is, `Game._zombie_copy`). Eleven cards, among them Sacred Cat and Angel of Sanctions.
+    Encore, eternalize, embalm and unearth are activated abilities (`Game._keyword_payment`): not offered for a card a Pithing Needle
+    names, and paid as an ability's cost, with no spell's taxes or reductions.
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its
