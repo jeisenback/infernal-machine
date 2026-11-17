@@ -184,7 +184,8 @@ class Caster:
             options = [p for p in seat.battlefield if g._permanent_matches(g._checked(kind), p.card)]
             choice = options[seat.player.choose(g.SACRIFICE_COST_PROMPT(card.name), [self.game.label(p) for p in options])]
             self.game._leave_together([(choice, "sacrificed")])
-        sacrificed = self.game._sacrifice_for_copies(seat, card) + self._casualty(seat, card)
+        sacrificed = self.game._sacrifice_for_copies(seat, card)
+        casualty = self._casualty(seat, card)
         evidence = self._collect_evidence(seat, card)
         teamwork = self._pay_teamwork(seat, card)
         item = g.StackItem(card, seat, effects, targets, x=x, delved=tuple(delved), sacrificed_power=self.game.cost_sacrificed_power,
@@ -219,6 +220,9 @@ class Caster:
             copies += (len(before) - 1) if storm == "storm" else (self.game.graveyarded_count if self.game.graveyarded_turn == self.game.turn else 0)
         if copies and prepared is None:  # Replicate, Storm, Gravestorm: a trigger above the spell copies it
             ability = TriggeredAbility("cast", (CopySpellTimes(copies),), False, "Copy this spell")
+            self.game.stack.append(g.StackItem(card, seat, list(ability.effects), [], ability, carried=item))
+        if casualty and prepared is None:  # Casualty's "When you do, copy this spell." is a trigger of its own (CR 702.153a, 603.12)
+            ability = TriggeredAbility("cast", (CopySpellTimes(1),), False, "Casualty: copy this spell")
             self.game.stack.append(g.StackItem(card, seat, list(ability.effects), [], ability, carried=item))
         if has_keyword(card, "demonstrate") and prepared is None:
             ability = TriggeredAbility("cast", (Demonstrate(),), False, "Demonstrate")
