@@ -3406,6 +3406,116 @@
    "power": null,
    "toughness": null,
    "colors": []
+  },
+  {
+   "name": "Bloodborn Scoundrels",
+   "mana_cost": "{5}{B}",
+   "type_line": "Creature — Vampire Rogue",
+   "oracle_text": "Assist (Another player can pay up to {5} of this spell's cost.)\nWhen this creature enters, target opponent loses 2 life and you gain 2 life.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Bring Down",
+   "mana_cost": "{3}{W}",
+   "type_line": "Sorcery",
+   "oracle_text": "Assist (Another player can pay up to {3} of this spell's cost.)\nDestroy target creature with power 4 or greater.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Charging Binox",
+   "mana_cost": "{7}{G}",
+   "type_line": "Creature — Beast",
+   "oracle_text": "Assist (Another player can pay up to {7} of this spell's cost.)\nTrample",
+   "power": "7",
+   "toughness": "5",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Huddle Up",
+   "mana_cost": "{2}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Assist (Another player can pay up to {2} of this spell's cost.)\nTwo target players each draw a card.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Lava-Field Overlord",
+   "mana_cost": "{7}{R}{R}",
+   "type_line": "Creature — Dragon",
+   "oracle_text": "Assist (Another player can pay up to {7} of this spell's cost.)\nFlying\nWhen this creature enters, it deals 4 damage to target creature an opponent controls.",
+   "power": "5",
+   "toughness": "4",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Magma Hellion",
+   "mana_cost": "{6}{R}",
+   "type_line": "Creature — Hellion",
+   "oracle_text": "Assist (Another player can pay up to {6} of this spell's cost.)\nTrample, haste",
+   "power": "5",
+   "toughness": "4",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Out of Bounds",
+   "mana_cost": "{3}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Assist (Another player can pay up to {3} of this spell's cost.)\nCounter target spell.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Play of the Game",
+   "mana_cost": "{6}{W}{W}",
+   "type_line": "Sorcery",
+   "oracle_text": "Assist (Another player can pay up to {6} of this spell's cost.)\nExile all nonland permanents.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Skystreamer",
+   "mana_cost": "{4}{W}",
+   "type_line": "Creature — Griffin",
+   "oracle_text": "Assist (Another player can pay up to {4} of this spell's cost.)\nFlying\nWhen this creature enters, target player gains 4 life.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Spellweaver Duo",
+   "mana_cost": "{6}{U}",
+   "type_line": "Creature — Human Wizard",
+   "oracle_text": "Assist (Another player can pay up to {6} of this spell's cost.)\nWhen this creature enters, you may return target tapped creature to its owner's hand.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "U"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

@@ -405,6 +405,7 @@ from .costs import (  # noqa: F401
     sacrifice_discount,
     collect_evidence_of,
     teamwork_of,
+    has_assist,
     cost_reductions,
     eminence_reductions,
     cost_increases,
