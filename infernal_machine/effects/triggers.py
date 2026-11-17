@@ -411,6 +411,9 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
             abilities.append(TriggeredAbility("enters", (Hideaway(int(m[1])),), False, line))
         if VANISHING.fullmatch(line):  # its time counters come with it as it enters (statics.enters_with_counters)
             abilities.append(TriggeredAbility("upkeep", (Vanish(),), False, line))
+        if line == "Battle cry":  # CR 702.91a
+            abilities.append(TriggeredAbility("attacks", tuple(_parse(["Each other attacking creature gets +1/+0 until end of turn."]) or ()),
+                                              False, line))
         if FADING.fullmatch(line):  # its fade counters come with it as it enters (statics.enters_with_counters)
             abilities.append(TriggeredAbility("upkeep", (Fade(),), False, line))
     for line in rules_lines(card):  # persist and undying are keywords that come back from the graveyard

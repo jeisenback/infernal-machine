@@ -1716,6 +1716,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     another player (`ASSIST_PROMPT`, "No one" first), who pays any amount of what is left of its generic mana with their own mana
     (`ASSIST_PAY_PROMPT`), the caster paying the rest. A spell is offered only when its caster could pay it all. Ten cards, among them
     Charging Binox and Huddle Up.
+  - Battle cry (`tests/test_battle_cry.py`, #803): "Battle cry" (CR 702.91a) is the attack trigger its reminder text gives, "Each other
+    attacking creature gets +1/+0 until end of turn." (`PumpEach` with `attacking` and `other`; the sentence, and "Other attacking
+    creatures [you control] get ...", read on their own too). Nine cards, among them Hero of Bladehold and Goblin Wardriver.
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its
