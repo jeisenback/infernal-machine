@@ -6,7 +6,7 @@ creature without unleash blocks with a +1/+1 counter on it."""
 import unittest
 
 from infernal_machine.game import NOT_UNLEASHED, UNLEASH_PROMPT, UNLEASHED, Permanent
-from tests.helpers import BEAR, OGRE, enter, table3, wording_unlocked
+from tests.helpers import BEAR, COURSEWORK, OGRE, enter, table3, wording_unlocked
 from tests.real import REAL
 
 CARDS = ["Bloodfray Giant", "Carnival Hellsteed", "Dead Reveler", "Gore-House Chainwalker", "Grim Roustabout", "Hellhole Flailer",
@@ -19,8 +19,10 @@ MUTATIONS = [
      "True:", "the counter is the controller's choice"),
     ("infernal_machine/combat.py", '        if blocker.counters.get("+1/+1", 0) > 0 and any(r.kind == "unleashed"',
      '        if any(r.kind == "unleashed"', "it can't block only while it has a counter"),
-    ("infernal_machine/combat.py", 'any(r.kind == "unleashed" for r in combat_restrictions(blocker.card)):',
-     "True:", "only a creature with unleash"),
+    ("infernal_machine/combat.py", 'any(r.kind == "unleashed" for r in combat_restrictions(blocker.card)) \\',
+     "True \\", "only a creature with unleash"),
+    ("infernal_machine/combat.py", "                and not self.game.loses_abilities(blocker):\n            return False  # Unleash",
+     "                and True:\n            return False  # Unleash", "not once it has lost its abilities"),
 ]
 
 
@@ -57,6 +59,12 @@ class UnleashTests(unittest.TestCase):
         bear = enter(game, game.seats[0], BEAR)
         bear.counters["+1/+1"] = 1
         self.assertTrue(game.combat._can_block(bear, attacker))
+
+    def test_a_creature_that_lost_its_abilities_blocks_with_the_counter(self):
+        game, cackler, attacker = cackler_enters(UNLEASHED)
+        game.seats[1].battlefield.append(Permanent(COURSEWORK, attached_to=cackler))  # (enchanted creature loses all abilities)
+        self.assertTrue(game.loses_abilities(cackler))
+        self.assertTrue(game.combat._can_block(cackler, attacker))
 
 
 if __name__ == "__main__":

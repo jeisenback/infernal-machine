@@ -1708,7 +1708,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     vanishing's `Vanish`). Eleven cards, among them Blastoderm and Cloudskate.
   - Unleash (`tests/test_unleash.py`, #800): "Unleash" (CR 702.98a): its controller chooses as it enters whether it gets a +1/+1 counter
     (`UNLEASH_PROMPT`, `unleashes`), and it can't block as long as it has a +1/+1 counter on it, however it got one (the "unleashed" combat
-    restriction). Eleven cards, among them Rakdos Cackler and Thrill-Kill Assassin.
+    restriction, gone with its abilities). Eleven cards, among them Rakdos Cackler and Thrill-Kill Assassin.
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its

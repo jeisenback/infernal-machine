@@ -438,8 +438,9 @@ class Combat:
             return False  # "This creature can't block creatures with power 3 or greater."
         if self._has(attacker, "skulk") and self.game.power(blocker) > self.game.power(attacker):
             return False
-        if blocker.counters.get("+1/+1", 0) > 0 and any(r.kind == "unleashed" for r in combat_restrictions(blocker.card)):
-            return False  # Unleash (CR 702.98a): it can't block as long as it has a +1/+1 counter on it
+        if blocker.counters.get("+1/+1", 0) > 0 and any(r.kind == "unleashed" for r in combat_restrictions(blocker.card)) \
+                and not self.game.loses_abilities(blocker):
+            return False  # Unleash (CR 702.98a): it can't block as long as it has a +1/+1 counter on it (and has the ability)
         if any(r.kind == "block_only_flying" for r in combat_restrictions(blocker.card)) and not self._has(attacker, "flying"):
             return False  # Brazen Borrower
         if any(r.kind == "weaker_cant_block" for r in combat_restrictions(attacker.card)) \
