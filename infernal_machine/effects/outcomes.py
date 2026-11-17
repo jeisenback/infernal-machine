@@ -3251,9 +3251,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"less\.", re.I), lambda m: [ExchangeFirst(), ExchangeControl()]),  # Oko, Thief of Crowns
     (re.compile(r"choose up to two target creatures\. Until your next turn, whenever either of those creatures deals combat damage, you "
                 r"draw a card\.", re.I), lambda m: [WatchCombatDamage(), WatchCombatDamage(distinct=True)]),  # Tamiyo, Field Researcher
-    (re.compile(r"tap up to two target nonland permanents\. They don't untap during their controller's next untap step\.", re.I),
-     lambda m: [Tap("nonland permanent", optional_target=True, skip_untap=True),
-                Tap("nonland permanent", distinct=True, optional_target=True, skip_untap=True)]),  # Tamiyo, Field Researcher
+    # Tamiyo, Field Researcher; Frost Breath: "They"/"Those creatures" are the targets just tapped (CR 502.3: the next untap step only)
+    (re.compile(r"tap up to two target (nonland permanent|creature)s( you don't control)?\. (They|Those creatures) don't untap during their "
+                r"controller's next untap step\.", re.I),
+     lambda m: None if (m[3].lower() == "they") != (m[1] == "nonland permanent") else
+     [Tap(m[1] + (m[2] or ""), optional_target=True, skip_untap=True),
+      Tap(m[1] + (m[2] or ""), distinct=True, optional_target=True, skip_untap=True)]),
     (re.compile(r'target creature becomes a Treasure artifact with "\{T\}, Sacrifice this artifact: Add one mana of any color" and loses all '
                 r"other card types and abilities\.", re.I), lambda m: BecomeTreasure()),  # Vraska, Betrayal's Sting
     (re.compile(r"target (player|opponent) gets (a|one|two|three) poison counters?\.", re.I),  # Venerated Rotpriest
