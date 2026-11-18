@@ -121,6 +121,7 @@ _KICKER = re.compile(rf"(?:Multik|K)icker ({_MANA_SYMBOLS})(?: and/or ({_MANA_SY
 
 
 _OFFSPRING = re.compile(rf"Offspring ({_MANA_SYMBOLS})")
+_SQUAD = re.compile(rf"Squad ({_MANA_SYMBOLS})")  # CR 702.157a: paid any number of times as it is cast, like multikicker
 
 
 _KICKER_OTHER = re.compile(rf"Kicker\u2014(?:Sacrifice an? (creature|artifact|land|artifact or creature|permanent|artifact, enchantment, or token)"
@@ -407,7 +408,7 @@ def kicker_costs(card: Card) -> tuple[str, ...]:
     none if there's no kicker or it isn't mana. Offspring is paid like a kicker: "You may pay an additional {2} as you cast
     this spell" (CR 702.175a), and its trigger asks whether the spell was kicked."""
     for line in rules_lines(card):
-        if m := _KICKER.fullmatch(line) or _OFFSPRING.fullmatch(line):
+        if m := _KICKER.fullmatch(line) or _OFFSPRING.fullmatch(line) or _SQUAD.fullmatch(line):
             return tuple(cost for cost in m.groups() if cost)
     return ()
 
@@ -460,8 +461,8 @@ def escalate_cost(card: Card) -> str | None:
 
 @lru_cache(maxsize=None)
 def is_multikicker(card: Card) -> bool:
-    """Multikicker: the kicker cost can be paid any number of times (CR 702.33c)."""
-    return any(line.startswith("Multikicker ") and _KICKER.fullmatch(line) for line in rules_lines(card))
+    """Multikicker: the kicker cost can be paid any number of times (CR 702.33c); so can a squad cost (CR 702.157a)."""
+    return any(line.startswith("Multikicker ") and _KICKER.fullmatch(line) or _SQUAD.fullmatch(line) for line in rules_lines(card))
 
 
 _DEVOUR = re.compile(r"Devour (\d+)")
@@ -873,7 +874,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _CASUALTY, _SACRIFICE_DISCOUNT, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _FREE_IF_LANDS, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _COLLECT_EVIDENCE, _TEAMWORK, _ASSIST, _RETRACE, _ENCORE, _ETERNALIZE, _EMBALM, _UNEARTH, _MADNESS, _MIRACLE, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
+    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _CASUALTY, _SACRIFICE_DISCOUNT, _SQUAD, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _FREE_IF_LANDS, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _COLLECT_EVIDENCE, _TEAMWORK, _ASSIST, _RETRACE, _ENCORE, _ETERNALIZE, _EMBALM, _UNEARTH, _MADNESS, _MIRACLE, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _IMPENDING, _DASH, _SPECTACLE, _BLITZ, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_DISCARD, _SPLICE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION, _TAPPED_TARGET_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
