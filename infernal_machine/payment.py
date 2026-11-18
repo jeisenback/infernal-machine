@@ -18,7 +18,7 @@ from .effects import (rules_statics, additional_land_mana, charge_mana, chosen_c
                       granted_land_mana, granted_mana, group_mana_grants, has_next_x_rider, is_identity_mana_land, land_mana_units,
                       makes_mana_by_power, one_color_mana_amount, mana_ability, mana_ability_needs_no_tap, mana_ability_sacrifices, mana_among_legendary,
                       mana_bonus, counter_any_color, mana_by_amount, mana_by_count, mana_condition, mana_extra_cost, mana_life_condition, mana_life_cost, mana_life_types, mana_lines,
-                      mana_of_imprinted, mana_pain, mana_per_color, mana_per_count, mana_restriction, mana_threshold, reflected_mana, restricted_mana,
+                      mana_of_imprinted, mana_pain, mana_per_color, mana_skips_untap, mana_per_count, mana_restriction, mana_threshold, reflected_mana, restricted_mana,
                       tap_mana, with_granted_mana)
 from .filters import has_type, matches, parse_filter
 from .mana import GENERIC_ONLY, NOT_GENERIC, SNOW, Cost, parse_cost, pay
@@ -48,10 +48,15 @@ def _snowy(permanent: "Permanent", types: frozenset[str]) -> frozenset[str]:
     return types | {SNOW} if "Snow" in permanent.card.type_line else types
 
 
-def _pain(source: ManaSource, symbol: frozenset[str] | None) -> int:
-    """Damage for tapping `source` for mana paying `symbol` (None: generic, so any type will do)."""
+def _painful(source: ManaSource, symbol: frozenset[str] | None) -> bool:
+    """Whether tapping `source` for mana paying `symbol` (None: generic, so any type will do) makes a painful type."""
     options = source.types if symbol is None else source.types & symbol
-    return source.damage if source.pain and all(t in source.pain for t in options) else 0
+    return bool(source.pain) and all(t in source.pain for t in options)
+
+
+def _pain(source: ManaSource, symbol: frozenset[str] | None) -> int:
+    """Damage for tapping `source` for mana paying `symbol`."""
+    return source.damage if _painful(source, symbol) else 0
 
 
 class Payment(list["Permanent"]):
@@ -62,6 +67,7 @@ class Payment(list["Permanent"]):
     pool: tuple[frozenset[str], ...] = ()
     filters: tuple["Permanent", ...] = ()  # the permanents whose Signet-style ability ("{1}, {T}: Add ...") was used
     counters: tuple[tuple["Permanent", str, int], ...] = ()  # the lands whose mana cost counters (Vivid, depletion, storage): which, how many
+    stays_tapped: tuple["Permanent", ...] = ()  # the lands tapped for mana that keeps them tapped through the next untap step (Cloudcrest Lake)
     phyrexian_life: int = 0  # how many Phyrexian mana symbols were paid with 2 life instead of mana (Compleated reads it)
     surplus: tuple[frozenset[str], ...] = ()  # the mana the tapped permanents made and the cost did not use: it goes to the pool (CR 106.4)
     spent: tuple[frozenset[str], ...] = ()  # the types each mana spent on the cost itself could be ("if {U}{U} was spent to cast it")
@@ -464,6 +470,8 @@ class ManaPayer:
             key = id(source) if source.permanent is None else id(source.permanent)  # each life-paid {C} costs its own life
             into[key] = max(into.get(key, 0), _pain(source, symbol))
         payment.pain, payment.life = sum(hurt.values()), sum(paid_life.values())
+        payment.stays_tapped = tuple({id(s.permanent): s.permanent for s, symbol in used if s.permanent is not None
+                                      and mana_skips_untap(s.permanent.card) and _painful(s, symbol)}.values())
         # A land whose mana costs a counter loses one per tap, unless it only made its own color (or generic mana).
         losing: dict[int, list] = {}
         for s, symbol in used:
@@ -530,6 +538,8 @@ class ManaPayer:
             removal = counter_removal_mana(permanent.card)
             if not permanent.counters.get(kind) and removal is not None and removal.sacrifice_at_zero:
                 self.game._leave_battlefield(permanent, "sacrificed")
+        for permanent in getattr(sources, "stays_tapped", ()):  # Cloudcrest Lake's colored mana
+            permanent.skips_next_untap = True
         if pain := getattr(sources, "pain", 0):
             self.game.damage(seat, pain)
         if life := getattr(sources, "life", 0):

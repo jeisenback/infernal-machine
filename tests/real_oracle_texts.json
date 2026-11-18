@@ -4160,6 +4160,160 @@
    "colors": [
     "W"
    ]
+  },
+  {
+   "name": "Cloudcrest Lake",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}.\n{T}: Add {W} or {U}. This land doesn't untap during your next untap step.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "C",
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Lantern-Lit Graveyard",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}.\n{T}: Add {B} or {R}. This land doesn't untap during your next untap step.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "B",
+    "C",
+    "R"
+   ]
+  },
+  {
+   "name": "Waterveil Cavern",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}.\n{T}: Add {U} or {B}. This land doesn't untap during your next untap step.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "B",
+    "C",
+    "U"
+   ]
+  },
+  {
+   "name": "Tranquil Garden",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}.\n{T}: Add {G} or {W}. This land doesn't untap during your next untap step.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "C",
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Cinder Marsh",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}.\n{T}: Add {B} or {R}. This land doesn't untap during your next untap step.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "B",
+    "C",
+    "R"
+   ]
+  },
+  {
+   "name": "Rootwater Depths",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}.\n{T}: Add {U} or {B}. This land doesn't untap during your next untap step.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "B",
+    "C",
+    "U"
+   ]
+  },
+  {
+   "name": "Thalakos Lowlands",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}.\n{T}: Add {W} or {U}. This land doesn't untap during your next untap step.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "C",
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Pinecrest Ridge",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}.\n{T}: Add {R} or {G}. This land doesn't untap during your next untap step.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "C",
+    "G",
+    "R"
+   ]
+  },
+  {
+   "name": "Mogg Hollows",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}.\n{T}: Add {R} or {G}. This land doesn't untap during your next untap step.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "C",
+    "G",
+    "R"
+   ]
+  },
+  {
+   "name": "Vec Townships",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}.\n{T}: Add {G} or {W}. This land doesn't untap during your next untap step.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "C",
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Adarkar Wastes",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}.\n{T}: Add {W} or {U}. This land deals 1 damage to you.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "C",
+    "U",
+    "W"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

@@ -381,6 +381,16 @@ _PAIN = re.compile(rf"\{{T\}}: Add \{{([WUBRGC])\}} or \{{([WUBRGC])\}}\. {_SELF
 _PAIN_MULTI = re.compile(rf"\{{T\}}: Add ((?:\{{[WUBRGC]\}}){{2,}})\. {_SELF} deals {_N_FIXED} damage to you\.", re.I)
 
 
+# Cloudcrest Lake: the colored mana keeps the land tapped through its controller's next untap step (a "pain" of no damage).
+_SKIP_UNTAP = re.compile(rf"\{{T\}}: Add \{{([WUBRGC])\}} or \{{([WUBRGC])\}}\. {_SELF} doesn't untap during your next untap step\.", re.I)
+
+
+@lru_cache(maxsize=None)
+def mana_skips_untap(card: Card) -> bool:
+    """Cloudcrest Lake: making the painful types (`mana_pain`) means it doesn't untap during its controller's next untap step."""
+    return any(_SKIP_UNTAP.fullmatch(line) for line in rules_lines(card))
+
+
 # City of Brass: the damage comes from the land becoming tapped.
 _TAPPED_PAIN = re.compile(rf"Whenever {_SELF} becomes tapped, it deals {_N_FIXED} damage to you\.", re.I)
 
@@ -525,7 +535,7 @@ def is_mana_ability(line: str) -> bool:
             or ((m := _ADD_ONE_COLOR_BY.fullmatch(line)) is not None and _amount(m[1]) is not None)
             or _FILTER.fullmatch(line) is not None
             or _FILTER_ANY.fullmatch(line) is not None or _FILTER_LAND.fullmatch(line) is not None or _REFLECT.fullmatch(line) is not None
-            or any(p.fullmatch(line) for p in (_PAIN, _PAIN_MULTI, _TAPPED_PAIN, _PAY_LIFE_ANY)))
+            or any(p.fullmatch(line) for p in (_PAIN, _PAIN_MULTI, _TAPPED_PAIN, _PAY_LIFE_ANY, _SKIP_UNTAP)))
 
 
 @lru_cache(maxsize=None)
@@ -537,6 +547,8 @@ def mana_pain(card: Card) -> tuple[frozenset[str], int] | None:
             return frozenset((m[1], m[2])), _number(m[3])
         if m := _PAIN_MULTI.fullmatch(line):
             return frozenset(re.findall(r"[WUBRGC]", m[1])), _number(m[2])
+        if m := _SKIP_UNTAP.fullmatch(line):  # (no damage: it stays tapped, see mana_skips_untap)
+            return frozenset((m[1], m[2])), 0
         if m := _TAPPED_PAIN.fullmatch(line):  # every color it makes hurts
             return frozenset("WUBRGC"), _number(m[1])
     return None

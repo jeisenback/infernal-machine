@@ -514,6 +514,7 @@ from .mana import (  # noqa: F401
     mana_life_types,
     mana_of_imprinted,
     mana_pain,
+    mana_skips_untap,
     mana_bonus,
     counter_any_color,
     mana_by_amount,
