@@ -302,6 +302,7 @@ from .statics import (  # noqa: F401
     combat_restrictions,
     unleashes,
     riots,
+    amplify_of,
     has_sunburst,
     DamageModifier,
     damage_modifiers,

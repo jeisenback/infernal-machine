@@ -3973,6 +3973,83 @@
    "colors": [
     "W"
    ]
+  },
+  {
+   "name": "Aven Warhawk",
+   "mana_cost": "{4}{W}",
+   "type_line": "Creature — Bird Soldier",
+   "oracle_text": "Amplify 1 (As this creature enters, put a +1/+1 counter on it for each Bird and/or Soldier card you reveal in your hand.)\nFlying",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Canopy Crawler",
+   "mana_cost": "{3}{G}",
+   "type_line": "Creature — Beast",
+   "oracle_text": "Amplify 1 (As this creature enters, put a +1/+1 counter on it for each Beast card you reveal in your hand.)\n{T}: Target creature gets +1/+1 until end of turn for each +1/+1 counter on this creature.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Daru Stinger",
+   "mana_cost": "{3}{W}",
+   "type_line": "Creature — Soldier",
+   "oracle_text": "Amplify 1 (As this creature enters, put a +1/+1 counter on it for each Soldier card you reveal in your hand.)\n{T}: This creature deals damage equal to the number of +1/+1 counters on it to target attacking or blocking creature.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Embalmed Brawler",
+   "mana_cost": "{2}{B}",
+   "type_line": "Creature — Zombie",
+   "oracle_text": "Amplify 1 (As this creature enters, put a +1/+1 counter on it for each Zombie card you reveal in your hand.)\nWhenever this creature attacks or blocks, you lose 1 life for each +1/+1 counter on it.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Glowering Rogon",
+   "mana_cost": "{5}{G}",
+   "type_line": "Creature — Beast",
+   "oracle_text": "Amplify 1 (As this creature enters, put a +1/+1 counter on it for each Beast card you reveal in your hand.)",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Kilnmouth Dragon",
+   "mana_cost": "{5}{R}{R}",
+   "type_line": "Creature — Dragon",
+   "oracle_text": "Amplify 3 (As this creature enters, put three +1/+1 counters on it for each Dragon card you reveal in your hand.)\nFlying\n{T}: This creature deals damage equal to the number of +1/+1 counters on it to any target.",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Zombie Brute",
+   "mana_cost": "{6}{B}",
+   "type_line": "Creature — Zombie",
+   "oracle_text": "Amplify 1 (As this creature enters, put a +1/+1 counter on it for each Zombie card you reveal in your hand.)\nTrample",
+   "power": "5",
+   "toughness": "4",
+   "colors": [
+    "B"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
