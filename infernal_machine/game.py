@@ -237,7 +237,8 @@ PUT_PERMANENT_PROMPT = PromptKind("put_permanent", "Put a nonland permanent card
 SET_ASIDE_PROMPT = PromptKind("set_aside", "Choose a nonland card exiled this way; it can't be cast")
 UNLEASH_PROMPT = PromptKind("unleash", "Unleash: enter with a +1/+1 counter? ")  # then the card's name; it can't block while it has one
 UNLEASHED, NOT_UNLEASHED = "Enter with a +1/+1 counter", "Enter without it"
-AMPLIFY_PROMPT = PromptKind("amplify", "Amplify: reveal how many cards that share a creature type with ")  # then the card's name; "2", "1", "0"
+AMPLIFY_PROMPT = PromptKind("amplify", "Amplify: reveal a card that shares a creature type with ")  # then the card's name; cards, then AMPLIFY_DONE
+AMPLIFY_DONE = "Reveal no more"
 RIOT_PROMPT = PromptKind("riot", "Riot: a +1/+1 counter or haste for ")  # then the card's name; options: RIOT_COUNTER, RIOT_HASTE
 RIOT_COUNTER, RIOT_HASTE = "Enter with a +1/+1 counter", "It gains haste"
 KINSHIP_PROMPT = PromptKind("kinship", "Reveal the top card of your library for kinship with ")  # then the source's name: Reveal or not
@@ -7430,11 +7431,15 @@ class Game:
             kinds = set(permanent.card.type_line.partition("\u2014")[2].split())
             sharing = [c for c in seat.hand if c is not permanent.card and ("Creature" in c.type_line or "Kindred" in c.type_line)
                        and kinds & set(c.type_line.partition("\u2014")[2].split())]
-            if sharing:  # (the most first: a bot reveals them all)
-                shown = len(sharing) - seat.player.choose(AMPLIFY_PROMPT(permanent.card.name), [str(k) for k in range(len(sharing), -1, -1)])
-                if shown:
-                    self.broadcast({"event": "revealed", "seat": seat.index, "cards": [c.name for c in sharing[:shown]]})
-                    counters["+1/+1"] = counters.get("+1/+1", 0) + n * shown
+            shown = 0
+            while sharing:  # one card at a time, the player's choice of which (a bot reveals them all, the first option)
+                pick = seat.player.choose(AMPLIFY_PROMPT(permanent.card.name), [c.name for c in sharing] + [AMPLIFY_DONE])
+                if pick >= len(sharing):
+                    break
+                self.broadcast({"event": "revealed", "seat": seat.index, "card": sharing.pop(pick).name})
+                shown += 1
+            if shown:
+                counters["+1/+1"] = counters.get("+1/+1", 0) + n * shown
         if riots(permanent.card):  # Riot (CR 702.136a): the controller chooses as it enters; the haste is the effect's, kept for good
             if seat.player.choose(RIOT_PROMPT(permanent.card.name), [RIOT_COUNTER, RIOT_HASTE]) == 0:
                 counters["+1/+1"] = counters.get("+1/+1", 0) + 1
