@@ -1732,6 +1732,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Afterlife (`tests/test_afterlife.py`, #807): "Afterlife N" (CR 702.135a) is the dies trigger its reminder text gives, "Create N 1/1
     white and black Spirit creature tokens with flying." (read by the token template; N from 1 to 3). Seven cards, among them Imperious
     Oligarch and Seraph of the Scales.
+  - Amplify (`tests/test_amplify.py`, #808): "Amplify N" (CR 702.38a, `amplify_of`, `AMPLIFY_PROMPT`): as it enters its controller may
+    reveal, one at a time and of its choice, other creature or kindred cards in hand that share a creature type with it, and it gets N +1/+1
+    counters for each.
+    Seven cards, among them Kilnmouth Dragon and Canopy Crawler.
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its
