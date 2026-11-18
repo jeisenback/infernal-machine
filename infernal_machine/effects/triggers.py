@@ -411,6 +411,9 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
             abilities.append(TriggeredAbility("enters", (Hideaway(int(m[1])),), False, line))
         if VANISHING.fullmatch(line):  # its time counters come with it as it enters (statics.enters_with_counters)
             abilities.append(TriggeredAbility("upkeep", (Vanish(),), False, line))
+        if (m := AFTERLIFE.fullmatch(line)) and (n := int(m[1])) in _AFTERLIFE_COUNT:  # CR 702.135a
+            tokens = _parse([f"Create {_AFTERLIFE_COUNT[n]} 1/1 white and black Spirit creature token{'s' if n > 1 else ''} with flying."])
+            abilities.append(TriggeredAbility("dies", tuple(tokens or ()), False, line))
         if line == "Battle cry":  # CR 702.91a
             abilities.append(TriggeredAbility("attacks", tuple(_parse(["Each other attacking creature gets +1/+0 until end of turn."]) or ()),
                                               False, line))
@@ -467,6 +470,8 @@ _BLOCK_KEYWORD = re.compile(r"(bushido|afflict|rampage) (\d+)")
 
 
 _HIDEAWAY = re.compile(r"Hideaway (\d+)")
+_AFTERLIFE_COUNT = {1: "a", 2: "two", 3: "three"}
+AFTERLIFE = re.compile(r"Afterlife (\d+)")  # CR 702.135a: when it dies, N 1/1 white and black Spirit tokens with flying
 FADING = re.compile(r"Fading (\d+)")  # CR 702.32a: the counters are statics.enters_with_counters', the upkeep trigger here
 VANISHING = re.compile(r"Vanishing (\d+)")  # CR 702.63a: the counters are statics.enters_with_counters', the upkeep trigger here
 
