@@ -247,24 +247,27 @@ class Combat:
                             MUST_BLOCK_PROMPT(self.game.label(attack.attacker)), [self.game.label(p) for p in able])]
                         self._block(seat, pick, attack)
             for permanent in list(seat.battlefield):
-                if permanent.tapped or "Creature" not in permanent.card.type_line or any(permanent in a.blockers for a in self.attacks):
+                if permanent.tapped or "Creature" not in permanent.card.type_line:
                     continue
-                blockable = [a for a in self.attacks if a.defender is seat and self._can_block(permanent, a.attacker)
-                             and not self._has_enough_blockers(a)]
-                if not blockable:
-                    continue
-                forced = [a for a in blockable if self._lured(a.attacker)]
-                if forced:  # "All creatures able to block this creature do so."
-                    self._block(seat, permanent, forced[0])
-                    continue
-                if permanent.must_block_turn == self.game.turn:  # "Target creature blocks this turn if able."
-                    wanted = [a for a in blockable if permanent.must_block_what in (None, a.attacker)]
-                    if wanted:
-                        self._block(seat, permanent, wanted[0])
+                while self._blocking(permanent) < self._block_limit(permanent):  # Ghastbark Twins: one more (CR 509.1a)
+                    blockable = [a for a in self.attacks if a.defender is seat and permanent not in a.blockers
+                                 and self._can_block(permanent, a.attacker) and not self._has_enough_blockers(a)]
+                    if not blockable:
+                        break
+                    forced = [a for a in blockable if self._lured(a.attacker)]
+                    if forced:  # "All creatures able to block this creature do so.": on every block it has (CR 509.1c)
+                        self._block(seat, permanent, forced[0])
                         continue
-                options = [NO_BLOCK] + [f"Block {self.game.label(a.attacker)}" for a in blockable]
-                choice = seat.player.choose(BLOCK_PROMPT(self.game.label(permanent)), options)
-                if choice:
+                    if not self._blocking(permanent):
+                        if permanent.must_block_turn == self.game.turn:  # "Target creature blocks this turn if able.": one block will do it
+                            wanted = [a for a in blockable if permanent.must_block_what in (None, a.attacker)]
+                            if wanted:
+                                self._block(seat, permanent, wanted[0])
+                                continue
+                    options = [NO_BLOCK] + [f"Block {self.game.label(a.attacker)}" for a in blockable]
+                    choice = seat.player.choose(BLOCK_PROMPT(self.game.label(permanent)), options)
+                    if not choice:
+                        break
                     self._block(seat, permanent, blockable[choice - 1])
         for attack in self.attacks:
             # Menace: a creature blocked by only one creature is unblocked instead (CR 702.111b); so is one that can't be
@@ -292,9 +295,21 @@ class Combat:
         return any(p.attached_to is attacker and any(r.kind == "host_must_be_blocked_by_all" for r in combat_restrictions(p.card))
                    for seat in self.game.live_seats() for p in seat.battlefield)
 
+    def _blocking(self, blocker: Permanent) -> int:
+        """How many attackers `blocker` blocks."""
+        return sum(blocker in a.blockers for a in self.attacks)
+
+    def _block_limit(self, blocker: Permanent) -> int:
+        """How many attackers `blocker` may block: one, and more with "can block an additional creature each combat"."""
+        if self.game.loses_abilities(blocker):
+            return 1
+        return 1 + sum(int(r.what) for r in combat_restrictions(blocker.card) if r.kind == "extra_blocks")
+
     def _block(self, seat: Seat, blocker: Permanent, attack: Attack) -> None:
+        first = not self._blocking(blocker)
         attack.blockers.append(blocker)
-        self.game.trigger("blocks", blocker, seat)
+        if first:  # "Whenever this creature blocks": once, however many it blocks
+            self.game.trigger("blocks", blocker, seat)
         self.game.broadcast({"event": "block", "seat": seat.index, "card": blocker.card.name,
                              "attacker": attack.attacker.card.name})
 
@@ -310,6 +325,7 @@ class Combat:
     def deal_damage(self, first_strike_step: bool) -> None:
         """Combat damage is worked out first, then dealt all at once (CR 510.1-510.2)."""
         hits: list[tuple[Permanent, Seat | Permanent, int]] = []
+        split: list[Permanent] = []  # the blockers whose damage was divided among the attackers they block
         for attack in self.attacks:
             attacker = attack.attacker
             if not self.game.on_battlefield(attacker):
@@ -327,8 +343,14 @@ class Combat:
                 else:
                     hits += self._assign(attacker, attack.controller, blockers, victim, amount)
             for blocker in blockers:
-                if self._deals_damage_now(blocker, first_strike_step):
-                    hits.append((blocker, attacker, max(0, self.game.power(blocker))))
+                if self._deals_damage_now(blocker, first_strike_step) and blocker not in split:
+                    blocked = [a.attacker for a in self.attacks if blocker in a.blockers and self.game.on_battlefield(a.attacker)]
+                    if len(blocked) > 1:  # CR 510.1d: a creature blocking several divides its damage among them
+                        split.append(blocker)
+                        controller = self.game.controller(blocker)
+                        hits += self._assign(blocker, controller, blocked, None, max(0, self.game.power(blocker)))
+                    else:
+                        hits.append((blocker, attacker, max(0, self.game.power(blocker))))
         from .game import Seat  # game imports this module, so it can't be imported at the top
         hit_players: dict[tuple[int, int], tuple[Seat, list[Permanent]]] = {}  # (hitter, player hit) -> who did it
         dealt: dict[tuple[int, int], dict[int, int]] = {}  # the same key -> how much each of them dealt
