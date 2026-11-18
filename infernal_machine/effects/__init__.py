@@ -403,6 +403,7 @@ from .costs import (  # noqa: F401
     buyback_other_cost,
     chosen_cost_reductions,
     conditional_cost_reduction,
+    tapped_target_reduction,
     copies_per_sacrifice,
     casualty_of,
     sacrifice_discount,

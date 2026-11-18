@@ -875,7 +875,7 @@ def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
     return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _CASUALTY, _SACRIFICE_DISCOUNT, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _FREE_IF_LANDS, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _COLLECT_EVIDENCE, _TEAMWORK, _ASSIST, _RETRACE, _ENCORE, _ETERNALIZE, _EMBALM, _UNEARTH, _MADNESS, _MIRACLE, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _IMPENDING, _DASH, _SPECTACLE, _BLITZ, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
-                                           _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_DISCARD, _SPLICE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
+                                           _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_DISCARD, _SPLICE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION, _TAPPED_TARGET_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
 
 
@@ -915,6 +915,15 @@ def self_cost_reduction(card: Card) -> tuple[int, str] | None:
 
 
 _IF_REDUCTION = re.compile(r"(?:[A-Z][a-z]+ \u2014 )?This spell costs \{(\d+)\} less to cast (?:if|as long as) (.+)\.")  # Mortality Spear
+
+
+_TAPPED_TARGET_REDUCTION = re.compile(r"This spell costs \{(\d+)\} less to cast if it targets a tapped creature\.")  # Luminous Rebuke
+
+
+@lru_cache(maxsize=None)
+def tapped_target_reduction(card: Card) -> int:
+    """Luminous Rebuke: "This spell costs {3} less to cast if it targets a tapped creature." (how much less; 0 for none)"""
+    return next((int(m[1]) for line in rules_lines(card) if (m := _TAPPED_TARGET_REDUCTION.fullmatch(line))), 0)
 
 
 _POWER_REDUCTION = re.compile(r"This spell costs \{X\} less to cast, where X is the total power of creatures you control\.")

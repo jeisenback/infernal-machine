@@ -4050,6 +4050,116 @@
    "colors": [
     "B"
    ]
+  },
+  {
+   "name": "Luminous Rebuke",
+   "mana_cost": "{4}{W}",
+   "type_line": "Instant",
+   "oracle_text": "This spell costs {3} less to cast if it targets a tapped creature.\nDestroy target creature.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Fate of the Sun-Cryst",
+   "mana_cost": "{4}{W}",
+   "type_line": "Instant",
+   "oracle_text": "This spell costs {2} less to cast if it targets a tapped creature.\nDestroy target nonland permanent.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Seized from Slumber",
+   "mana_cost": "{4}{W}",
+   "type_line": "Instant",
+   "oracle_text": "This spell costs {3} less to cast if it targets a tapped creature.\nDestroy target creature.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Ajani's Response",
+   "mana_cost": "{4}{W}",
+   "type_line": "Instant",
+   "oracle_text": "This spell costs {3} less to cast if it targets a tapped creature.\nDestroy target creature.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Grounded for Life",
+   "mana_cost": "{4}{W}",
+   "type_line": "Instant",
+   "oracle_text": "This spell costs {3} less to cast if it targets a tapped creature.\nDestroy target creature.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Banish from Edoras",
+   "mana_cost": "{4}{W}",
+   "type_line": "Sorcery",
+   "oracle_text": "This spell costs {2} less to cast if it targets a tapped creature.\nExile target creature.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Magnificent End",
+   "mana_cost": "{4}{W}",
+   "type_line": "Instant",
+   "oracle_text": "This spell costs {3} less to cast if it targets a tapped creature.\nMagnificent End deals 5 damage to target creature.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Quicksand Whirlpool",
+   "mana_cost": "{5}{W}",
+   "type_line": "Instant",
+   "oracle_text": "This spell costs {3} less to cast if it targets a tapped creature.\nExile target creature.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Fantastic Bounce",
+   "mana_cost": "{3}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "This spell costs {2} less to cast if it targets a tapped creature.\nReturn target nonland permanent to its owner's hand.\nDraw a card.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Hawkeye's Shot",
+   "mana_cost": "{4}{W}",
+   "type_line": "Sorcery",
+   "oracle_text": "This spell costs {2} less to cast if it targets a tapped creature.\nExile target creature.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
