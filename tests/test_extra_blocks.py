@@ -26,6 +26,9 @@ MUTATIONS = [
      "its damage is divided"),
     ("infernal_machine/combat.py", "        if first:  # \"Whenever this creature blocks\"", "        if True:  # \"Whenever this creature blocks\"",
      "it blocks once"),
+    ("infernal_machine/combat.py", "                    forced = [a for a in blockable if self._lured(a.attacker)]\n                    if forced:",
+     "                    forced = [a for a in blockable if self._lured(a.attacker)]\n                    if forced and not self._blocking(permanent):",
+     "a lure binds every block it has"),
 ]
 
 
@@ -68,6 +71,17 @@ class ExtraBlockTests(unittest.TestCase):
         for card, lost in ((GIANT, False), (TWINS, True)):
             game, blocker, _ = two_ogres_attack(card, lost)
             self.assertEqual([blocker in a.blockers for a in game.combat.attacks], [True, False], card.name)
+
+    def test_two_lured_attackers_are_both_blocked(self):
+        game, _ = table3()  # (it would rather not block at all)
+        a, b, _ = game.seats
+        twins = Permanent(TWINS)
+        a.battlefield = [twins]
+        ogres = [Permanent(OGRE, sick=False, lured_turn=game.turn), Permanent(OGRE, sick=False, lured_turn=game.turn)]
+        b.battlefield = ogres  # ("All creatures able to block this creature do so." this turn, CR 509.1c)
+        game.combat.attacks = [Attack(ogre, b, a, []) for ogre in ogres]
+        game.combat.declare_blockers()
+        self.assertEqual([twins in a.blockers for a in game.combat.attacks], [True, True])
 
     def test_whenever_it_blocks_is_heard_once(self):
         game, _ = table3(blocks_all)

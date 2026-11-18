@@ -254,12 +254,12 @@ class Combat:
                                  and self._can_block(permanent, a.attacker) and not self._has_enough_blockers(a)]
                     if not blockable:
                         break
+                    forced = [a for a in blockable if self._lured(a.attacker)]
+                    if forced:  # "All creatures able to block this creature do so.": on every block it has (CR 509.1c)
+                        self._block(seat, permanent, forced[0])
+                        continue
                     if not self._blocking(permanent):
-                        forced = [a for a in blockable if self._lured(a.attacker)]
-                        if forced:  # "All creatures able to block this creature do so."
-                            self._block(seat, permanent, forced[0])
-                            continue
-                        if permanent.must_block_turn == self.game.turn:  # "Target creature blocks this turn if able."
+                        if permanent.must_block_turn == self.game.turn:  # "Target creature blocks this turn if able.": one block will do it
                             wanted = [a for a in blockable if permanent.must_block_what in (None, a.attacker)]
                             if wanted:
                                 self._block(seat, permanent, wanted[0])

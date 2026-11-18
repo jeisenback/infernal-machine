@@ -2209,7 +2209,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - **"This creature can block an additional creature each combat."** (Ghastbark Twins and nine others,
     `tests/test_extra_blocks.py`, #836, CR 509.1a): its controller is asked again after its first block, about the other
     attackers; a creature blocking several divides its damage among them, lethal to each in the order its controller picks and the
-    rest to the last (CR 510.1d); "whenever this creature blocks" is heard once. Lost abilities: one block.
+    rest to the last (CR 510.1d); "whenever this creature blocks" is heard once; "all creatures able to block this creature do so"
+    binds each block it has (CR 509.1c). Lost abilities: one block.
   - **Flanking:** when it is blocked, each blocker without flanking gets -1/-1 until end of turn (done as the blockers are
     set, not from a trigger on the stack). **"All creatures able to block this creature do so."** forces every untapped
     creature that can block it to, and they are not asked about other attackers. **"{2}{U}: This creature can't be blocked
