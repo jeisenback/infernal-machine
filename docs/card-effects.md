@@ -1020,6 +1020,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     as its controller's.
   - Hollow One (`tests/test_hollow_one.py`): "This spell costs {2} less to cast for each card you've cycled or discarded this turn."
     counts `Seat.discards_turn`, kept by `Game._count_discard` for a discard (`Game._discarded`) and a cycle.
+  - Luminous Rebuke and nine others (`tests/test_tapped_target_discount.py`, #834): "This spell costs {3} less to cast if it targets a
+    tapped creature." (`tapped_target_reduction`) takes the amount off once the targets are chosen (CR 601.2f) and only if one is a
+    tapped creature; the spell is offered with the discount while a tapped creature is there to target, and when only the discount
+    pays for it, only a tapped creature can be chosen.
   - Free the Fae (`tests/test_free_the_fae.py`): "Mill four cards. Then put an instant, sorcery, or Faerie card from among the milled cards
     into your hand." is a `Mill` with `put` and `put_to` "hand"; only the milled cards count.
   - Accumulate Wisdom (`tests/test_accumulate_wisdom.py`): "Put each of those cards into your hand instead if there are three or more

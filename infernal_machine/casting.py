@@ -17,7 +17,7 @@ from .cards import Card, has_keyword
 from .characteristics import source_qualities
 from .effects import (FREE_WAY, AlternativeCost, AttachAura, Cascade, CopySpellTimes, CopyTriggeringSpell, Demonstrate, Draw, GainLife, GraveyardCast, Modal, MorphCost,
                       Scry, TriggeredAbility, NOTHING_MORE, additional_costs, additional_paid_effects, affinity_for, alternative_costs, buyback_cost, buyback_other_cost, splice_cost,
-                      chosen_cost_reductions, conditional_cost_reduction, cost_increases, cost_reductions, eminence_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
+                      chosen_cost_reductions, conditional_cost_reduction, tapped_target_reduction, cost_increases, cost_reductions, eminence_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
                       mana_spent_trigger, non_hand_cost_reduction, overloaded_effects, reduced_by_greatest, reduced_by_total_power,
                       replicate_cost, restricted_mana, rules_statics, sacrifice_discount, self_cost_reduction, collect_evidence_of, teamwork_of, has_assist, casualty_of, storm_kind, strive_cost, target_kind, triggered_abilities,
@@ -123,12 +123,19 @@ class Caster:
                                                        extra + strive * (more + 1)) is not None:
                 more += 1
             self.game.targeting_max = more + 1
-        chosen_targets = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
+        choosing = effects
+        if (tapped_discount := tapped_target_reduction(card)) and self._payment(seat, paying, from_command_zone, x, alternative, kickers, extra) is None:
+            # Luminous Rebuke: payable only with the discount, so its target has to be a tapped creature
+            choosing = [dataclasses.replace(e, target="tapped creature") if target_kind(e) else e for e in effects or []]
+        chosen_targets = self._choose_targets(seat, choosing, card.name, colors=source_qualities(card))
         self.game.targeting_max = None
         if chosen_targets is None:  # no legal target (a free cast: cascade, suspend ...): it isn't cast, and stays where it is
             self.game.broadcast({"event": "cant_cast", "seat": seat.index, "card": card.name})
             return
         targets, labels = chosen_targets
+        tapped_creatures = [o for _, o in self.game.target_options("tapped creature", seat, source_qualities(card))] if tapped_discount else []
+        if not any(t is o for slot in targets for t in (slot if isinstance(slot, list) else [slot]) for o in tapped_creatures):
+            tapped_discount = 0  # CR 601.2f: the cost is locked in after the targets are chosen
         if strive:
             chosen = sum(len(t) for e, t in zip([e for e in effects or [] if target_kind(e)], targets)
                          if getattr(e, "any_number", False))
@@ -153,9 +160,9 @@ class Caster:
                 harmonized = max(0, self.game.power(harmonizer))
                 self.game.tap(harmonizer)
         assisted = self._assist(seat, card, g._checked(self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra,
-                                                                         delve=delve + sacrificing + harmonized)).generic)
+                                                                         delve=delve + sacrificing + harmonized + tapped_discount)).generic)
         cost = g._checked(self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra,
-                                          delve=delve + sacrificing + harmonized + assisted))
+                                          delve=delve + sacrificing + harmonized + tapped_discount + assisted))
         with self.game._paying_for(seat, paying):
             tapped = g._checked(self.game._pay_cost(seat, cost))
         self.game._spend_mana(seat, tapped)
@@ -300,10 +307,20 @@ class Caster:
                 if not (way and way.warp and not from_hand)  # warp is a way to cast from the hand only
                 and self._can_pay_extras(seat, card, way, afford=lambda extra, way=way: self._payment(
                     seat, card, from_command_zone, alternative=way, extra=extra,
-                    delve=self.game._delve_max(seat, card) + self._sacrifice_discount_max(seat, card) if way is None else 0))
+                    delve=self.game._delve_max(seat, card) + self._sacrifice_discount_max(seat, card) + self._tapped_target_discount(seat, card)
+                    if way is None else 0))
                 and not (way is None and sacrifice_discount(card)
                          and not self._sacrifice_discounts(seat, card, from_command_zone, delve=self.game._delve_max(seat, card)))
                 and not (way and way.bestow and not self.game.target_options("creature", seat, source_qualities(card)))]
+
+    def _tapped_target_discount(self, seat: g.Seat, card: Card) -> int:
+        """Luminous Rebuke's discount, if a tapped creature is there for it to target."""
+        if not (amount := tapped_target_reduction(card)):
+            return 0
+        colors = source_qualities(card)
+        tapped = [o for _, o in self.game.target_options("tapped creature", seat, colors)]
+        return amount if any(o is t for e in g._effects(card) or [] if (kind := target_kind(e))
+                             for _, o in self.game.target_options(kind, seat, colors) for t in tapped) else 0
 
     def _granted_evokes(self, seat: g.Seat, card: Card, from_hand: bool) -> list[AlternativeCost]:
         """Ashling, the Limitless: "Elemental permanent spells you cast from your hand gain evoke {4} as you cast them." (CR 702.74a)"""
