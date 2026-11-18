@@ -1729,6 +1729,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Tap and freeze (`tests/test_tap_and_freeze.py`, #806): "Tap up to two target creatures [you don't control]. Those creatures don't untap
     during their controller's next untap step." is Tamiyo's template ("nonland permanents ... They don't untap") widened: two `Tap` with
     `skip_untap` (CR 502.3). Frost Breath, Snow Day, Said // Done and the others, Adverse Conditions and Saiba Trespassers' channel.
+  - Afterlife (`tests/test_afterlife.py`, #807): "Afterlife N" (CR 702.135a) is the dies trigger its reminder text gives, "Create N 1/1
+    white and black Spirit creature tokens with flying." (read by the token template; N from 1 to 3). Seven cards, among them Imperious
+    Oligarch and Seraph of the Scales.
   - Transmute Artifact (`tests/test_transmute_artifact.py`): sacrifice an artifact, search for an artifact card; one of no greater mana
     value comes in free, a greater one if the difference is paid, else it goes to the graveyard (`TransmuteArtifact`, `Game.transmute_artifact`).
   - Tezzeret the Seeker (`tests/test_tezzeret_the_seeker.py`): a "−X" loyalty cost (`ActivatedAbility.loyalty_x`: X chosen from 0 to its
