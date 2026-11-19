@@ -6,6 +6,7 @@ offered; an attacker without enlist is not asked."""
 
 import unittest
 
+from infernal_machine.characteristics import Modifier
 from infernal_machine.combat import ATTACK_PROMPT, ENLIST_PROMPT, NO_ENLIST
 from infernal_machine.game import Permanent
 from tests.helpers import BEAR, real, table3, wording_unlocked
@@ -18,13 +19,16 @@ KNIGHT = real("Vigilant Knight", "{2}{W}", "Creature — Human Knight", "Vigilan
 
 # The guards these tests are there to catch (python tools/mutate.py tests.test_enlist).
 MUTATIONS = [
-    ("infernal_machine/combat.py", "        self.game.modify_until_end_of_turn(attacker, Modifier(max(0, self.game.power(enlisted)), 0))",
-     "        pass", "it adds the creature's power"),
+    ("infernal_machine/combat.py", "        self.game.modify_until_end_of_turn(attacker, Modifier(self.game.power(enlisted), 0))",
+     "        pass  #", "it adds the creature's power"),
+    ("infernal_machine/combat.py", "Modifier(self.game.power(enlisted), 0))", "Modifier(max(0, self.game.power(enlisted)), 0))",
+     "a negative power lowers it"),
     ("infernal_machine/combat.py", "        self.game.tap(enlisted)\n", "", "the enlisted creature is tapped"),
-    ("infernal_machine/combat.py", "and not any(a.attacker is p for a in self.attacks) and not self.game.summoning_sick(seat, p)]",
-     "and not any(a.attacker is p for a in self.attacks)]", "not one with summoning sickness"),
-    ("infernal_machine/combat.py", "and not any(a.attacker is p for a in self.attacks) and not self.game.summoning_sick(seat, p)]",
-     "and not self.game.summoning_sick(seat, p)]", "not one that attacks"),
+    ("infernal_machine/combat.py", '                   and not (p.sick and not self.game.has_keyword(p, "haste"))]',
+     "                   ]", "not one with summoning sickness"),
+    ("infernal_machine/combat.py", '                   and not (p.sick and not self.game.has_keyword(p, "haste"))]',
+     "                   and not self.game.summoning_sick(seat, p)]", "not one only as though it had haste"),
+    ("infernal_machine/combat.py", "and not any(a.attacker is p for a in self.attacks)\n", "\n", "not one that attacks"),
     ("infernal_machine/combat.py", '        if not self.game.has_keyword(attacker, "enlist"):\n            return\n', "", "only a creature with enlist"),
 ]
 
@@ -40,12 +44,12 @@ def policy(attackers, enlist):
     return choose
 
 
-def attack(attackers=("Linebreaker Baloth",), enlist="Bear", sick_bear=False):
+def attack(attackers=("Linebreaker Baloth",), enlist="Bear", sick_bear=False, also=()):
     """Seat 0 has Linebreaker Baloth, a Bear and a vigilant Knight; it attacks with `attackers` and enlists `enlist`."""
     game, players = table3(policy(attackers, enlist))
     a = game.seats[0]
     baloth, bear, ogre = Permanent(BALOTH, sick=False), Permanent(BEAR, sick=sick_bear), Permanent(KNIGHT, sick=False)
-    a.battlefield = [baloth, bear, ogre]
+    a.battlefield = [baloth, bear, ogre, *also]
     game.combat.declare_attackers(a)
     return game, players, baloth, bear, ogre
 
@@ -69,6 +73,20 @@ class EnlistTests(unittest.TestCase):
     def test_not_a_sick_creature_nor_an_attacking_one(self):
         _, players, _, _, _ = attack(attackers=("Linebreaker Baloth", "Vigilant Knight"), sick_bear=True)
         self.assertEqual(enlist_options(players), [])  # (the Bear is sick, the Knight attacks, untapped)
+
+    def test_not_a_sick_creature_that_may_only_use_abilities_as_though_it_had_haste(self):
+        _, players, _, _, _ = attack(sick_bear=True, also=[Permanent(REAL["Thousand-Year Elixir"])])
+        (options,) = enlist_options(players)
+        self.assertEqual([o.split(" ")[0] for o in options], ["Don't", "Vigilant"])  # (the Knight, not the sick Bear)
+
+    def test_a_negative_power_lowers_the_attacker(self):
+        game, players = table3(policy(("Linebreaker Baloth",), "Bear"))
+        a = game.seats[0]
+        baloth, bear = Permanent(BALOTH, sick=False), Permanent(BEAR, sick=False)
+        a.battlefield = [baloth, bear]
+        game.modify_until_end_of_turn(bear, Modifier(-3, 0))  # (a -1/2 Bear)
+        game.combat.declare_attackers(a)
+        self.assertEqual(game.power(baloth), 3)
 
     def test_an_attacker_without_enlist_is_not_asked(self):
         _, players, _, bear, _ = attack(attackers=("Vigilant Knight",))

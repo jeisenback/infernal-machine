@@ -298,7 +298,8 @@ class Combat:
         if not self.game.has_keyword(attacker, "enlist"):
             return
         options = [p for p in seat.battlefield if "Creature" in p.card.type_line and not p.tapped and p is not attacker
-                   and not any(a.attacker is p for a in self.attacks) and not self.game.summoning_sick(seat, p)]
+                   and not any(a.attacker is p for a in self.attacks)
+                   and not (p.sick and not self.game.has_keyword(p, "haste"))]  # (haste, or here since the turn began: not "as though")
         if not options:
             return
         pick = seat.player.choose(ENLIST_PROMPT(self.game.label(attacker)), [NO_ENLIST] + [self.game.label(p) for p in options])
@@ -306,7 +307,7 @@ class Combat:
             return
         enlisted = options[pick - 1]
         self.game.tap(enlisted)
-        self.game.modify_until_end_of_turn(attacker, Modifier(max(0, self.game.power(enlisted)), 0))
+        self.game.modify_until_end_of_turn(attacker, Modifier(self.game.power(enlisted), 0))  # (a negative power lowers it, CR 107.1b)
 
     def _lured(self, attacker: Permanent) -> bool:
         """Whether every creature able to block `attacker` has to: its own text, an effect this turn, or an Aura or Equipment on it."""

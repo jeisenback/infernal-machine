@@ -1735,7 +1735,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     a token copy is not kicked, so it makes no more. Eleven cards, among them Galadhrim Brigade and Zephyrim.
   - Enlist (`tests/test_enlist.py`, #838): "Enlist" (CR 702.154a, `Combat._enlist`, `ENLIST_PROMPT`): once the attackers are declared,
     each with enlist may tap an untapped creature its controller controls that isn't attacking and has no summoning sickness, for +X/+0
-    until end of turn, X that creature's power (the "when you do" trigger is done at once). Nine cards, among them Linebreaker Baloth.
+    until end of turn, X that creature's power, negative too (the "when you do" trigger is done at once; a creature that may only use
+    abilities as though it had haste can't be enlisted). Nine cards, among them Linebreaker Baloth.
   - Riot (`tests/test_riot.py`, #805): "Riot" (CR 702.136a, `riots`, `RIOT_PROMPT`): as it enters its controller chooses a +1/+1 counter
     or haste; the haste is the effect's (`Permanent.rioted`), so it stays when the creature loses its abilities. Eight cards, among them
     Zhur-Taa Goblin and Burning-Tree Vandal.
