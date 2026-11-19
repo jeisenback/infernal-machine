@@ -681,13 +681,15 @@ class CopySelfToken:
     sacrifice_at_end: bool = False
     exile_at_end: bool = False
     tapped: bool = False  # Skyclave Relic: "create two tapped tokens that are copies of this artifact"
+    per_kick: bool = False  # Squad: one for each time its squad cost was paid (CR 702.157a)
     binds = SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             changes = CopyChanges(power_toughness=("1", "1")) if self.one_by_one else self.changes
             card = copy_of(target.card, changes, as_token=True)
-            made = game.create_tokens(controller, card, game.amount(self.count), copy_counters(card, changes), tapped=self.tapped)
+            count = target.kicked if self.per_kick else game.amount(self.count)
+            made = game.create_tokens(controller, card, count, copy_counters(card, changes), tapped=self.tapped)
             finish_copies(game, made, self)
 
 

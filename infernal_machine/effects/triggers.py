@@ -407,6 +407,8 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
             abilities.append(TriggeredAbility("enters", (Backup(int(m[1]), "\n".join(lines[number + 1:])),), False, line))
         if _OFFSPRING_LINE.fullmatch(line):  # CR 702.175a: if the extra cost was paid, a 1/1 copy of it enters with it
             abilities.append(TriggeredAbility("enters", (CopySelfToken(one_by_one=True),), False, line, condition=Condition("kicked")))
+        if _SQUAD_LINE.fullmatch(line):  # CR 702.157a: a token copy of it for each time its squad cost was paid
+            abilities.append(TriggeredAbility("enters", (CopySelfToken(per_kick=True),), False, line, condition=Condition("kicked")))
         if m := _HIDEAWAY.fullmatch(line):
             abilities.append(TriggeredAbility("enters", (Hideaway(int(m[1])),), False, line))
         if VANISHING.fullmatch(line):  # its time counters come with it as it enters (statics.enters_with_counters)
@@ -476,6 +478,7 @@ FADING = re.compile(r"Fading (\d+)")  # CR 702.32a: the counters are statics.ent
 VANISHING = re.compile(r"Vanishing (\d+)")  # CR 702.63a: the counters are statics.enters_with_counters', the upkeep trigger here
 
 _OFFSPRING_LINE = re.compile(r"Offspring (?:\{[^}]+\})+")
+_SQUAD_LINE = re.compile(r"Squad (?:\{[^}]+\})+")
 
 
 _PAY_TO_RETURN = re.compile(r"you may pay ((?:\{[^}]+\})+)\. If you do, return this card from your graveyard to the "
