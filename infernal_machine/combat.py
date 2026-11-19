@@ -28,7 +28,9 @@ ATTACK_PROMPT = PromptKind("attack", "Attack with ")  # followed by the creature
 BLOCK_PROMPT = PromptKind("block", "Block with ")
 MUST_BLOCK_PROMPT = PromptKind("must_block", "Choose a creature that blocks ")  # followed by the attacker that must be blocked if able
 ASSIGN_PROMPT = PromptKind("assign", "Damage first to a blocker of ")  # followed by the attacker's label
+ENLIST_PROMPT = PromptKind("enlist", "Enlist a creature for ")  # followed by the attacker's label; NO_ENLIST first, then the creatures
 NO_ATTACK = "Don't attack"
+NO_ENLIST = "Don't enlist"
 NO_BLOCK = "Don't block"
 
 
@@ -95,6 +97,8 @@ class Combat:
             payment = self.game._pay_cost(seat, owed)
             assert payment is not None
             self.game._spend_mana(seat, payment)
+        for permanent, _, _ in declared:
+            self._enlist(seat, permanent)
         for permanent, defender, walker in declared:
             self.game.trigger("attacks", permanent, seat)
             if self.game.has_keyword(permanent, "myriad"):
@@ -287,6 +291,23 @@ class Combat:
                 for blocker in attack.blockers:
                     if not self.game.has_keyword(blocker, "flanking"):
                         self.game.modify_until_end_of_turn(blocker, Modifier(-1, -1))
+
+    def _enlist(self, seat: Seat, attacker: Permanent) -> None:
+        """Enlist (CR 702.154a): as it attacks, its controller may tap an untapped creature they control that isn't attacking and could
+        attack (no summoning sickness); it gets +X/+0 until end of turn, X that creature's power."""
+        if not self.game.has_keyword(attacker, "enlist"):
+            return
+        options = [p for p in seat.battlefield if "Creature" in p.card.type_line and not p.tapped and p is not attacker
+                   and not any(a.attacker is p for a in self.attacks)
+                   and not (p.sick and not self.game.has_keyword(p, "haste"))]  # (haste, or here since the turn began: not "as though")
+        if not options:
+            return
+        pick = seat.player.choose(ENLIST_PROMPT(self.game.label(attacker)), [NO_ENLIST] + [self.game.label(p) for p in options])
+        if not pick:
+            return
+        enlisted = options[pick - 1]
+        self.game.tap(enlisted)
+        self.game.modify_until_end_of_turn(attacker, Modifier(self.game.power(enlisted), 0))  # (a negative power lowers it, CR 107.1b)
 
     def _lured(self, attacker: Permanent) -> bool:
         """Whether every creature able to block `attacker` has to: its own text, an effect this turn, or an Aura or Equipment on it."""
