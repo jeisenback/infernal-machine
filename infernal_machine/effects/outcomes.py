@@ -533,6 +533,7 @@ from .families.mana import (  # noqa: F401
     AddManaPerCardInHand,
     AddManaPerTappedLand,
     ExtraMountainMana,
+    Firebend,
     KeepManaThisTurn,
     LoseLifeEqualToManaValue,
     PayLifeForMana,

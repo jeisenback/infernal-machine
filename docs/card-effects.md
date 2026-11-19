@@ -1737,6 +1737,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     each with enlist may tap an untapped creature its controller controls that isn't attacking and has no summoning sickness, for +X/+0
     until end of turn, X that creature's power, negative too (the "when you do" trigger is done at once; a creature that may only use
     abilities as though it had haste can't be enlisted). Nine cards, among them Linebreaker Baloth.
+  - Firebending (`tests/test_firebending.py`, #839): "Firebending N" (CR 702.189a, `Firebend`): an attack trigger adds N {R}, and that
+    much {R} stays in the pool as the combat steps end (`Seat.combat_mana`, `Game._empty_pools`), less what was spent, until end of
+    combat. Nine cards, among them Rough Rhino Cavalry ("Firebending X, where X is ..." is not read).
   - Riot (`tests/test_riot.py`, #805): "Riot" (CR 702.136a, `riots`, `RIOT_PROMPT`): as it enters its controller chooses a +1/+1 counter
     or haste; the haste is the effect's (`Permanent.rioted`), so it stays when the creature loses its abilities. Eight cards, among them
     Zhur-Taa Goblin and Burning-Tree Vandal.

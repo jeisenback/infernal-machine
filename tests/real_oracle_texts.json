@@ -4650,6 +4650,135 @@
    "power": null,
    "toughness": null,
    "colors": []
+  },
+  {
+   "name": "Azula, On the Hunt",
+   "mana_cost": "{3}{B}",
+   "type_line": "Legendary Creature — Human Noble",
+   "oracle_text": "Firebending 2 (Whenever this creature attacks, add {R}{R}. This mana lasts until end of combat.)\nWhenever Azula attacks, you lose 1 life and create a Clue token. (It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")",
+   "power": "4",
+   "toughness": "3",
+   "colors": [
+    "B"
+   ],
+   "produced_mana": [
+    "R"
+   ]
+  },
+  {
+   "name": "Fire Sages",
+   "mana_cost": "{1}{R}",
+   "type_line": "Creature — Human Cleric",
+   "oracle_text": "Firebending 1 (Whenever this creature attacks, add {R}. This mana lasts until end of combat.)\n{1}{R}{R}: Put a +1/+1 counter on this creature.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ],
+   "produced_mana": [
+    "R"
+   ]
+  },
+  {
+   "name": "Loyal Fire Sage",
+   "mana_cost": "{2}{R}",
+   "type_line": "Creature — Human Cleric Ally",
+   "oracle_text": "Firebending 1 (Whenever this creature attacks, add {R}. This mana lasts until end of combat.)\n{5}: Create a 1/1 white Ally creature token.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ],
+   "produced_mana": [
+    "R"
+   ]
+  },
+  {
+   "name": "Rough Rhino Cavalry",
+   "mana_cost": "{4}{R}",
+   "type_line": "Creature — Human Mercenary",
+   "oracle_text": "Firebending 2 (Whenever this creature attacks, add {R}{R}. This mana lasts until end of combat.)\nExhaust — {8}: Put two +1/+1 counters on this creature. It gains trample until end of turn. (Activate each exhaust ability only once.)",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "R"
+   ],
+   "produced_mana": [
+    "R"
+   ]
+  },
+  {
+   "name": "Tundra Tank",
+   "mana_cost": "{2}{B}",
+   "type_line": "Artifact — Vehicle",
+   "oracle_text": "Firebending 1 (Whenever this creature attacks, add {R}. This mana lasts until end of combat.)\nWhen this Vehicle enters, target creature you control gains indestructible until end of turn.\nCrew 1 (Tap any number of creatures you control with total power 1 or more: This Vehicle becomes an artifact creature until end of turn.)",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "B"
+   ],
+   "produced_mana": [
+    "R"
+   ]
+  },
+  {
+   "name": "Uncle Iroh",
+   "mana_cost": "{1}{R/G}{R/G}",
+   "type_line": "Legendary Creature — Human Noble Ally",
+   "oracle_text": "Firebending 1 (Whenever this creature attacks, add {R}. This mana lasts until end of combat.)\nLesson spells you cast cost {1} less to cast.",
+   "power": "4",
+   "toughness": "2",
+   "colors": [
+    "G",
+    "R"
+   ],
+   "produced_mana": [
+    "R"
+   ]
+  },
+  {
+   "name": "Vindictive Warden",
+   "mana_cost": "{2}{B/R}",
+   "type_line": "Creature — Human Soldier",
+   "oracle_text": "Menace (This creature can't be blocked except by two or more creatures.)\nFirebending 1 (Whenever this creature attacks, add {R}. This mana lasts until end of combat.)\n{3}: This creature deals 1 damage to each opponent.",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "B",
+    "R"
+   ],
+   "produced_mana": [
+    "R"
+   ]
+  },
+  {
+   "name": "Zuko, Exiled Prince",
+   "mana_cost": "{3}{R}",
+   "type_line": "Legendary Creature — Human Noble",
+   "oracle_text": "Firebending 3 (Whenever this creature attacks, add {R}{R}{R}. This mana lasts until end of combat.)\n{3}: Exile the top card of your library. You may play that card this turn.",
+   "power": "4",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ],
+   "produced_mana": [
+    "R"
+   ]
+  },
+  {
+   "name": "Zuko, Seeking Honor",
+   "mana_cost": "{2}{B/R}",
+   "type_line": "Legendary Creature — Human Noble",
+   "oracle_text": "Firebending 1 (Whenever this creature attacks, add {R}. This mana lasts until end of combat.)\nWhenever you cast a noncreature spell, Zuko gains first strike until end of turn.\nWhenever Zuko deals combat damage to a player, put a +1/+1 counter on him.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "B",
+    "R"
+   ],
+   "produced_mana": [
+    "R"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

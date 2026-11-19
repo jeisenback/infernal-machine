@@ -23,6 +23,7 @@ from .outcomes import (
     Conditional,
     Vanish,
     Fade,
+    Firebend,
     FlipUntilLose,
     SubjectDamagesEachOpponent,
     DamageFromSubject,
@@ -416,6 +417,8 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
         if (m := AFTERLIFE.fullmatch(line)) and (n := int(m[1])) in _AFTERLIFE_COUNT:  # CR 702.135a
             tokens = _parse([f"Create {_AFTERLIFE_COUNT[n]} 1/1 white and black Spirit creature token{'s' if n > 1 else ''} with flying."])
             abilities.append(TriggeredAbility("dies", tuple(tokens or ()), False, line))
+        if m := _FIREBENDING.fullmatch(line):  # CR 702.189a: the mana stays until end of combat
+            abilities.append(TriggeredAbility("attacks", (Firebend(int(m[1])),), False, line))
         if line == "Battle cry":  # CR 702.91a
             abilities.append(TriggeredAbility("attacks", tuple(_parse(["Each other attacking creature gets +1/+0 until end of turn."]) or ()),
                                               False, line))
@@ -479,6 +482,7 @@ VANISHING = re.compile(r"Vanishing (\d+)")  # CR 702.63a: the counters are stati
 
 _OFFSPRING_LINE = re.compile(r"Offspring (?:\{[^}]+\})+")
 _SQUAD_LINE = re.compile(r"Squad (?:\{[^}]+\})+")
+_FIREBENDING = re.compile(r"Firebending (\d+)")
 
 
 _PAY_TO_RETURN = re.compile(r"you may pay ((?:\{[^}]+\})+)\. If you do, return this card from your graveyard to the "
