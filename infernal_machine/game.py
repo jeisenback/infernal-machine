@@ -598,6 +598,7 @@ class Seat:
     most_attackers: int = 0  # the creatures this player attacked with that turn
     life_lost_amount: int = 0  # how much they lost on life_lost_turn
     keep_pool_turn: int | None = None  # the turn its mana pool is kept as steps end (Rousing Refrain)
+    combat_mana: int = 0  # how many {R} in its mana pool stay until end of combat (firebending)
     suspended: list = field(default_factory=list)  # [card, time counters] for each card suspended in exile
     foretold: list = field(default_factory=list)  # (turn, card) for each foretold card in exile (it can be cast from the next turn on)
     plotted: list = field(default_factory=list)  # (turn, card) for each plotted card in exile (it can be cast free from the next turn on)
@@ -1927,7 +1928,12 @@ class Game:
         for seat in self.seats:
             if seat.keep_pool_turn == self.turn and self.step != "cleanup":  # "you don't lose this mana ... until end of turn"
                 continue
+            kept = 0
+            if seat.combat_mana and self.step in COMBAT_STEPS - {"end_of_combat"} | {"first_strike_damage"}:
+                kept = min(seat.combat_mana, seat.mana_pool.count(frozenset("R")))  # firebending's {R}, what of it is left
             seat.mana_pool.clear()
+            seat.mana_pool.extend(frozenset("R") for _ in range(kept))
+            seat.combat_mana = kept
 
 
 

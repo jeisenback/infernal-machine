@@ -57,6 +57,17 @@ class AddManaPerTappedLand:
 
 
 @dataclass(frozen=True)
+class Firebend:
+    """Firebending N (CR 702.189a): "Whenever this creature attacks, add N {R}. This mana lasts until end of combat." (`Seat.combat_mana`
+    counts the {R} kept through the combat steps; see Game._empty_pools)"""
+    amount: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.add_mana(controller, tuple(frozenset("R") for _ in range(self.amount)))
+        controller.combat_mana += self.amount
+
+
+@dataclass(frozen=True)
 class KeepManaThisTurn:
     """ "Until end of turn, you don't lose this mana as steps and phases end." """
 
