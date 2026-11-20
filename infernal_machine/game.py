@@ -2997,7 +2997,8 @@ class Game:
                             "ability": _shown(ability.text, item.card), "declined": True})
             return
         condition = getattr(ability, "condition", None)
-        if condition and not self.condition_holds(condition, seat, item.source, item.x, item.player, item.subject, item.carried):  # checked again on resolution (CR 603.4)
+        if condition and not self.condition_holds(condition, seat, item.source, item.x, item.player, item.subject, item.carried,
+                                                  trigger=True):  # checked again on resolution (CR 603.4)
             self.broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name,
                             "ability": _shown(ability.text, item.card), "condition_false": True})
             return
@@ -3314,7 +3315,7 @@ class Game:
 
     def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat, x: int = 0,
                subject: Permanent | None = None, player: Seat | None = None, spell: "StackItem | Card | tuple | None" = None) -> None:
-        if ability.condition and not self.condition_holds(ability.condition, controller, permanent, x, player, subject, spell):
+        if ability.condition and not self.condition_holds(ability.condition, controller, permanent, x, player, subject, spell, trigger=True):
             return
         if ability.once_per_turn:  # "This ability triggers only once each turn."
             if permanent.triggered_turn.get(ability.text) == self.turn:
@@ -3354,14 +3355,15 @@ class Game:
                 self._queue(delayed.ability, delayed.watcher, delayed.controller, 0, creature, defender)
 
     def condition_holds(self, condition: Condition, seat: Seat, source: Permanent | None = None, x: int = 0,
-                        player: Seat | None = None, subject: Permanent | None = None, spell: Any = None) -> bool:
+                        player: Seat | None = None, subject: Permanent | None = None, spell: Any = None, trigger: bool = False) -> bool:
         """Whether an intervening "if" clause is true for `seat`, the ability's controller, and `source`. `x` is the
         number the event carried (how many attackers went at the controller, for "two or more of those creatures");
-        `player` is the player the trigger is about ("that player"); `subject` the permanent it is about ("that creature")."""
+        `player` is the player the trigger is about ("that player"); `subject` the permanent it is about ("that creature").
+        `trigger`: it is a triggered ability's own condition, so "X" is the X it carries, not the resolving spell's."""
         kind = condition.kind
-        if condition.otherwise is not None and self.condition_holds(condition.otherwise, seat, source, x, player, subject):
+        if condition.otherwise is not None and self.condition_holds(condition.otherwise, seat, source, x, player, subject, trigger=trigger):
             return True
-        if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player, subject):
+        if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player, subject, trigger=trigger):
             return False
         if kind == "source_entered_this_turn":  # Gleaming Bastion: "this land entered this turn"
             return source is not None and source.entered_turn == self.turn
@@ -3449,8 +3451,8 @@ class Game:
             return source is not None and any(c is source.card for c in seat.graveyard)
         if kind == "has_exiled_with":  # Currency Converter, Quintorius: "a card exiled with this"
             return source is not None and any(any(c is card for c in owner.exile) for owner, card in source.exiled_with)
-        if kind == "x_at_least":  # Kinetic Ooze: the X the resolving spell or ability carries
-            return self.x_value >= condition.count
+        if kind == "x_at_least":  # Kinetic Ooze: the X the resolving spell or ability carries; ravenous's enters trigger: the X it was cast with
+            return (x if trigger else self.x_value) >= condition.count
         if kind == "attackers_at_most":
             return x <= condition.count
         if kind == "defender_more_life":  # Breena: x is the seat attacked; it has more life than another of the opponents
