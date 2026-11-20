@@ -3449,8 +3449,8 @@ class Game:
             return source is not None and any(c is source.card for c in seat.graveyard)
         if kind == "has_exiled_with":  # Currency Converter, Quintorius: "a card exiled with this"
             return source is not None and any(any(c is card for c in owner.exile) for owner, card in source.exiled_with)
-        if kind == "x_at_least":  # Kinetic Ooze: the X the resolving spell or ability carries
-            return self.x_value >= condition.count
+        if kind == "x_at_least":  # Kinetic Ooze: the X the resolving spell or ability carries; ravenous's enters trigger: the X it was cast with
+            return (x or self.x_value) >= condition.count
         if kind == "attackers_at_most":
             return x <= condition.count
         if kind == "defender_more_life":  # Breena: x is the seat attacked; it has more life than another of the opponents

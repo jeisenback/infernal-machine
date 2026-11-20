@@ -70,6 +70,8 @@ _KEYWORD_RULES = [  # a keyword line and the rules text it stands for (the remin
         f"creature {'token' if m[1] == '1' else 'tokens'}. Sacrifice them at the beginning of the next end step."),
     (re.compile(r"Transmute ((?:\{[^}]+\})+)"), lambda m: f"{m[1]}, Discard this card: Search your library for a card with the same mana value as "
         "this card, reveal it, put it into your hand, then shuffle. Activate only as a sorcery."),
+    (re.compile(r"Ravenous"), lambda m: "This creature enters with X +1/+1 counters on it.\n"  # CR 702.156a: two abilities
+        "When this creature enters, if X is 5 or more, draw a card."),
     (re.compile(r"Renown (\d+)"), lambda m: "When this creature deals combat damage to a player, if it isn't renowned, put "
         f"{_WORDS[int(m[1])]} +1/+1 {'counter' if m[1] == '1' else 'counters'} on it and it becomes renowned."),
 ]
