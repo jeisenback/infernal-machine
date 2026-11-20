@@ -1730,6 +1730,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     caster may sacrifice a creature with power N or greater (`CASUALTY_PROMPT`, "Don't sacrifice" first); when they do, the spell is
     copied by a trigger of its own (Twinning Staff adds to it apart). Nine cards, among them A Little Chat and Illicit Shipment ("Casualty X"
     is not read).
+  - Conspire (`tests/test_conspire.py`, #841): "Conspire" (CR 702.78a, `Caster._conspire`, `CONSPIRE_PROMPT`, "Don't conspire" first):
+    as the spell is cast its caster may tap two untapped creatures they control that share a color with it; when they do, it is copied
+    by a trigger of its own, like casualty's. Eight cards, among them Burn Trail and Barkshell Blessing.
   - Squad (`tests/test_squad.py`, #837): "Squad {cost}" (CR 702.157a) is paid like multikicker (`kicker_costs`, `is_multikicker`,
     `MULTIKICKER_PROMPT`), and its enters trigger, only when it was paid, makes a token copy for each time (`CopySelfToken(per_kick=True)`);
     a token copy is not kicked, so it makes no more. Eleven cards, among them Galadhrim Brigade and Zephyrim.
