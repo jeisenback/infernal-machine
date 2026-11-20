@@ -193,6 +193,7 @@ class Caster:
             self.game._leave_together([(choice, "sacrificed")])
         sacrificed = self.game._sacrifice_for_copies(seat, card)
         casualty = self._casualty(seat, card)
+        conspired = self._conspire(seat, card)
         evidence = self._collect_evidence(seat, card)
         teamwork = self._pay_teamwork(seat, card)
         item = g.StackItem(card, seat, effects, targets, x=x, delved=tuple(delved), sacrificed_power=self.game.cost_sacrificed_power,
@@ -230,6 +231,9 @@ class Caster:
             self.game.stack.append(g.StackItem(card, seat, list(ability.effects), [], ability, carried=item))
         if casualty and prepared is None:  # Casualty's "When you do, copy this spell." is a trigger of its own (CR 702.153a, 603.12)
             ability = TriggeredAbility("cast", (CopySpellTimes(1),), False, "Casualty: copy this spell")
+            self.game.stack.append(g.StackItem(card, seat, list(ability.effects), [], ability, carried=item))
+        if conspired and prepared is None:  # Conspire's "When you do, copy it" (CR 702.78a), a trigger of its own like casualty's
+            ability = TriggeredAbility("cast", (CopySpellTimes(1),), False, "Conspire: copy this spell")
             self.game.stack.append(g.StackItem(card, seat, list(ability.effects), [], ability, carried=item))
         if has_keyword(card, "demonstrate") and prepared is None:
             ability = TriggeredAbility("cast", (Demonstrate(),), False, "Demonstrate")
@@ -373,6 +377,25 @@ class Caster:
             return 0
         self.game._leave_together([(options[pick - 1], "sacrificed")])
         return 1
+
+    def _conspire(self, seat: g.Seat, card: Card) -> bool:
+        """Conspire (CR 702.78a): as the spell is cast its caster may tap two untapped creatures they control that share a color with it;
+        when they do, it is copied. Whether they did."""
+        if not has_keyword(card, "conspire"):
+            return False
+        options = [p for p in seat.battlefield if "Creature" in p.card.type_line and not p.tapped and set(p.card.colors) & set(card.colors)]
+        if len(options) < 2:
+            return False
+        tapped: list[g.Permanent] = []
+        for _ in range(2):
+            pick = seat.player.choose(g.CONSPIRE_PROMPT(card.name), ([] if tapped else [g.CONSPIRE_NONE])
+                                      + [self.game.label(p) for p in options if p not in tapped])
+            if not tapped and not pick:
+                return False
+            tapped.append([p for p in options if p not in tapped][pick - (0 if tapped else 1)])
+        for p in tapped:
+            self.game.tap(p)
+        return True
 
     def _assist(self, seat: g.Seat, card: Card, generic: int) -> int:
         """Assist (CR 702.132a): as the spell is cast, its caster may choose another player, who pays any amount of its generic mana

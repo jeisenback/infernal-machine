@@ -4869,6 +4869,110 @@
     "R",
     "U"
    ]
+  },
+  {
+   "name": "Aethertow",
+   "mana_cost": "{3}{W/U}",
+   "type_line": "Instant",
+   "oracle_text": "Put target attacking or blocking creature on top of its owner's library.\nConspire (As you cast this spell, you may tap two untapped creatures you control that share a color with it. When you do, copy it and you may choose a new target for the copy.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Barkshell Blessing",
+   "mana_cost": "{G/W}",
+   "type_line": "Instant",
+   "oracle_text": "Target creature gets +2/+2 until end of turn.\nConspire (As you cast this spell, you may tap two untapped creatures you control that share a color with it. When you do, copy it and you may choose a new target for the copy.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Burn Trail",
+   "mana_cost": "{3}{R}",
+   "type_line": "Sorcery",
+   "oracle_text": "Burn Trail deals 3 damage to any target.\nConspire (As you cast this spell, you may tap two untapped creatures you control that share a color with it. When you do, copy it and you may choose a new target for the copy.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Ghastly Discovery",
+   "mana_cost": "{2}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Draw two cards, then discard a card.\nConspire (As you cast this spell, you may tap two untapped creatures you control that share a color with it. When you do, copy it.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Giantbaiting",
+   "mana_cost": "{2}{R/G}",
+   "type_line": "Sorcery",
+   "oracle_text": "Create a 4/4 red and green Giant Warrior creature token with haste. Exile it at the beginning of the next end step.\nConspire (As you cast this spell, you may tap two untapped creatures you control that share a color with it. When you do, copy it.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G",
+    "R"
+   ]
+  },
+  {
+   "name": "Gleeful Sabotage",
+   "mana_cost": "{1}{G}",
+   "type_line": "Sorcery",
+   "oracle_text": "Destroy target artifact or enchantment.\nConspire (As you cast this spell, you may tap two untapped creatures you control that share a color with it. When you do, copy it and you may choose a new target for the copy.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Memory Sluice",
+   "mana_cost": "{U/B}",
+   "type_line": "Sorcery",
+   "oracle_text": "Target player mills four cards.\nConspire (As you cast this spell, you may tap two untapped creatures you control that share a color with it. When you do, copy it and you may choose a new target for the copy.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B",
+    "U"
+   ]
+  },
+  {
+   "name": "Rally the Galadhrim",
+   "mana_cost": "{2}{G}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Create a token that's a copy of target creature you control.\nConspire (As you cast this spell, you may tap two untapped creatures you control that share a color with it. When you do, copy it and you may choose a new target for the copy.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G",
+    "U"
+   ]
+  },
+  {
+   "name": "Lightning Bolt",
+   "mana_cost": "{R}",
+   "type_line": "Instant",
+   "oracle_text": "Lightning Bolt deals 3 damage to any target.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
