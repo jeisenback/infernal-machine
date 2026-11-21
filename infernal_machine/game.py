@@ -491,6 +491,7 @@ class StackItem:
     blitzed: bool = False  # cast for its blitz cost (CR 702.152)
     evidence: bool = False  # evidence was collected as it was cast (Deadly Cover-Up)
     impending: int = 0  # cast for its impending cost: it enters with this many time counters, not a creature until the last goes
+    prototyped: bool = False  # cast prototyped (CR 718): `card` has the prototype's characteristics, `whole` is the card itself
     whole: Card | None = None  # cast as one half of this card (an Adventure, a split half): the card that moves between zones
     from_hand: bool = False  # cast from its owner's hand (rebound only works then)
     face_down: tuple[str, "MorphCost"] | None = None  # cast face down: (Morph, Megamorph or Disguise; the cost to turn it face up)
@@ -2767,7 +2768,7 @@ class Game:
             entering = Permanent(card, sick=True, loyalty=self._entering_loyalty(card, item), kicked=item.kicked, kickers=item.kickers,
                                  escaped=item.escaped, delved_spells=sum(_is_instant_or_sorcery(c) for c in item.delved), cast=not item.is_copy, doors=(door.name,) if door else (),
                                  transformed_from=whole if whole.flip is card else None,
-                                 real_card=whole if door else None, owner=item.owner,
+                                 real_card=whole if door or item.prototyped else None, owner=item.owner,
                                  extra_counters=item.rider_counters * seat.commander_casts.get(card.name, 0),
                                  mana_types_spent=item.mana_types_spent)
             if enters_by_discarding_land(card) and not self._discard_land_to_enter(seat, card):  # Mox Diamond

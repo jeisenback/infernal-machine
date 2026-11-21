@@ -1733,6 +1733,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Conspire (`tests/test_conspire.py`, #841): "Conspire" (CR 702.78a, `Caster._conspire`, `CONSPIRE_PROMPT`, "Don't conspire" first):
     as the spell is cast its caster may tap two untapped creatures they control that share a color with it; when they do, it is copied
     by a trigger of its own, like casualty's. Eight cards, among them Burn Trail and Barkshell Blessing.
+  - Prototype (`tests/test_prototype.py`, #842): "Prototype {cost} — P/T" (CR 702.160, 718) is an alternative way to cast it
+    (`AlternativeCost.prototype`): the spell, and the permanent it becomes, has the prototype's mana cost, mana value, colors, power and
+    toughness and keeps its abilities and types; the card itself (`StackItem.whole`, `Permanent.real_card`) is what goes to the graveyard
+    or anywhere else. Twelve cards, among them Blitz Automaton and Combat Thresher.
   - Squad (`tests/test_squad.py`, #837): "Squad {cost}" (CR 702.157a) is paid like multikicker (`kicker_costs`, `is_multikicker`,
     `MULTIKICKER_PROMPT`), and its enters trigger, only when it was paid, makes a token copy for each time (`CopySelfToken(per_kick=True)`);
     a token copy is not kicked, so it makes no more. Eleven cards, among them Galadhrim Brigade and Zephyrim.

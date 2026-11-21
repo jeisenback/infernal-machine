@@ -63,6 +63,14 @@ class Caster:
         if len(ways) > 1:
             options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
             alternative = ways[seat.player.choose(g.COST_PROMPT(card.name), options)]
+        if alternative and alternative.prototype:  # CR 718.3: the spell has the prototype's mana cost, colors, power and toughness
+            whole = whole or card  # (the card itself still moves between zones)
+            cost = g._checked(parse_cost(alternative.mana_cost))
+            card = dataclasses.replace(card, mana_cost=alternative.mana_cost, cmc=float(cost.generic + len(cost.colored) + len(cost.twobrid) * 2
+                                                                                          + len(cost.phyrexian)),
+                                       colors=tuple(c for c in "WUBRG" if c in cost.colors()), power=alternative.prototype[0],
+                                       toughness=alternative.prototype[1])
+            paying = card
         if alternative and alternative.once_a_turn:
             seat.free_once_turn = self.game.turn  # One with the Multiverse's permission is used up for the turn
         if alternative and alternative.bestow:  # an Aura spell that must target a creature
@@ -205,7 +213,7 @@ class Caster:
                          dashed=bool(alternative and alternative.dash), blitzed=bool(alternative and alternative.blitz), warped=bool(alternative and alternative.warp),
                          impending=alternative.impending if alternative else 0, whole=whole, face_down=face_down,
                          from_hand=zone is seat.hand, owner=self._cast_owner(seat, card, zone), phyrexian_life=tapped.phyrexian_life,
-                         evidence=evidence, teamwork=teamwork)
+                         evidence=evidence, teamwork=teamwork, prototyped=bool(alternative and alternative.prototype))
         self.game.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
