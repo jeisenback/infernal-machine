@@ -2,11 +2,11 @@
 types.)" (CR 702.160, 718), from the cards' real Oracle text. All twelve cards whose only gap it was are fully playable. Blitz Automaton
 ({7}, a colorless 6/4 with haste; Prototype {2}{R} — 3/2): cast prototyped for three mana it is a red 3/2 with mana value 3 and haste,
 and when it dies the card in the graveyard is the 6/4 again; cast for {7} it is the colorless 6/4; with three lands only the prototype
-is offered."""
+is offered, and with two lands and Ruby Medallion the prototype is (a red spell then)."""
 
 import unittest
 
-from infernal_machine.game import CAST, COST_PROMPT
+from infernal_machine.game import CAST, COST_PROMPT, Permanent
 from tests.helpers import lands, run_stack, table3, wording_unlocked
 from tests.real import REAL
 
@@ -16,12 +16,13 @@ AUTOMATON = REAL["Blitz Automaton"]
 
 # The guards these tests are there to catch (python tools/mutate.py tests.test_prototype).
 MUTATIONS = [
-    ("infernal_machine/casting.py", "                                       toughness=alternative.prototype[1])",
-     "                                       toughness=card.toughness)", "the prototype's toughness"),
+    ("infernal_machine/casting.py", "power=power, toughness=toughness)", "power=power, toughness=card.toughness)", "the prototype's toughness"),
     ("infernal_machine/casting.py", "colors=tuple(c for c in \"WUBRG\" if c in cost.colors()), power=",
      "colors=card.colors, power=", "the prototype's colors"),
     ("infernal_machine/game.py", "real_card=whole if door or item.prototyped else None", "real_card=whole if door else None",
      "the card itself leaves the battlefield"),
+    ("infernal_machine/casting.py", "seat, prototyped(card, way) if way and way.prototype else card, from_command_zone", "seat, card, from_command_zone",
+     "a prototype is offered by what it costs prototyped"),
     ("infernal_machine/effects/costs.py", "_IMPENDING, _DASH, _PROTOTYPE, _SPECTACLE,", "_IMPENDING, _DASH, _SPECTACLE,", "the line is read"),
 ]
 
@@ -62,6 +63,15 @@ class PrototypeTests(unittest.TestCase):
     def test_cast_normally_it_is_the_six_four(self):
         _, _, _, automaton = cast("Pay")
         self.assertEqual((automaton.card.power, automaton.card.toughness, automaton.card.colors), ("6", "4", ()))
+
+    def test_a_red_cost_reducer_counts_for_the_prototype(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.hand, a.battlefield = [AUTOMATON], lands(2) + [Permanent(REAL["Ruby Medallion"])]  # (red spells cost {1} less: {1}{R} is enough)
+        self.assertIn(CAST + AUTOMATON.name, game.legal_actions(a))
+        game._perform(a, CAST + AUTOMATON.name)
+        run_stack(game)
+        self.assertEqual([p.card.power for p in a.battlefield if p.card.name == AUTOMATON.name], ["3"])
 
     def test_with_three_lands_only_the_prototype(self):
         _, players, _, automaton = cast("Prototype", mana=3)
