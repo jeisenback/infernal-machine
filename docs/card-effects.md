@@ -2081,6 +2081,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   dies. Threaten's effect ends in the cleanup step; Control Magic's ends as soon as the Aura stops being
   attached or leaves, and the creature goes back to whoever controlled it before. A lone "Untap that creature."
   isn't understood. Bots aim Control Magic at an opponent's creature.
+  Its "It gains haste" gives the creature taken haste (`_ItGains` folds into `GainControl`, #843; it used to give it to the spell).
+  Four threaten cards add a sentence of their own (`tests/test_threaten_riders.py`): Goatnap's "If that creature is a Goat, it also
+  gets +3/+0 until end of turn." (`PumpThatIfType`, a type an Aura gives counting), Bond of Passion's "CARDNAME deals 2 damage to any other target." (not a target
+  the spell already chose, `Damage.not_chosen`), In Thrall to the Pit's "If this spell was kicked, sacrifice that creature at the
+  beginning of the next end step." (`SacrificeThatAtEndIfKicked`) and Pack's Betrayal's "If you control a Wolf or Werewolf, scry 2."
 - **Vehicles:** "Crew N" is an ability at instant speed: tap untapped creatures you control, one at a time, until their
   total power is N or more (summoning-sick creatures can crew, the Vehicle can't crew itself). Until end of turn the
   Vehicle is an artifact creature, with its printed power and toughness, so it can attack (not the turn it arrived)

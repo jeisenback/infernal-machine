@@ -9,8 +9,9 @@ from typing import Any, TYPE_CHECKING
 
 from ...cards import Card
 from ...characteristics import Modifier
+from ...filters import has_type
 from ..common import HEXPROOF_FROM_COLOR, NOT_BLOCKED_BY, Quantity
-from ..targets import DEAD_SOURCE, PLAYER, SOURCE, SUBJECT
+from ..targets import DEAD_SOURCE, PLAYER, PREVIOUS_TARGET, SOURCE, SUBJECT
 from .base import Condition
 from ...prompts import PromptKind
 
@@ -213,6 +214,29 @@ class PumpSource:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.modify_until_end_of_turn(target, self.modifier)
+
+
+@dataclass(frozen=True)
+class PumpThatIfType:
+    """Goatnap: "If that creature is a Goat, it also gets +3/+0 until end of turn." (the target of the effect before it)"""
+    power: int
+    toughness: int
+    kind: str
+    binds = PREVIOUS_TARGET
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target) and (has_type(target.card, self.kind) or self.kind in game.subtypes(target)):
+            game.modify_until_end_of_turn(target, Modifier(self.power, self.toughness))
+
+
+@dataclass(frozen=True)
+class SacrificeThatAtEndIfKicked:
+    """In Thrall to the Pit: "If this spell was kicked, sacrifice that creature at the beginning of the next end step." """
+    binds = PREVIOUS_TARGET
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.resolving_item is not None and game.resolving_item.kicked and game.on_battlefield(target):
+            game.leave_at_next_end_step([target], "sacrificed", "graveyard")
 
 
 @dataclass(frozen=True)

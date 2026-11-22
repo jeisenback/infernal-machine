@@ -919,7 +919,8 @@ class Caster:
                        if not (getattr(effect, "another", False) and self.game.option_is_source(o[1], source))
                        and not (getattr(effect, "same_controller", False) and targets
                                 and self.game.controller_of(o[1]) is not self.game.controller_of(targets[-1]))
-                       and not (getattr(effect, "distinct", False) and i in taken)]
+                       and not (getattr(effect, "distinct", False) and i in taken)
+                       and not (getattr(effect, "not_chosen", False) and any(o[1] is t for t in targets))]
             if getattr(effect, "optional_target", False):  # "up to one target": it can be left out
                 options.append((-1, (g.NO_TARGET, None)))
             if not options:

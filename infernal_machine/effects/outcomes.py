@@ -89,6 +89,8 @@ from .families.combat_and_pump import (  # noqa: F401
     PumpNamed,
     PumpOtherAttackers,
     PumpSource,
+    PumpThatIfType,
+    SacrificeThatAtEndIfKicked,
     PumpSourceX,
     PumpX,
     SetBaseEachX,
@@ -1964,6 +1966,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PayLifeDrawPerOpponentHit()),  # Tymna the Weaver
 
     (re.compile(r"it deals that much damage to any other target\.", re.I), lambda m: Damage("X", "any", another=True)),  # Screaming Nemesis
+    (re.compile(r"CARDNAME deals (\d+) damage to any other target\.", re.I), lambda m: Damage(int(m[1]), "any", not_chosen=True)),  # Bond of Passion
+    (re.compile(r"If that creature is an? ((?-i:[A-Z][a-z]+)), it also gets \+(\d+)/\+(\d+) until end of turn\.", re.I),
+     lambda m: PumpThatIfType(int(m[2]), int(m[3]), m[1])),  # Goatnap
+    (re.compile(r"If this spell was kicked, sacrifice that creature at the beginning of the next end step\.", re.I),
+     lambda m: SacrificeThatAtEndIfKicked()),  # In Thrall to the Pit
     (re.compile(r"if a player is dealt damage this way, they can't gain life for the rest of the game\.", re.I),
      lambda m: _NoLifeGainForDamaged()),
     (re.compile(r"it deals that much damage to any target that isn't an? ([A-Z][a-z]+)\.", re.I),  # Wrathful Raptors
@@ -3994,7 +4001,7 @@ _CONDITIONS = [
     (re.compile(r"you don't control an? ([A-Za-z]+) creature token"), lambda m: Condition("control_none_token", what=m[1])),
     (re.compile(r"you control a basic land"), lambda m: Condition("control_at_least", 1, "basic land")),  # Gleaming Bastion
     (re.compile(r"this land entered this turn"), lambda m: Condition("source_entered_this_turn")),  # Gleaming Bastion
-    (re.compile(r"you control an? ([A-Za-z]+) or an? ([A-Za-z]+)"), lambda m: Condition("control_at_least", 1, f"{m[1]} or {m[2]}")),
+    (re.compile(r"you control an? ([A-Za-z]+) or (?:an? )?([A-Za-z]+)"), lambda m: Condition("control_at_least", 1, f"{m[1]} or {m[2]}")),
     (re.compile(r"you control an? ([A-Za-z]+)"), lambda m: Condition("control_at_least", 1, _singular(m[1]))),
     (re.compile(r"it's your turn"), lambda m: Condition("your_turn")),
     (re.compile(r"it's not your turn"), lambda m: Condition("not_your_turn")),  # Eddymurk Crab
@@ -4125,7 +4132,9 @@ _merge_control = Follows(
     Follow(UntapThat, GainControl, set_fields(untap=lambda m: True)),
     Follow(PumpSource, GainControl, set_fields(haste=lambda m: True), strict=False,
            fits=lambda previous, marker: previous.untap and marker.modifier.keywords == frozenset({"haste"})
-           and marker.modifier.power == marker.modifier.toughness == 0))
+           and marker.modifier.power == marker.modifier.toughness == 0),
+    Follow(_ItGains, GainControl, set_fields(haste=lambda m: True), strict=False,  # Act of Treason: "It gains haste until end of turn."
+           fits=lambda previous, marker: previous.untap and marker.keywords == frozenset({"haste"})))
 
 
 # Counter + "exile it instead" is one Counter(exile); Exile + "return it at the beginning of the next end step" is one Flicker; ExileTop +
