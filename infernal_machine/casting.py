@@ -38,6 +38,15 @@ FREE_FROM_HAND = AlternativeCost(FREE_WAY)  # Omniscience
 FREE_ONCE = AlternativeCost(FREE_WAY + " (once this turn)", once_a_turn=True)  # One with the Multiverse
 
 
+def prototyped(card: Card, way: AlternativeCost) -> Card:
+    """The spell cast for its prototype (CR 718.3): the prototype's mana cost, mana value, colors, power and toughness."""
+    cost = g._checked(parse_cost(way.mana_cost))
+    power, toughness = g._checked(way.prototype)
+    return dataclasses.replace(card, mana_cost=way.mana_cost, cmc=float(cost.generic + len(cost.colored) + len(cost.twobrid) * 2
+                                                                        + len(cost.phyrexian)),
+                               colors=tuple(c for c in "WUBRG" if c in cost.colors()), power=power, toughness=toughness)
+
+
 class Caster:
     """Everything between choosing to cast a spell and the spell being on the stack."""
 
@@ -63,6 +72,9 @@ class Caster:
         if len(ways) > 1:
             options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
             alternative = ways[seat.player.choose(g.COST_PROMPT(card.name), options)]
+        if alternative and alternative.prototype:  # CR 718.3: the spell has the prototype's mana cost, colors, power and toughness
+            whole = whole or card  # (the card itself still moves between zones)
+            card = paying = prototyped(card, alternative)
         if alternative and alternative.once_a_turn:
             seat.free_once_turn = self.game.turn  # One with the Multiverse's permission is used up for the turn
         if alternative and alternative.bestow:  # an Aura spell that must target a creature
@@ -205,7 +217,7 @@ class Caster:
                          dashed=bool(alternative and alternative.dash), blitzed=bool(alternative and alternative.blitz), warped=bool(alternative and alternative.warp),
                          impending=alternative.impending if alternative else 0, whole=whole, face_down=face_down,
                          from_hand=zone is seat.hand, owner=self._cast_owner(seat, card, zone), phyrexian_life=tapped.phyrexian_life,
-                         evidence=evidence, teamwork=teamwork)
+                         evidence=evidence, teamwork=teamwork, prototyped=bool(alternative and alternative.prototype))
         self.game.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
@@ -310,7 +322,7 @@ class Caster:
         return [way for way in [None, *alternative_costs(card), *self._free_ways(seat, card, hand), *self._granted_evokes(seat, card, hand)]
                 if not (way and way.warp and not from_hand)  # warp is a way to cast from the hand only
                 and self._can_pay_extras(seat, card, way, afford=lambda extra, way=way: self._payment(
-                    seat, card, from_command_zone, alternative=way, extra=extra,
+                    seat, prototyped(card, way) if way and way.prototype else card, from_command_zone, alternative=way, extra=extra,
                     delve=self.game._delve_max(seat, card) + self._sacrifice_discount_max(seat, card) + self._tapped_target_discount(seat, card)
                     if way is None else 0))
                 and not (way is None and sacrifice_discount(card)
