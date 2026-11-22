@@ -225,7 +225,7 @@ class PumpThatIfType:
     binds = PREVIOUS_TARGET
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and game.on_battlefield(target) and has_type(target.card, self.kind):
+        if target is not None and game.on_battlefield(target) and (has_type(target.card, self.kind) or self.kind in game.subtypes(target)):
             game.modify_until_end_of_turn(target, Modifier(self.power, self.toughness))
 
 

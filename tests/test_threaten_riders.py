@@ -9,6 +9,7 @@ Werewolf: scry; neither: no scry). Their "It gains haste until end of turn." giv
 import unittest
 
 from infernal_machine.cards import Card
+from infernal_machine.effects.families.combat_and_pump import PumpThatIfType
 from infernal_machine.game import CAST, KICKER_PROMPT, SCRY_PROMPT, TARGET_PROMPT, Permanent
 from tests.helpers import BEAR, OGRE, choose, end_step, lands, run_stack, table3, wording_unlocked
 from tests.real import REAL
@@ -19,8 +20,10 @@ WEREWOLF = Card(name="Village Werewolf", mana_cost="{1}{G}", type_line="Creature
 
 # The guards these tests are there to catch (python tools/mutate.py tests.test_threaten_riders).
 MUTATIONS = [
-    ("infernal_machine/effects/families/combat_and_pump.py", "if target is not None and game.on_battlefield(target) and has_type(target.card, self.kind):",
-     "if target is not None and game.on_battlefield(target):", "only a creature of that type"),
+    ("infernal_machine/effects/families/combat_and_pump.py", "and (has_type(target.card, self.kind) or self.kind in game.subtypes(target)):",
+     ":", "only a creature of that type"),
+    ("infernal_machine/effects/families/combat_and_pump.py", "and (has_type(target.card, self.kind) or self.kind in game.subtypes(target)):",
+     "and has_type(target.card, self.kind):", "a type an Aura gives counts"),
     ("infernal_machine/casting.py", "                       and not (getattr(effect, \"not_chosen\", False) and any(o[1] is t for t in targets))]",
      "                       ]", "not a target already chosen"),
     ("infernal_machine/effects/families/combat_and_pump.py",
@@ -66,6 +69,14 @@ class ThreatenRiderTests(unittest.TestCase):
         self.assertEqual((goat in a.battlefield, game.power(goat), game.has_keyword(goat, "haste")), (True, 4, True))
         game, _, a, _, ogre = cast("Goatnap", [OGRE])
         self.assertEqual((ogre in a.battlefield, game.power(ogre)), (True, 3))
+
+    def test_a_type_an_aura_gives_counts(self):
+        game, _ = table3()
+        a, b, _ = game.seats
+        ogre = Permanent(OGRE)
+        b.battlefield = [ogre, Permanent(REAL["Tall as a Beanstalk"], attached_to=ogre)]  # (+3/+3, reach, and a Giant)
+        PumpThatIfType(3, 0, "Giant").resolve(game, a, ogre)  # (Goatnap's sentence, read for a Giant: no real Aura makes a Goat)
+        self.assertEqual(game.power(ogre), 9)
 
     def test_bond_of_passion_deals_its_damage_to_another_target(self):
         game, players, a, b, ogre = cast("Bond of Passion", [OGRE])
