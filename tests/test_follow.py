@@ -100,9 +100,8 @@ class ConvertedTableTests(unittest.TestCase):
         self.assertEqual((type(counter), counter.exile), (Counter, True))
 
     def test_threaten_untaps_the_creature_it_takes_and_gives_it_haste(self):
-        control, haste = spell_effects(TREASON)
-        self.assertEqual((type(control), control.untap), (GainControl, True))
-        self.assertIsInstance(haste, PumpSource)  # (the haste sentence reaches the row's pass as an effect only later: as it always did)
+        [control] = spell_effects(TREASON)
+        self.assertEqual((type(control), control.untap, control.haste), (GainControl, True, True))  # ("It gains haste": the stolen creature, #843)
 
     def test_the_new_target_must_be_folded_into_the_change_of_target(self):
         [change] = spell_effects(REBOUND)

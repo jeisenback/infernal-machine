@@ -62,6 +62,7 @@ class Damage:
     instead: int = 0  # Galvanic Blast: "Metalcraft \u2014 CARDNAME deals 4 damage instead if you control three or more artifacts." ...
     instead_if: "Condition | None" = None  # ... checked as it resolves
     another: bool = False  # "any other target": not the source itself (Screaming Nemesis)
+    not_chosen: bool = False  # Bond of Passion's "any other target": not a target the spell already chose
     no_life_gain: bool = False  # "If a player is dealt damage this way, they can't gain life for the rest of the game."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
