@@ -5252,7 +5252,8 @@ class Game:
         controller = self.controller_of(permanent)
         mods = [m for m in permanent.until_end_of_turn + permanent.until_next_turn
                 if not m.your_turn or self.seats[self.active] is controller]
-        if controller is not None and (cda := power_toughness_amount(permanent.card)) is not None:
+        if controller is not None and (cda := power_toughness_amount(permanent.card)) is not None \
+                and not self.loses_abilities(permanent):  # CR 613.1f: abilities are lost in layer 6, before the CDA in 7a
             amount, both = cda
             size = self.evaluate(amount, controller)  # CR 604.3, 613.4a: Overbeing of Myth's base power and toughness, or Suki's power
             printed = permanent.card.toughness or ""
