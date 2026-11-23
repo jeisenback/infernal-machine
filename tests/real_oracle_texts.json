@@ -5456,6 +5456,131 @@
    "colors": [
     "G"
    ]
+  },
+  {
+   "name": "Doubtless One",
+   "mana_cost": "{3}{W}",
+   "type_line": "Creature — Cleric Avatar",
+   "oracle_text": "Doubtless One's power and toughness are each equal to the number of Clerics on the battlefield.\nWhenever this creature deals damage, you gain that much life.",
+   "power": "*",
+   "toughness": "*",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "El-Hajjâj",
+   "mana_cost": "{1}{B}{B}",
+   "type_line": "Creature — Human Wizard",
+   "oracle_text": "Whenever this creature deals damage, you gain that much life.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Exalted Angel",
+   "mana_cost": "{4}{W}{W}",
+   "type_line": "Creature — Angel",
+   "oracle_text": "Flying\nWhenever this creature deals damage, you gain that much life.\nMorph {2}{W}{W} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)",
+   "power": "4",
+   "toughness": "5",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Horned Cheetah",
+   "mana_cost": "{2}{G}{W}",
+   "type_line": "Creature — Cat",
+   "oracle_text": "Whenever this creature deals damage, you gain that much life.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Kjeldoran Gargoyle",
+   "mana_cost": "{5}{W}",
+   "type_line": "Creature — Gargoyle",
+   "oracle_text": "Flying, first strike\nWhenever this creature deals damage, you gain that much life.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Mourning Thrull",
+   "mana_cost": "{1}{W/B}",
+   "type_line": "Creature — Thrull",
+   "oracle_text": "({W/B} can be paid with either {W} or {B}.)\nFlying\nWhenever this creature deals damage, you gain that much life.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "B",
+    "W"
+   ]
+  },
+  {
+   "name": "Warrior Angel",
+   "mana_cost": "{4}{W}{W}",
+   "type_line": "Creature — Angel Warrior",
+   "oracle_text": "Flying\nWhenever this creature deals damage, you gain that much life.",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Zebra Unicorn",
+   "mana_cost": "{2}{G}{W}",
+   "type_line": "Creature — Unicorn",
+   "oracle_text": "Whenever this creature deals damage, you gain that much life.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Angel of Deliverance",
+   "mana_cost": "{6}{W}{W}",
+   "type_line": "Creature — Angel",
+   "oracle_text": "Flying\nDelirium — Whenever this creature deals damage, if there are four or more card types among cards in your graveyard, exile target creature an opponent controls.",
+   "power": "6",
+   "toughness": "6",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Kiyomaro, First to Stand",
+   "mana_cost": "{3}{W}{W}",
+   "type_line": "Legendary Creature — Spirit",
+   "oracle_text": "Kiyomaro's power and toughness are each equal to the number of cards in your hand.\nAs long as you have four or more cards in hand, Kiyomaro has vigilance.\nWhenever Kiyomaro deals damage, if you have seven or more cards in hand, you gain 7 life.",
+   "power": "*",
+   "toughness": "*",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Putrid Warrior",
+   "mana_cost": "{W}{B}",
+   "type_line": "Creature — Zombie Soldier Warrior",
+   "oracle_text": "Whenever this creature deals damage, choose one —\n• Each player loses 1 life.\n• Each player gains 1 life.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "B",
+    "W"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
@@ -5490,6 +5615,62 @@
    "toughness": "5",
    "colors": [
     "G"
+   ]
+  },
+  {
+   "name": "Necravolver",
+   "mana_cost": "{2}{B}",
+   "type_line": "Creature — Volver",
+   "oracle_text": "Kicker {1}{G} and/or {W} (You may pay an additional {1}{G} and/or {W} as you cast this spell.)\nIf this creature was kicked with its {1}{G} kicker, it enters with two +1/+1 counters on it and with trample.\nIf this creature was kicked with its {W} kicker, it enters with a +1/+1 counter on it and with \"Whenever this creature deals damage, you gain that much life.\"",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Paladin of Prahv",
+   "mana_cost": "{4}{W}{W}",
+   "type_line": "Creature — Human Knight",
+   "oracle_text": "Whenever this creature deals damage, you gain that much life.\nForecast — {1}{W}, Reveal this card from your hand: Whenever target creature deals damage this turn, you gain that much life. (Activate only during your upkeep and only once each turn.)",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Phantom Nishoba",
+   "mana_cost": "{5}{G}{W}",
+   "type_line": "Creature — Cat Beast Spirit",
+   "oracle_text": "Trample\nThis creature enters with seven +1/+1 counters on it.\nWhenever this creature deals damage, you gain that much life.\nIf damage would be dealt to this creature, prevent that damage. Remove a +1/+1 counter from this creature.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Rakavolver",
+   "mana_cost": "{2}{R}",
+   "type_line": "Creature — Volver",
+   "oracle_text": "Kicker {1}{W} and/or {U} (You may pay an additional {1}{W} and/or {U} as you cast this spell.)\nIf this creature was kicked with its {1}{W} kicker, it enters with two +1/+1 counters on it and with \"Whenever this creature deals damage, you gain that much life.\"\nIf this creature was kicked with its {U} kicker, it enters with a +1/+1 counter on it and with flying.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Stir the Pride",
+   "mana_cost": "{4}{W}",
+   "type_line": "Instant",
+   "oracle_text": "Choose one —\n• Creatures you control get +2/+2 until end of turn.\n• Until end of turn, creatures you control gain \"Whenever this creature deals damage, you gain that much life.\"\nEntwine {1}{W} (Choose both if you pay the entwine cost.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
    ]
   }
  ]
