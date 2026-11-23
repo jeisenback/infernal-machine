@@ -5159,6 +5159,204 @@
    "colors": [
     "G"
    ]
+  },
+  {
+   "name": "Lin Sivvi, Defiant Hero",
+   "mana_cost": "{1}{W}{W}",
+   "type_line": "Legendary Creature — Human Rebel",
+   "oracle_text": "{X}, {T}: Search your library for a Rebel permanent card with mana value X or less, put it onto the battlefield, then shuffle.\n{3}: Put target Rebel card from your graveyard on the bottom of your library.",
+   "power": "1",
+   "toughness": "3",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Defiant Falcon",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Rebel Bird",
+   "oracle_text": "Flying\n{4}, {T}: Search your library for a Rebel permanent card with mana value 3 or less, put it onto the battlefield, then shuffle.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Amrou Scout",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Kithkin Rebel Scout",
+   "oracle_text": "{4}, {T}: Search your library for a Rebel permanent card with mana value 3 or less, put it onto the battlefield, then shuffle.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Ramosian Sergeant",
+   "mana_cost": "{W}",
+   "type_line": "Creature — Human Rebel",
+   "oracle_text": "{3}, {T}: Search your library for a Rebel permanent card with mana value 2 or less, put it onto the battlefield, then shuffle.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Ramosian Lieutenant",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Human Rebel",
+   "oracle_text": "{4}, {T}: Search your library for a Rebel permanent card with mana value 3 or less, put it onto the battlefield, then shuffle.",
+   "power": "1",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Ramosian Captain",
+   "mana_cost": "{1}{W}{W}",
+   "type_line": "Creature — Human Rebel",
+   "oracle_text": "First strike\n{5}, {T}: Search your library for a Rebel permanent card with mana value 4 or less, put it onto the battlefield, then shuffle.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Blightspeaker",
+   "mana_cost": "{1}{B}",
+   "type_line": "Creature — Human Rebel Cleric",
+   "oracle_text": "{T}: Target player loses 1 life.\n{4}, {T}: Search your library for a Rebel permanent card with mana value 3 or less, put it onto the battlefield, then shuffle.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Ramosian Commander",
+   "mana_cost": "{2}{W}{W}",
+   "type_line": "Creature — Human Rebel",
+   "oracle_text": "{6}, {T}: Search your library for a Rebel permanent card with mana value 5 or less, put it onto the battlefield, then shuffle.",
+   "power": "2",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Ramosian Sky Marshal",
+   "mana_cost": "{3}{W}{W}",
+   "type_line": "Creature — Human Rebel",
+   "oracle_text": "Flying\n{7}, {T}: Search your library for a Rebel permanent card with mana value 6 or less, put it onto the battlefield, then shuffle.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Cateran Enforcer",
+   "mana_cost": "{3}{B}{B}",
+   "type_line": "Creature — Horror Mercenary",
+   "oracle_text": "Fear (This creature can't be blocked except by artifact creatures and/or black creatures.)\n{4}, {T}: Search your library for a Mercenary permanent card with mana value 4 or less, put it onto the battlefield, then shuffle.",
+   "power": "4",
+   "toughness": "3",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Rathi Intimidator",
+   "mana_cost": "{1}{B}{B}",
+   "type_line": "Creature — Phyrexian Horror Mercenary",
+   "oracle_text": "Fear (This creature can't be blocked except by artifact creatures and/or black creatures.)\n{2}, {T}: Search your library for a Mercenary permanent card with mana value 2 or less, put it onto the battlefield, then shuffle.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Cateran Kidnappers",
+   "mana_cost": "{2}{B}{B}",
+   "type_line": "Creature — Human Mercenary",
+   "oracle_text": "{3}, {T}: Search your library for a Mercenary permanent card with mana value 3 or less, put it onto the battlefield, then shuffle.",
+   "power": "4",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Cateran Slaver",
+   "mana_cost": "{4}{B}{B}",
+   "type_line": "Creature — Horror Mercenary",
+   "oracle_text": "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)\n{5}, {T}: Search your library for a Mercenary permanent card with mana value 5 or less, put it onto the battlefield, then shuffle.",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Rathi Fiend",
+   "mana_cost": "{3}{B}",
+   "type_line": "Creature — Phyrexian Horror Mercenary",
+   "oracle_text": "When this creature enters, each player loses 3 life.\n{3}, {T}: Search your library for a Mercenary permanent card with mana value 3 or less, put it onto the battlefield, then shuffle.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Cateran Brute",
+   "mana_cost": "{2}{B}",
+   "type_line": "Creature — Horror Mercenary",
+   "oracle_text": "{2}, {T}: Search your library for a Mercenary permanent card with mana value 2 or less, put it onto the battlefield, then shuffle.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Cateran Overlord",
+   "mana_cost": "{4}{B}{B}{B}",
+   "type_line": "Creature — Horror Mercenary",
+   "oracle_text": "Sacrifice a creature: Regenerate this creature.\n{6}, {T}: Search your library for a Mercenary permanent card with mana value 6 or less, put it onto the battlefield, then shuffle.",
+   "power": "7",
+   "toughness": "5",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Cateran Persuader",
+   "mana_cost": "{B}{B}",
+   "type_line": "Creature — Human Mercenary",
+   "oracle_text": "{1}, {T}: Search your library for a Mercenary permanent card with mana value 1 or less, put it onto the battlefield, then shuffle.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Bog Glider",
+   "mana_cost": "{2}{B}",
+   "type_line": "Creature — Human Mercenary",
+   "oracle_text": "Flying\n{T}, Sacrifice a land: Search your library for a Mercenary permanent card with mana value 2 or less, put it onto the battlefield, then shuffle.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

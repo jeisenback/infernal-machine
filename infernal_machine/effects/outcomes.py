@@ -2543,6 +2543,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"you gain protection from everything until your next turn\.", re.I), lambda m: PlayerProtection()),
     (re.compile(r"(?:this (?:Saga|creature|artifact|enchantment|land)|CARDNAME) gains \"(.+)\"\.?", re.I),  # the ability stays: a Saga's chapter
      lambda m: GainsAbility(line) if _is_known_ability(line := m[1].replace("'", '"')) else None),
+    (re.compile(r"search your library for an? ((?-i:[A-Z][a-z]+)) permanent card with mana value (\d+|X) or less, put it onto the battlefield, "
+                r"then shuffle\.", re.I),  # Ramosian Sergeant ("Rebel"; Lin Sivvi's X is the X paid)
+     lambda m: SearchLibrary(f"{m[1]} permanent|mv<={m[2].lower()}", "battlefield", False)),
     (re.compile(r"search your library for an? ([a-z]+) card with mana cost \{0\} or \{1\}, put it onto the battlefield, then shuffle\.", re.I),
      lambda m: SearchLibrary(f"{m[1].lower()}|mv<=1", "battlefield", False)),  # (mana value 1 or less: the same for every such artifact)
     (re.compile(r"until your next turn, your life total can't change and you gain protection from everything\.", re.I),

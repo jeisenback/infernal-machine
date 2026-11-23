@@ -1737,6 +1737,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     (`AlternativeCost.prototype`): the spell, and the permanent it becomes, has the prototype's mana cost, mana value, colors, power and
     toughness and keeps its abilities and types; the card itself (`StackItem.whole`, `Permanent.real_card`) is what goes to the graveyard
     or anywhere else. Twelve cards, among them Blitz Automaton and Combat Thresher.
+  - Rebel searchers (`tests/test_rebel_search.py`, #844): "{3}, {T}: Search your library for a Rebel permanent card with mana value 2
+    or less, put it onto the battlefield, then shuffle." (a `SearchLibrary` for "Rebel permanent|mv<=2"; Lin Sivvi's "mana value X or
+    less" is the X paid). Eighteen cards: the Rebel searchers and the Mercenary ones (#845, Cateran Enforcer and the rest).
   - Squad (`tests/test_squad.py`, #837): "Squad {cost}" (CR 702.157a) is paid like multikicker (`kicker_costs`, `is_multikicker`,
     `MULTIKICKER_PROMPT`), and its enters trigger, only when it was paid, makes a token copy for each time (`CopySelfToken(per_kick=True)`);
     a token copy is not kicked, so it makes no more. Eleven cards, among them Galadhrim Brigade and Zephyrim.
