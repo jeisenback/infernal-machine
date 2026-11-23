@@ -970,7 +970,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     lose 2 life." (Unholy Annex) is an `IfElse`, the "Otherwise, ..." sentence folded in by a Follow row; neither part may have a
     target, and an "Otherwise" with no "If" before it is not read.
   - Damage from what an Aura enchants (`tests/test_host_damage_life.py`): "Whenever enchanted creature deals damage, you gain that much
-    life." (Spirit Link, Armadillo Cloak) is the event `host_damage`, with the damage as its X.
+    life." (Spirit Link, Armadillo Cloak) is the event `host_damage`, with the damage as its X. The creature's own "Whenever this creature deals damage, you
+    gain that much life." (Exalted Angel and seven others, `tests/test_deals_damage_gain.py`, #847) is the event `deals_damage`, fired
+    by `Game.damage` for any damage it deals, combat or not.
   - Return a permanent as a cost (`tests/test_return_cost.py`): "Return a Forest you control to its owner's hand: ..." (Quirion Ranger,
     Scryb Ranger; "a land" for Meloku) is `ActivatedAbility.bounce_other`, offered only while you control one.
   - Chalice of the Void (`tests/test_chalice.py`): "Whenever a player casts a spell with mana value equal to the number of charge

@@ -4247,6 +4247,8 @@ class Game:
         if controller and source is not None and self.has_keyword(source, "lifelink"):
             self.change_life(controller, amount)
         if source is not None and amount > 0:  # Spirit Link: "Whenever enchanted creature deals damage, you gain that much life."
+            if (dealer := self.controller_of(source)) is not None:  # Exalted Angel: "Whenever this creature deals damage, ..."
+                self.trigger("deals_damage", source, dealer, x=amount)
             for holder in self.live_seats():
                 for attachment in [p for p in holder.battlefield if p.attached_to is source]:
                     self.trigger("host_damage", attachment, holder, source, x=amount)
