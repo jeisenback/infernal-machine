@@ -1323,6 +1323,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     (`Game.learn`: a Lesson from the sideboard, or discard a card to draw a card: First Day of Class); a token with no printed size whose
     quoted "This token's power and toughness are each equal to ..." defines it, counting "instant and sorcery cards in your graveyard plus
     the number of cards with flashback you own in exile" (Seize the Storm).
+  - Power equal to the number of creatures you control (`tests/test_power_equal_to_creatures.py`, #848): "CARDNAME's power is equal to
+    the number of creatures you control." is a characteristic-defining ability (CR 604.3) like Overbeing of Myth's "power and toughness
+    are each equal to ...", read by the same `power_toughness_amount`, which now says whether it sets the toughness too; the toughness
+    stays as printed (Suki, Kyoshi Warrior, Ironroot Warlord, Zurgo's Vanguard and five more; and eleven whose power counts artifacts,
+    Swamps, lands, cards in hand or in the graveyard: Zendikar Incarnate, Dakmor Sorceress, Sylvan Yeti, ...).
   - Casting without paying the mana cost, batch 1 (`tests/test_cast_free.py`, #655): "then you may cast a spell from your hand with mana
     value less than or equal to that damage without paying its mana cost" (Buster Sword: the damage is the trigger's X; "less than or
     equal to" is a cap, so `_clauses` no longer reads it as an amount); Etali, Primal Conqueror's "each player exiles cards from the top

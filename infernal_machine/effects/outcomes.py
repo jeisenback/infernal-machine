@@ -1178,7 +1178,7 @@ def _token(spec: str) -> tuple[Quantity, Card] | None:
     count, power, toughness, colors, subtypes, artifact, named, keywords, quoted = m.groups()
     if power is None:  # Seize the Storm: no printed size, only "This token's power and toughness are each equal to ..."
         from .statics import is_cda_line
-        if not (quoted and is_cda_line(quoted)):
+        if not (quoted and is_cda_line(quoted) and "power and toughness" in quoted):  # (a power-only one leaves no toughness)
             return None
         power = toughness = "0"
     keyword_line = ""

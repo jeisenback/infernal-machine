@@ -1637,20 +1637,21 @@ def is_control_aura_line(line: str) -> bool:
     return line == _CONTROL_AURA
 
 
-_CDA = re.compile(r"(?:CARDNAME's|This creature's|This token's) power and toughness are each equal to (.+)\.")
+_CDA = re.compile(r"(?:CARDNAME's|This creature's|This token's) (power and toughness are each|power is) equal to (.+)\.")
 
 
 @lru_cache(maxsize=None)
-def power_toughness_amount(card: Card) -> "Amount | None":
-    """Overbeing of Myth: a characteristic-defining "power and toughness are each equal to ..." line."""
+def power_toughness_amount(card: Card) -> "tuple[Amount, bool] | None":
+    """A characteristic-defining ability (CR 604.3): Overbeing of Myth's "power and toughness are each equal to ...", or Suki,
+    Kyoshi Warrior's "power is equal to ..." (its toughness stays as printed). The amount, and whether it sets the toughness too."""
     for line in rules_lines(card):
-        if (m := _CDA.fullmatch(line)) and (amount := _amount(m[1])):
-            return amount
+        if (m := _CDA.fullmatch(line)) and (amount := _amount(m[2])):
+            return amount, m[1] != "power is"
     return None
 
 
 def is_cda_line(line: str) -> bool:
-    return (m := _CDA.fullmatch(line)) is not None and _amount(m[1]) is not None
+    return (m := _CDA.fullmatch(line)) is not None and _amount(m[2]) is not None
 
 
 _HAND_BY_COUNTERS = re.compile(r"Your maximum hand size is equal to the number of (\w+) counters on (?:CARDNAME|this \w+)\.")

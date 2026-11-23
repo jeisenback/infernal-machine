@@ -5581,6 +5581,219 @@
     "B",
     "W"
    ]
+  },
+  {
+   "name": "Suki, Kyoshi Warrior",
+   "mana_cost": "{2}{G/W}{G/W}",
+   "type_line": "Legendary Creature — Human Warrior Ally",
+   "oracle_text": "Suki's power is equal to the number of creatures you control.\nWhenever Suki attacks, create a 1/1 white Ally creature token that's tapped and attacking.",
+   "power": "*",
+   "toughness": "4",
+   "colors": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Zurgo's Vanguard",
+   "mana_cost": "{2}{R}",
+   "type_line": "Creature — Dog Soldier",
+   "oracle_text": "Mobilize 1 (Whenever this creature attacks, create a tapped and attacking 1/1 red Warrior creature token. Sacrifice it at the beginning of the next end step.)\nZurgo's Vanguard's power is equal to the number of creatures you control.",
+   "power": "*",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Snow Villiers",
+   "mana_cost": "{2}{W}",
+   "type_line": "Legendary Creature — Human Rebel Monk",
+   "oracle_text": "Vigilance\nSnow Villiers's power is equal to the number of creatures you control.",
+   "power": "*",
+   "toughness": "3",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Sumala Rumblers",
+   "mana_cost": "{2}{G/W}{G/W}",
+   "type_line": "Creature — Wurm",
+   "oracle_text": "Sumala Rumblers's power is equal to the number of creatures you control.\nMyriad (Whenever this creature attacks, for each opponent other than defending player, you may create a token copy that's tapped and attacking that player or a planeswalker they control. Exile the tokens at end of combat.)",
+   "power": "*",
+   "toughness": "4",
+   "colors": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Freedom Fighter Recruit",
+   "mana_cost": "{1}{R}",
+   "type_line": "Creature — Human Rebel Ally",
+   "oracle_text": "Freedom Fighter Recruit's power is equal to the number of creatures you control.",
+   "power": "*",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Ironroot Warlord",
+   "mana_cost": "{1}{G}{W}",
+   "type_line": "Creature — Treefolk Soldier",
+   "oracle_text": "Ironroot Warlord's power is equal to the number of creatures you control.\n{3}{G}{W}: Create a 1/1 white Soldier creature token.",
+   "power": "*",
+   "toughness": "5",
+   "colors": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Kolaghan Forerunners",
+   "mana_cost": "{2}{R}",
+   "type_line": "Creature — Human Berserker",
+   "oracle_text": "Trample\nKolaghan Forerunners's power is equal to the number of creatures you control.\nDash {2}{R} (You may cast this spell for its dash cost. If you do, it gains haste, and it's returned from the battlefield to its owner's hand at the beginning of the next end step.)",
+   "power": "*",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Soulsurge Elemental",
+   "mana_cost": "{3}{R}",
+   "type_line": "Creature — Elemental",
+   "oracle_text": "First strike\nSoulsurge Elemental's power is equal to the number of creatures you control.",
+   "power": "*",
+   "toughness": "1",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Brotherhood Vertibird",
+   "mana_cost": "{3}",
+   "type_line": "Artifact — Vehicle",
+   "oracle_text": "Flying\nBrotherhood Vertibird's power is equal to the number of artifacts you control.\nCrew 2 (Tap any number of creatures you control with total power 2 or greater: This Vehicle becomes an artifact creature until end of turn.)",
+   "power": "*",
+   "toughness": "4",
+   "colors": []
+  },
+  {
+   "name": "Cephalopod Sentry",
+   "mana_cost": "{2}{W}{U}",
+   "type_line": "Artifact Creature — Phyrexian Squid",
+   "oracle_text": "Flying\nCephalopod Sentry's power is equal to the number of artifacts you control.",
+   "power": "*",
+   "toughness": "5",
+   "colors": [
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Coiling Woodworm",
+   "mana_cost": "{2}{G}",
+   "type_line": "Creature — Insect Worm",
+   "oracle_text": "Coiling Woodworm's power is equal to the number of Forests on the battlefield.",
+   "power": "*",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Dakmor Sorceress",
+   "mana_cost": "{5}{B}",
+   "type_line": "Creature — Human Wizard Sorcerer",
+   "oracle_text": "Dakmor Sorceress's power is equal to the number of Swamps you control.",
+   "power": "*",
+   "toughness": "4",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Filigree Attendant",
+   "mana_cost": "{2}{U}{U}",
+   "type_line": "Artifact Creature — Homunculus",
+   "oracle_text": "Flying\nFiligree Attendant's power is equal to the number of artifacts you control.",
+   "power": "*",
+   "toughness": "3",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Nightstalker Engine",
+   "mana_cost": "{4}{B}",
+   "type_line": "Creature — Nightstalker",
+   "oracle_text": "Nightstalker Engine's power is equal to the number of creature cards in your graveyard.",
+   "power": "*",
+   "toughness": "3",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Sima Yi, Wei Field Marshal",
+   "mana_cost": "{5}{B}",
+   "type_line": "Legendary Creature — Human Soldier",
+   "oracle_text": "Sima Yi's power is equal to the number of Swamps you control.",
+   "power": "*",
+   "toughness": "4",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Swarm of Rats",
+   "mana_cost": "{1}{B}",
+   "type_line": "Creature — Rat",
+   "oracle_text": "Swarm of Rats's power is equal to the number of Rats you control.",
+   "power": "*",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Sylvan Yeti",
+   "mana_cost": "{2}{G}{G}",
+   "type_line": "Creature — Yeti",
+   "oracle_text": "Sylvan Yeti's power is equal to the number of cards in your hand.",
+   "power": "*",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Uurg, Spawn of Turg",
+   "mana_cost": "{B}{B}{G}",
+   "type_line": "Legendary Creature — Frog Beast",
+   "oracle_text": "Uurg's power is equal to the number of land cards in your graveyard.\nAt the beginning of your upkeep, surveil 1. (Look at the top card of your library. You may put that card into your graveyard.)\n{B}{G}, Sacrifice a land: You gain 2 life.",
+   "power": "*",
+   "toughness": "5",
+   "colors": [
+    "B",
+    "G"
+   ]
+  },
+  {
+   "name": "Zendikar Incarnate",
+   "mana_cost": "{2}{R}{G}",
+   "type_line": "Creature — Elemental",
+   "oracle_text": "Zendikar Incarnate's power is equal to the number of lands you control.",
+   "power": "*",
+   "toughness": "4",
+   "colors": [
+    "G",
+    "R"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
