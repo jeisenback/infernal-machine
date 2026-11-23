@@ -2235,6 +2235,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     blockers than that and it is unblocked instead, as with menace); "can't block creatures with power N or greater"; and
     "can't block and can't be blocked". The group forms ("each creature you control can't be blocked by more than one
     creature") and the activated "{1}{G}: can't be blocked this turn" forms are not read.
+  - **"You may have this creature assign its combat damage as though it weren't blocked."** (Thorn Elemental and eight others,
+    `tests/test_as_unblocked.py`, #846, CR 510.1c): when it is blocked, its controller is asked (`AS_UNBLOCKED_PROMPT`, Yes or No); yes,
+    all its damage goes to the player or planeswalker it attacked and none to the blockers, which still deal theirs. Lost abilities: not
+    asked.
   - **"This creature can block an additional creature each combat."** (Ghastbark Twins and nine others,
     `tests/test_extra_blocks.py`, #836, CR 509.1a): its controller is asked again after its first block, about the other
     attackers; a creature blocking several divides its damage among them, lethal to each in the order its controller picks and the

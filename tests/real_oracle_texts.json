@@ -5357,6 +5357,105 @@
    "colors": [
     "B"
    ]
+  },
+  {
+   "name": "Deathcoil Wurm",
+   "mana_cost": "{6}{G}{G}",
+   "type_line": "Creature — Wurm",
+   "oracle_text": "You may have this creature assign its combat damage as though it weren't blocked.",
+   "power": "7",
+   "toughness": "6",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Imaryll, Elfhame Elite",
+   "mana_cost": "{2}{G}{G}",
+   "type_line": "Legendary Creature — Elf Warrior",
+   "oracle_text": "Whenever Imaryll attacks, it gets +X/+X until end of turn, where X is the number of other Elves you control.\nYou may have Imaryll assign its combat damage as though it weren't blocked.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Lone Wolf",
+   "mana_cost": "{2}{G}",
+   "type_line": "Creature — Wolf",
+   "oracle_text": "You may have this creature assign its combat damage as though it weren't blocked.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Pride of Lions",
+   "mana_cost": "{3}{G}{G}",
+   "type_line": "Creature — Cat",
+   "oracle_text": "You may have this creature assign its combat damage as though it weren't blocked.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Rhox",
+   "mana_cost": "{4}{G}{G}",
+   "type_line": "Creature — Rhino Beast",
+   "oracle_text": "You may have this creature assign its combat damage as though it weren't blocked.\n{2}{G}: Regenerate this creature. (The next time this creature would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Spinebiter",
+   "mana_cost": "{4}{G}{G}",
+   "type_line": "Creature — Phyrexian Beast",
+   "oracle_text": "Infect (This creature deals damage to creatures in the form of -1/-1 counters and to players in the form of poison counters.)\nYou may have this creature assign its combat damage as though it weren't blocked.",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Thorn Elemental",
+   "mana_cost": "{5}{G}{G}",
+   "type_line": "Creature — Elemental",
+   "oracle_text": "You may have this creature assign its combat damage as though it weren't blocked.",
+   "power": "7",
+   "toughness": "7",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Tornado Elemental",
+   "mana_cost": "{5}{G}{G}",
+   "type_line": "Creature — Elemental",
+   "oracle_text": "When this creature enters, it deals 6 damage to each creature with flying.\nYou may have this creature assign its combat damage as though it weren't blocked.",
+   "power": "6",
+   "toughness": "6",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Wolf Pack",
+   "mana_cost": "{6}{G}{G}",
+   "type_line": "Creature — Wolf",
+   "oracle_text": "You may have this creature assign its combat damage as though it weren't blocked.",
+   "power": "7",
+   "toughness": "6",
+   "colors": [
+    "G"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
