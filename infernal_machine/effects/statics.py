@@ -242,7 +242,8 @@ class CombatRestriction:
     in `what` ("power<=2", "type:Artifact", "color:U", "keyword:flying"): "not_blocked_by" (can't be blocked by creatures that
     pass it), "only_blocked_by" (can't be blocked except by creatures that pass it), "cant_block" (can't block attackers that pass
     it); and a number in `what`: "max_blockers" (can't be blocked by more than N creatures), "min_blockers" (can't be blocked
-    except by N or more creatures), "extra_blocks" (it can block N more attackers than one)."""
+    except by N or more creatures), "extra_blocks" (it can block N more attackers than one); "as_unblocked" (its controller may have it assign its combat
+    damage as though it weren't blocked)."""
     kind: str
     what: str = ""  # the creature type for "no_attack_tribe"; for "unless", what it can't do: "attack", "block" or "attack or block"
     condition: "Condition | None" = None  # "unless": "This creature can't attack or block unless you have the city's blessing."
@@ -305,6 +306,8 @@ _COMBAT_RESTRICTIONS = [
     (re.compile(rf"{_SELF} must be blocked if able\.", re.I), lambda m: CombatRestriction("must_be_blocked")),
     (re.compile(rf"{_SELF} can't be blocked by more than {_NUM} creatures?\.", re.I),
      lambda m: CombatRestriction("max_blockers", str(_number(m[1])))),
+    (re.compile(rf"You may have {_SELF} assign its combat damage as though it weren't blocked\.", re.I),
+     lambda m: CombatRestriction("as_unblocked")),  # Thorn Elemental (CR 510.1c)
     (re.compile(rf"{_SELF} can block an additional creature each combat\.", re.I),
      lambda m: CombatRestriction("extra_blocks", "1")),  # Ghastbark Twins (CR 509.1a)
     (re.compile(rf"{_SELF} can't be blocked except by {_NUM} or more creatures\.", re.I),

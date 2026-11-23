@@ -28,6 +28,7 @@ ATTACK_PROMPT = PromptKind("attack", "Attack with ")  # followed by the creature
 BLOCK_PROMPT = PromptKind("block", "Block with ")
 MUST_BLOCK_PROMPT = PromptKind("must_block", "Choose a creature that blocks ")  # followed by the attacker that must be blocked if able
 ASSIGN_PROMPT = PromptKind("assign", "Damage first to a blocker of ")  # followed by the attacker's label
+AS_UNBLOCKED_PROMPT = PromptKind("as_unblocked", "Assign its combat damage as though it weren't blocked: ")  # then the attacker's label; YES_NO
 ENLIST_PROMPT = PromptKind("enlist", "Enlist a creature for ")  # followed by the attacker's label; NO_ENLIST first, then the creatures
 NO_ATTACK = "Don't attack"
 NO_ENLIST = "Don't enlist"
@@ -292,6 +293,13 @@ class Combat:
                     if not self.game.has_keyword(blocker, "flanking"):
                         self.game.modify_until_end_of_turn(blocker, Modifier(-1, -1))
 
+    def _as_unblocked(self, attacker: Permanent, controller: Seat) -> bool:
+        """Thorn Elemental: "You may have this creature assign its combat damage as though it weren't blocked." (CR 510.1c): its
+        controller's choice, each time it deals combat damage while blocked."""
+        if self.game.loses_abilities(attacker) or not any(r.kind == "as_unblocked" for r in combat_restrictions(attacker.card)):
+            return False
+        return controller.player.choose(AS_UNBLOCKED_PROMPT(self.game.label(attacker)), ["Yes", "No"]) == 0
+
     def _enlist(self, seat: Seat, attacker: Permanent) -> None:
         """Enlist (CR 702.154a): as it attacks, its controller may tap an untapped creature they control that isn't attacking and could
         attack (no summoning sickness); it gets +X/+0 until end of turn, X that creature's power."""
@@ -358,7 +366,7 @@ class Combat:
                 victim = None
             if self._deals_damage_now(attacker, first_strike_step):
                 amount = max(0, self.game.power(attacker))
-                if not attack.blocked:
+                if not attack.blocked or (victim is not None and self._as_unblocked(attacker, attack.controller)):
                     if victim is not None:
                         hits.append((attacker, victim, amount))
                 else:
