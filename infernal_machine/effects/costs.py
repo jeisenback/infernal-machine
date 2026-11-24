@@ -96,6 +96,7 @@ class AlternativeCost:
     spectacle: bool = False  # Spectacle {cost} (CR 702.137): only once an opponent lost life this turn
     impending: int = 0  # Impending N: it enters with N time counters and isn't a creature until the last is removed
     once_a_turn: bool = False  # One with the Multiverse: free, once during each of its caster's turns
+    sneak: bool = False  # Sneak (CR 702.190a): an unblocked attacker you control is returned to its owner's hand as it is paid
     awaken: int = 0  # Awaken N—{cost} (CR 702.113): cast for that cost, it also awakens a land you control with N +1/+1 counters
     prototype: tuple[str, str] | None = None  # Prototype {cost} — P/T (CR 702.160, 718): cast with that cost, those colors, and that power and toughness
 

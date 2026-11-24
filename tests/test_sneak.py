@@ -2,7 +2,7 @@
 declare blockers step.)" (CR 702.190), from the cards' real Oracle text. All seven cards whose only gap it was are fully playable, and six more.
 Oroku Saki, Shredder Rising ({2}{B}, Sneak {1}{B}): during its controller's declare blockers step, with two lands, an unblocked Bear is
 returned to hand and Oroku Saki enters tapped and attacking the player the Bear attacked; Splinter's Technique, a sorcery, may be cast
-then too. It isn't offered before blockers are declared, when the attacker was blocked, or on another player's turn."""
+then too; its targets are chosen before the attacker goes back (Karai's Technique may target it). It isn't offered before blockers are declared, when the attacker was blocked, or on another player's turn."""
 
 import unittest
 
@@ -22,8 +22,10 @@ MUTATIONS = [
      'if self.active != seat.index or not self._unblocked_attackers(seat):', "only in the declare blockers step"),
     ("infernal_machine/game.py", 'if self.step != "declare_blockers" or self.active != seat.index or not self._unblocked_attackers(seat):',
      'if self.step != "declare_blockers" or not self._unblocked_attackers(seat):', "only its controller's"),
-    ("infernal_machine/game.py", "        self.return_to_hand(attack.attacker)\n        before = len(self.stack)",
-     "        before = len(self.stack)", "the attacker is returned"),
+    ("infernal_machine/casting.py", "            self.game.return_to_hand(attack.attacker)\n            self.sneaked", "            self.sneaked",
+     "the attacker is returned"),
+    ("infernal_machine/casting.py", "prototyped=bool(alternative and alternative.prototype), sneaked=self.sneaked)",
+     "prototyped=bool(alternative and alternative.prototype))", "the spell knows whom it attacks"),
     ("infernal_machine/game.py", "            if item.sneaked is not None and self.on_battlefield(entering):  # CR 702.190b",
      "            if False:  # CR 702.190b", "it enters attacking"),
     ("infernal_machine/effects/costs.py", "_NINJUTSU, _SNEAK,", "_NINJUTSU,", "the line is read"),
@@ -65,6 +67,12 @@ class SneakTests(unittest.TestCase):
         game._perform(a, SNEAK + TECHNIQUE.name)
         run_stack(game)
         self.assertEqual((sorted(c.name for c in a.hand), TECHNIQUE in a.graveyard), (["Bear", "Bear"], True))  # (the Bear returned, and one found)
+
+    def test_its_targets_are_chosen_before_the_attacker_goes_back(self):
+        game, a, _, bear = combat([REAL["Karai's Technique"]])  # (the Bear, its only creature, is a legal target: CR 601.2c before 601.2h)
+        game._perform(a, SNEAK + "Karai's Technique")
+        (item,) = game.stack
+        self.assertEqual((bear in item.targets, BEAR in a.hand), (True, True))
 
     def test_not_before_blockers_nor_when_blocked_nor_on_another_turn(self):
         self.assertEqual(offered(*combat([SAKI], step="declare_attackers")[:2]), [])

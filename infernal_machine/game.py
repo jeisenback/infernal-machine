@@ -2491,16 +2491,11 @@ class Game:
                 and self._effects_possible(seat, kicked_effects(_effects(c), 0) or [], source_qualities(c))]
 
     def _sneak(self, seat: Seat, name: str) -> None:
-        """Sneak: return an unblocked attacker to its owner's hand and cast the card for its sneak cost; a permanent spell enters
-        tapped and attacking whom that creature attacked (CR 702.190b)."""
+        """Sneak: cast the card for its sneak cost; the unblocked attacker goes back to its owner's hand as the cost is paid, after
+        targets are chosen (`Caster._pay_extras`), and a permanent spell enters tapped and attacking whom it attacked (CR 702.190b)."""
         card = next(c for c in self._sneak_cards(seat) if c.name == name)
-        attacks = self._unblocked_attackers(seat)
-        attack = attacks[seat.player.choose(SNEAK_PROMPT(card.name), [self.label(a.attacker) for a in attacks]) if len(attacks) > 1 else 0]
-        self.return_to_hand(attack.attacker)
-        before = len(self.stack)
-        self._cast(seat, card, seat.hand, madness=AlternativeCost(f"Sneak {sneak_of(card)}", mana_cost=_checked(sneak_of(card))))
-        if len(self.stack) > before:
-            self.stack[-1].sneaked = (attack.defender, attack.walker)
+        cost = _checked(sneak_of(card))
+        self._cast(seat, card, seat.hand, madness=AlternativeCost(f"Sneak {cost}", mana_cost=cost, sneak=True))
 
     def _unblocked_attackers(self, seat: Seat) -> list[Attack]:
         return [a for a in self.combat.attacks if a.controller is seat and not a.blocked and not a.blockers and self.on_battlefield(a.attacker)]
