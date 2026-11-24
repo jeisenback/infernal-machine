@@ -1186,8 +1186,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     is checked against the permanent as it is, counters and pumps included (Valorous Stance, Warping Wail, Abzan Charm); "multicolored
     spell / permanent" (Null Elemental Blast); damage to "target creature you don't control" (Mizzium Mortars) or "creature or
     planeswalker an opponent controls" (Skysovereign); "Destroy all (non-)Dragon creatures." (Crux of Fate). Static abilities for "Other
-    Elf creatures" and "Other Merfolk" (every player's: Elvish Champion, Lord of Atlantis), "All Slivers" (Crystalline Sliver), "Zombie
-    tokens you control" (Eternal Skylord), "Creatures you control with +1/+1 counters on them" (Badgermole) and "Other nontoken
+    Elf creatures" and "Other Merfolk" (every player's: Elvish Champion, Lord of Atlantis), "All Slivers" (Crystalline Sliver),
+    "All Sliver creatures get +1/+1." and "... have flying." (every player's, itself included: Muscle Sliver, Winged Sliver and the
+    rest, `tests/test_all_slivers_get.py`, #852), "Zombie tokens you control" (Eternal Skylord), "Creatures you control with +1/+1 counters on them" (Badgermole) and "Other nontoken
     creatures you control" (Thraben Watcher). "Each player draws ... and loses ..." / "..., then discards ..." (Stormfist Crusader,
     Burning Inquiry); "At the beginning of each player's upkeep, that player loses 2 life and draws two cards." (an event with "that
     player", and a trigger's "that player X and Y" is two sentences about the same player: Seizan, Ob Nixilis, Unshackled); "... and that

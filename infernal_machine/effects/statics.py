@@ -627,7 +627,7 @@ def is_chosen_type_itself(card: Card) -> bool:
 _AFFECTED = (r"(?:Other c|C)reatures you control of the chosen (?:type|color)|Creatures of the chosen type|Creatures your opponents control|(?:Other )?enchantments you control"
              r"|Permanents you control with counters on them|(?:Other )?permanents you control|Creature tokens you control|Creatures you control with counters on them|Each creature you control with a \+1/\+1 counter on it|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* |artifact |nontoken )?[Cc]reatures you control"
              r"|(?:Other |Attacking )?[A-Z][\w'-]*s(?: and [A-Z][\w'-]*s)? you control|Other [A-Z][\w'-]*s|(?:White|Blue|Black|Red|Green|All) creatures"
-             r"|Other [A-Z][\w'-]* creatures|Other Merfolk(?: you control)?|All [A-Z][\w'-]*s|[A-Z][\w'-]* tokens you control|Creatures you control with \+1/\+1 counters on them")
+             r"|Other [A-Z][\w'-]* creatures|Other Merfolk(?: you control)?|All [A-Z][\w'-]* creatures|All [A-Z][\w'-]*s|[A-Z][\w'-]* tokens you control|Creatures you control with \+1/\+1 counters on them")
 
 
 _COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've cast your commander from the command zone "
@@ -648,6 +648,7 @@ _AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures (?:y
                   r"|(?P<other3>Other )(?P<tribe3>[A-Z][\w'-]*)s"  # Goblin King, Lord of Atlantis: every player's, not only its controller's
                   r"|(?P<global>White|Blue|Black|Red|Green|All) creatures"  # Concordant Crossroads: "All creatures have haste."
                   r"|(?P<other4>Other )(?P<sub4>[A-Z][\w'-]*) creatures|(?P<other5>Other )(?P<sub5>Merfolk)(?P<merfolk_yours> you control)?"  # Elvish Champion, Lord of Atlantis: every player's; Svyelun: yours
+                  r"|All (?P<sub7>[A-Z][\w'-]*) creatures"  # Muscle Sliver: "All Sliver creatures get +1/+1.", every player's
                   r"|All (?P<tribe6>[A-Z][\w'-]*)s"  # Crystalline Sliver: "All Slivers have shroud."
                   r"|(?P<subtokens>[A-Z][\w'-]*) tokens you control"  # Eternal Skylord: "Zombie tokens you control have flying."
                   r"|(?P<plus2>Creatures you control with \+1/\+1 counters on them)")  # Badgermole
@@ -746,7 +747,7 @@ def _who_subtype(who: re.Match) -> str | None:
     """The creature type a static ability affects: "Elf" in "Other Elf creatures", or "Wolf|Werewolf" for "Wolves and Werewolves" (any of them)."""
     if who["enchantments"]:  # Sterling Grove: "Other enchantments you control", a card type
         return "Enchantment"
-    if sub := who["sub"] or who["sub4"] or who["sub5"] or who["subtokens"]:
+    if sub := who["sub"] or who["sub4"] or who["sub5"] or who["sub7"] or who["subtokens"]:
         return sub[:1].upper() + sub[1:]
     kinds = [_tribe(t) for t in (who["tribe"], who["tribe2"], who["tribe3"], who["tribe6"]) if t]
     return "|".join(kinds) or None
@@ -811,7 +812,7 @@ def _static_buffs(line: str, part: str, buffs: list) -> None:
                                 "chosen" if who["chosen"] and not chosen_color else _who_subtype(who), line,
                                 condition=condition,
                                 color="chosen" if chosen_color else colors.get((who["color"] or who["global"] or "").lower()),
-                                attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"] or who["other3"] or who["other4"] or (who["other5"] and not who["merfolk_yours"]) or who["tribe6"])
+                                attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"] or who["other3"] or who["other4"] or (who["other5"] and not who["merfolk_yours"]) or who["tribe6"] or who["sub7"])
                                 or (bool(who["chosen"]) and "you control" not in m[1]),
                                 token=bool(who["tokens"] or who["subtokens"]),
                                 with_counters=bool(who["counters"] or who["perms_counters"]), plus_counter=bool(who["plus"] or who["plus2"]),
