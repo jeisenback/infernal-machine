@@ -64,6 +64,7 @@ from .families.combat_and_pump import (  # noqa: F401
     GrantSorceryFlash,
     Animate,
     Earthbend,
+    Awaken,
     Attach,
     AttachAura,
     AttachThisToSubject,

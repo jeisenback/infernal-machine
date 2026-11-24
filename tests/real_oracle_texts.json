@@ -5794,6 +5794,139 @@
     "G",
     "R"
    ]
+  },
+  {
+   "name": "Part the Waterveil",
+   "mana_cost": "{4}{U}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Take an extra turn after this one. Exile Part the Waterveil.\nAwaken 6—{6}{U}{U}{U} (If you cast this spell for {6}{U}{U}{U}, also put six +1/+1 counters on target land you control and it becomes a 0/0 Elemental creature with haste. It's still a land.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Boiling Earth",
+   "mana_cost": "{1}{R}",
+   "type_line": "Sorcery",
+   "oracle_text": "Boiling Earth deals 1 damage to each creature your opponents control.\nAwaken 4—{6}{R} (If you cast this spell for {6}{R}, also put four +1/+1 counters on target land you control and it becomes a 0/0 Elemental creature with haste. It's still a land.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Scatter to the Winds",
+   "mana_cost": "{1}{U}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Counter target spell.\nAwaken 3—{4}{U}{U} (If you cast this spell for {4}{U}{U}, also put three +1/+1 counters on target land you control and it becomes a 0/0 Elemental creature with haste. It's still a land.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Ruinous Path",
+   "mana_cost": "{1}{B}{B}",
+   "type_line": "Sorcery",
+   "oracle_text": "Destroy target creature or planeswalker.\nAwaken 4—{5}{B}{B} (If you cast this spell for {5}{B}{B}, also put four +1/+1 counters on target land you control and it becomes a 0/0 Elemental creature with haste. It's still a land.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Clutch of Currents",
+   "mana_cost": "{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Return target creature to its owner's hand.\nAwaken 3—{4}{U} (If you cast this spell for {4}{U}, also put three +1/+1 counters on target land you control and it becomes a 0/0 Elemental creature with haste. It's still a land.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Earthen Arms",
+   "mana_cost": "{1}{G}",
+   "type_line": "Sorcery",
+   "oracle_text": "Put two +1/+1 counters on target permanent.\nAwaken 4—{6}{G} (If you cast this spell for {6}{G}, also put four +1/+1 counters on target land you control and it becomes a 0/0 Elemental creature with haste. It's still a land.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Coastal Discovery",
+   "mana_cost": "{3}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Draw two cards.\nAwaken 4—{5}{U} (If you cast this spell for {5}{U}, also put four +1/+1 counters on target land you control and it becomes a 0/0 Elemental creature with haste. It's still a land.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Rush of Ice",
+   "mana_cost": "{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Tap target creature. It doesn't untap during its controller's next untap step.\nAwaken 3—{4}{U} (If you cast this spell for {4}{U}, also put three +1/+1 counters on target land you control and it becomes a 0/0 Elemental creature with haste. It's still a land.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Sheer Drop",
+   "mana_cost": "{2}{W}",
+   "type_line": "Sorcery",
+   "oracle_text": "Destroy target tapped creature.\nAwaken 3—{5}{W} (If you cast this spell for {5}{W}, also put three +1/+1 counters on target land you control and it becomes a 0/0 Elemental creature with haste. It's still a land.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Roil Spout",
+   "mana_cost": "{1}{W}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Put target creature on top of its owner's library.\nAwaken 4—{4}{W}{U} (If you cast this spell for {4}{W}{U}, also put four +1/+1 counters on target land you control and it becomes a 0/0 Elemental creature with haste. It's still a land.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Rising Miasma",
+   "mana_cost": "{3}{B}",
+   "type_line": "Sorcery",
+   "oracle_text": "All creatures get -2/-2 until end of turn.\nAwaken 3—{5}{B}{B} (If you cast this spell for {5}{B}{B}, also put three +1/+1 counters on target land you control and it becomes a 0/0 Elemental creature with haste. It's still a land.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Mire's Malice",
+   "mana_cost": "{3}{B}",
+   "type_line": "Sorcery",
+   "oracle_text": "Target opponent discards two cards.\nAwaken 3—{5}{B} (If you cast this spell for {5}{B}, also put three +1/+1 counters on target land you control and it becomes a 0/0 Elemental creature with haste. It's still a land.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

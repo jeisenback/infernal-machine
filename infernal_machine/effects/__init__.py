@@ -54,6 +54,7 @@ from .outcomes import (  # noqa: F401
     Amount,
     Animate,
     Earthbend,
+    Awaken,
     Annihilate,
     AttachAura,
     AttackingTokens,
