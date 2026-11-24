@@ -506,18 +506,20 @@ class OthersBecomeAsBigAsSource:
 
 
 HERO = Card(name="Hero", type_line="Token Creature \u2014 Hero", power="1", toughness="1")  # Job select's 1/1 colorless Hero
+REBEL = Card(name="Rebel", type_line="Token Creature \u2014 Rebel", colors=("R",), power="2", toughness="2")  # For Mirrodin!'s 2/2 red Rebel
 
 
 @dataclass(frozen=True)
 class LivingWeapon:
     """Living weapon: "When this Equipment enters, create a 0/0 black Phyrexian Germ creature token, then attach this to it." Job select
-    (`hero`): the token is a 1/1 colorless Hero."""
+    (`hero`): the token is a 1/1 colorless Hero; For Mirrodin! (`rebel`, CR 702.163a): a 2/2 red Rebel."""
     hero: bool = False
+    rebel: bool = False
     binds = SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.living_weapon(target, HERO if self.hero else None)
+            game.living_weapon(target, HERO if self.hero else REBEL if self.rebel else None)
 
 
 @dataclass(frozen=True)
