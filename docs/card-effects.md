@@ -1748,6 +1748,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     (`AlternativeCost.awaken`) that adds an `Awaken` effect with its own target, a land you control: it gets N +1/+1 counters and becomes
     a 0/0 Elemental creature with haste that's still a land, for good (`Game.awaken`, `Permanent.awakened`). Twelve cards, among them
     Part the Waterveil, Ruinous Path and Coastal Discovery.
+  - Mayhem (`tests/test_mayhem.py`, #850): "Mayhem {cost}" is a `GraveyardCast` (`mayhem`) offered only for a card its owner
+    discarded this turn (`Seat.discarded_on`, written by `Game._discard_into_zone`); once the card leaves the graveyard the record is
+    dropped, so back there it is a new object (CR 400.7). Timing rules still apply. Ten cards, among them Electro's Bolt and
+    Ultimate Green Goblin.
   - Rebel searchers (`tests/test_rebel_search.py`, #844): "{3}, {T}: Search your library for a Rebel permanent card with mana value 2
     or less, put it onto the battlefield, then shuffle." (a `SearchLibrary` for "Rebel permanent|mv<=2"; Lin Sivvi's "mana value X or
     less" is the X paid). Eighteen cards: the Rebel searchers and the Mercenary ones (#845, Cateran Enforcer and the rest).

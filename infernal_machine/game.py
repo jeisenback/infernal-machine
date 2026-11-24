@@ -641,6 +641,7 @@ class Seat:
     sorcery_flash: bool = False  # it may cast sorceries as though they had flash until its next turn begins (Teferi, Time Raveler)
     life_locked: bool = False  # its life total can't change until its next turn begins (Teferi's Protection)
     no_life_gain: bool = False  # it can't gain life for the rest of the game (Screaming Nemesis)
+    discarded_on: dict[int, int] = field(default_factory=dict, repr=False)  # the turn each card (by id) was last discarded: Mayhem
     discards_turn: tuple[int, int] = (0, 0)  # (the turn, how many cards it cycled or discarded that turn): Hollow One
     extra_lands: int = 0  # additional lands this player may play on `extra_lands_turn` (Explore)
     extra_lands_turn: int | None = None
@@ -5087,6 +5088,7 @@ class Game:
         seat.graveyard_left_turn = self.turn
         self.happened("graveyard_leave", seat, spell=tuple(cards))
         for card in cards:
+            seat.discarded_on.pop(id(card), None)  # CR 400.7: back in the graveyard, it is a new object that wasn't discarded (Mayhem)
             if _is_instant_or_sorcery(card):  # Murktide Regent: one trigger for each such card
                 self.happened("instant_sorcery_left_graveyard", seat, spell=card)
 
@@ -7289,6 +7291,7 @@ class Game:
     def _discard_into_zone(self, seat: Seat, card: Card) -> None:
         """A card that was just discarded goes to the graveyard. With madness it goes to exile, and its owner may cast it for
         its madness cost; if it isn't cast it goes to the graveyard then. (The choice is made at once, not from a trigger.)"""
+        seat.discarded_on[id(card)] = self.turn  # Mayhem: "if you discarded it this turn"
         cost = madness_cost(card)
         if cost is None:
             self._move_card(seat, card, "graveyard")
