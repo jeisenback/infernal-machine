@@ -15,7 +15,7 @@ from typing import Callable
 from .analysis import is_land
 from .cards import Card, has_keyword
 from .characteristics import source_qualities
-from .effects import (FREE_WAY, AlternativeCost, AttachAura, Cascade, CopySpellTimes, CopyTriggeringSpell, Demonstrate, Draw, GainLife, GraveyardCast, Modal, MorphCost,
+from .effects import (FREE_WAY, AlternativeCost, AttachAura, Awaken, Cascade, CopySpellTimes, CopyTriggeringSpell, Demonstrate, Draw, GainLife, GraveyardCast, Modal, MorphCost,
                       Scry, TriggeredAbility, NOTHING_MORE, additional_costs, additional_paid_effects, affinity_for, alternative_costs, buyback_cost, buyback_other_cost, splice_cost,
                       chosen_cost_reductions, conditional_cost_reduction, tapped_target_reduction, cost_increases, cost_reductions, eminence_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
@@ -81,6 +81,8 @@ class Caster:
             effects = [AttachAura("creature")]
         if alternative and alternative.overload:  # every "target" is "each": no targets
             effects = overloaded_effects(card) or effects
+        if alternative and alternative.awaken:  # CR 702.113a: it also targets a land you control
+            effects = list(effects or []) + [Awaken(alternative.awaken)]
         kicked, kickers = (0, ()) if graveyard else self._choose_kicks(seat, card, effects, from_command_zone, alternative)
         gift = None if graveyard or prepared is not None or copy else self._choose_gift(seat, card, effects)
         kicked = kicked or int(gift is not None)  # a promised gift is a kick that costs nothing

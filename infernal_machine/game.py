@@ -406,6 +406,7 @@ class Permanent:
     animated_until: int | None = None  # Karn, the Great Creator: animated "until your next turn", the index of the seat whose turn ends it
     skips_next_untap: bool = False  # "It doesn't untap during its controller's next untap step." (Sleep of the Dead)
     harnessed: bool = False  # an Infinity Stone that was harnessed: its \u221e ability works
+    awakened: bool = False  # a land awakened into a 0/0 Elemental creature with haste for good (CR 702.113a): `original` is the land
     earthbent: bool = False  # a land earthbent into a creature for good: `original` is the land, and it returns tapped when it dies or is exiled
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
     chosen_color: str | None = None  # "As this enters, choose a color." (a color letter)
@@ -1102,7 +1103,7 @@ class Game:
                     permanent.deathtouched = False
                     permanent.until_end_of_turn = []  # CR 514.2
                     permanent.regeneration = 0
-                    if permanent.original is not None and not permanent.earthbent and permanent.animated_until is None:  # a Vehicle's crew lasts until end of turn
+                    if permanent.original is not None and not permanent.earthbent and not permanent.awakened and permanent.animated_until is None:  # a Vehicle's crew lasts until end of turn
                         permanent.card, permanent.original = permanent.original, None
             for permanent in [p for s in self.live_seats() for p in s.battlefield]:  # control "until end of turn" ends
                 if permanent.control_eot:
@@ -1569,6 +1570,15 @@ class Game:
             power, toughness, subtype, keyword = animation
             base = (permanent.original or permanent.card).type_line.partition("\u2014")[2].split()
             self.animate(permanent, power, toughness, (), " ".join(base + [subtype]), False, frozenset({keyword}))
+
+    def awaken(self, land: Permanent, count: int) -> None:
+        """Awaken N (CR 702.113a): "put N +1/+1 counters on target land you control and it becomes a 0/0 Elemental creature with haste.
+        It's still a land." For good; when it leaves the battlefield it is the land card again."""
+        base = land.original or land.card
+        self.animate(land, 0, 0, (), " ".join(base.type_line.partition("\u2014")[2].split() + ["Elemental"]), False, frozenset())
+        land.card = dataclasses.replace(land.card, oracle_text=f"{land.card.oracle_text}\nHaste".strip())
+        land.awakened = True
+        self.put_counters(land, PLUS, count)
 
     def earthbend(self, land: Permanent, count: int) -> None:
         """Earthbend N (its reminder text): the land becomes a 0/0 creature with haste that's still a land, for good (not until

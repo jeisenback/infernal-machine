@@ -105,6 +105,18 @@ class Earthbend:
 
 
 @dataclass(frozen=True)
+class Awaken:
+    """Awaken N, cast for its awaken cost (CR 702.113a): "also put N +1/+1 counters on target land you control and it becomes a 0/0
+    Elemental creature with haste. It's still a land." Added to the spell's effects by `Caster._cast`."""
+    count: int
+    target: str = "land you control"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.awaken(target, self.count)
+
+
+@dataclass(frozen=True)
 class StillALand:
     """ "It's still a land." Only ever the end of an Animate (see _merge_animate)."""
 

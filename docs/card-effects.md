@@ -1744,6 +1744,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     (`AlternativeCost.prototype`): the spell, and the permanent it becomes, has the prototype's mana cost, mana value, colors, power and
     toughness and keeps its abilities and types; the card itself (`StackItem.whole`, `Permanent.real_card`) is what goes to the graveyard
     or anywhere else. Twelve cards, among them Blitz Automaton and Combat Thresher.
+  - Awaken (`tests/test_awaken.py`, #849): "Awaken N—{cost}" (CR 702.113) is an alternative way to cast the spell
+    (`AlternativeCost.awaken`) that adds an `Awaken` effect with its own target, a land you control: it gets N +1/+1 counters and becomes
+    a 0/0 Elemental creature with haste that's still a land, for good (`Game.awaken`, `Permanent.awakened`). Twelve cards, among them
+    Part the Waterveil, Ruinous Path and Coastal Discovery.
   - Rebel searchers (`tests/test_rebel_search.py`, #844): "{3}, {T}: Search your library for a Rebel permanent card with mana value 2
     or less, put it onto the battlefield, then shuffle." (a `SearchLibrary` for "Rebel permanent|mv<=2"; Lin Sivvi's "mana value X or
     less" is the X paid). Eighteen cards: the Rebel searchers and the Mercenary ones (#845, Cateran Enforcer and the rest).
