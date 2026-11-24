@@ -449,6 +449,8 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
             abilities.append(TriggeredAbility("enters", (LivingWeapon(),), False, "Living weapon"))
         if "job select" in words:  # the same, with a 1/1 colorless Hero (Black Mage's Rod)
             abilities.append(TriggeredAbility("enters", (LivingWeapon(hero=True),), False, "Job select"))
+        if "for mirrodin!" in words:  # CR 702.163a: the same, with a 2/2 red Rebel (Kemba's Banner)
+            abilities.append(TriggeredAbility("enters", (LivingWeapon(rebel=True),), False, "For Mirrodin!"))
         for keyword, counter in (("persist", "-1/-1"), ("undying", "+1/+1")):
             if keyword in words:
                 abilities.append(TriggeredAbility("dies", (ReturnWithCounter(counter),), False, line,

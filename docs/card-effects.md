@@ -1885,7 +1885,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     creature deals combat damage to a player, you may draw a card."' (Sixth Sense), and 'Equipped creature gets +1/+0, has "Whenever you
     cast a noncreature spell, this creature deals 1 damage to each opponent," and is a Wizard in addition to its other types.' (Black Mage's
     Rod). The quoted ability is read as a creature's own (`granted_triggers`), and the creature it is attached to hears it like its own
-    (`Game._triggers_of`). Job select is living weapon with a 1/1 colorless Hero token.
+    (`Game._triggers_of`). Job select is living weapon with a 1/1 colorless Hero token, and For Mirrodin! (CR 702.163a,
+    `tests/test_for_mirrodin.py`, #851) with a 2/2 red Rebel: Kemba's Banner, Dragonwing Glider and five more.
   - The Pauper decks one card short (`tests/test_pauper_near_complete.py`, #645): "This spell costs {1} less to cast for each card you've
     drawn this turn." and "The owner of target nonland permanent puts it into their library second from the top or on the bottom." (Deem
     Inferior, `Game.put_second_or_bottom`); "It doesn't untap during its controller's next untap step." after a tap (Sleep of the Dead,
