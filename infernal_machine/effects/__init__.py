@@ -462,6 +462,7 @@ from .costs import (  # noqa: F401
     strive_cost,
     suspend_of,
     ninjutsu_of,
+    sneak_of,
     foretell_of,
     plot_of,
     disturb_of,

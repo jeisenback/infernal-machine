@@ -32,7 +32,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
 from .effects.common import colors_spent
 from .effects import (HEXPROOF_FROM_COLOR, instant_loyalty, vehicle_crew, exiled_abilities_kind, opposes_searches, CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, embalm_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, unleashes, riots, amplify_of, has_sunburst, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, begins_with_luck, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, sneak_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, embalm_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, unleashes, riots, amplify_of, has_sunburst, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, begins_with_luck, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -87,6 +87,8 @@ COMPANION_COST = "{3}"
 NINJUTSU = "Ninjutsu: "  # followed by the card's name: return an unblocked attacker, and it comes in attacking in its place
 GIFT_PROMPT = PromptKind("gift", "Promise a gift with ")  # followed by the card's name; options: no gift, or one opponent to give it to
 NINJUTSU_PROMPT = PromptKind("ninjutsu", "Return which unblocked attacker to hand for ninjutsu with ")  # followed by the card's name
+SNEAK = "Sneak: "  # followed by the card's name: cast it for its sneak cost, returning an unblocked attacker (CR 702.190a)
+SNEAK_PROMPT = PromptKind("sneak", "Return which unblocked attacker to hand to sneak ")  # followed by the card's name
 FOREVER = 10**9  # the last turn of a permission that does not run out (a card on an adventure)
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 IMPRINT_PROMPT = PromptKind("imprint", "Exile which card from your hand? ")
@@ -489,6 +491,7 @@ class StackItem:
     warped: bool = False  # cast for its warp cost: exiled at the next end step, castable from exile on a later turn
     phyrexian_life: int = 0  # Phyrexian mana symbols of its cost paid with life: a Compleated walker enters with two fewer loyalty each
     dashed: bool = False  # cast for its dash cost: haste, and back to its owner's hand at the next end step
+    sneaked: "tuple[Seat, Any] | None" = None  # cast for its sneak cost: whom the returned creature attacked (player, planeswalker or battle)
     blitzed: bool = False  # cast for its blitz cost (CR 702.152)
     evidence: bool = False  # evidence was collected as it was cast (Deadly Cover-Up)
     impending: int = 0  # cast for its impending cost: it enters with this many time counters, not a creature until the last goes
@@ -1227,6 +1230,7 @@ class Game:
                     and self._payment(seat, FACE_DOWN) is not None:
                 actions.append(CAST_FACE_DOWN + card.name)
         actions += [NINJUTSU + c.name for c in self._ninjutsu_cards(seat)]
+        actions += [SNEAK + c.name for c in self._sneak_cards(seat)]
         if seat.index == self.active:  # Foretell: pay {2} to exile it face down, any time you have priority on your turn
             actions += [FORETELL + c.name for c in _unique(seat.hand)
                         if foretell_of(c) and self._payment(seat, dataclasses.replace(c, mana_cost=FORETELL_COST)) is not None]
@@ -2043,6 +2047,8 @@ class Game:
             self._cast_foretold(seat, action.removeprefix(CAST_FORETOLD))
         elif action.startswith(NINJUTSU):
             self._ninjutsu(seat, action.removeprefix(NINJUTSU))
+        elif action.startswith(SNEAK):
+            self._sneak(seat, action.removeprefix(SNEAK))
         elif action.startswith(ACTIVATE_HAND):
             self._activate_from_hand(seat, _take(seat.hand, action.removeprefix(ACTIVATE_HAND)))
         elif action.startswith(ACTIVATE_GRAVEYARD):
@@ -2475,6 +2481,27 @@ class Game:
         return [c for c in _unique(seat.hand + commanders)
                 if (found := ninjutsu_of(c)) and self._payment(seat, dataclasses.replace(c, mana_cost=found[0])) is not None]
 
+    def _sneak_cards(self, seat: Seat) -> list[Card]:
+        """The cards in `seat`'s hand it may cast for their sneak cost now: any time it could cast an instant during its own declare
+        blockers step, with an unblocked attacker to return (CR 702.190a), the mana and a legal target."""
+        if self.step != "declare_blockers" or self.active != seat.index or not self._unblocked_attackers(seat):
+            return []
+        return [c for c in _unique(seat.hand) if (cost := sneak_of(c)) and not self._cast_barred(seat, c)
+                and self._payment(seat, dataclasses.replace(c, mana_cost=cost)) is not None
+                and self._effects_possible(seat, kicked_effects(_effects(c), 0) or [], source_qualities(c))]
+
+    def _sneak(self, seat: Seat, name: str) -> None:
+        """Sneak: return an unblocked attacker to its owner's hand and cast the card for its sneak cost; a permanent spell enters
+        tapped and attacking whom that creature attacked (CR 702.190b)."""
+        card = next(c for c in self._sneak_cards(seat) if c.name == name)
+        attacks = self._unblocked_attackers(seat)
+        attack = attacks[seat.player.choose(SNEAK_PROMPT(card.name), [self.label(a.attacker) for a in attacks]) if len(attacks) > 1 else 0]
+        self.return_to_hand(attack.attacker)
+        before = len(self.stack)
+        self._cast(seat, card, seat.hand, madness=AlternativeCost(f"Sneak {sneak_of(card)}", mana_cost=_checked(sneak_of(card))))
+        if len(self.stack) > before:
+            self.stack[-1].sneaked = (attack.defender, attack.walker)
+
     def _unblocked_attackers(self, seat: Seat) -> list[Attack]:
         return [a for a in self.combat.attacks if a.controller is seat and not a.blocked and not a.blockers and self.on_battlefield(a.attacker)]
 
@@ -2797,6 +2824,10 @@ class Game:
             if item.warped:  # exiled as the next end step begins, then it may be cast from exile on a later turn
                 fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
                 self.at_end_step.append((fire_turn, lambda: self._warp_exile(entering, seat)))
+            if item.sneaked is not None and self.on_battlefield(entering):  # CR 702.190b: tapped and attacking
+                entering.tapped = True
+                self.combat.attacks.append(Attack(entering, seat, item.sneaked[0], walker=item.sneaked[1]))
+                self.broadcast({"event": "attack", "seat": seat.index, "card": card.name, "defender": item.sneaked[0].index})
             if item.dashed:  # Ragavan: it has haste this turn and is back in its owner's hand at the end step
                 self.modify_until_end_of_turn(entering, Modifier(keywords=frozenset({"haste"})))
                 self.leave_at_next_end_step([entering], "returned", "hand")

@@ -6336,6 +6336,151 @@
    "colors": [
     "U"
    ]
+  },
+  {
+   "name": "Splinter's Technique",
+   "mana_cost": "{3}{B}",
+   "type_line": "Sorcery",
+   "oracle_text": "Sneak {1}{B} (You may cast this spell for {1}{B} if you also return an unblocked attacker you control to hand during the declare blockers step.)\nSearch your library for a card, put that card into your hand, then shuffle.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Donatello, Gadget Master",
+   "mana_cost": "{2}{U}",
+   "type_line": "Legendary Creature — Mutant Ninja Turtle",
+   "oracle_text": "Sneak {1}{U} (You may cast this spell for {1}{U} if you also return an unblocked attacker you control to hand during the declare blockers step. He enters tapped and attacking.)\nWhenever Donatello deals combat damage to a player, create a token that's a copy of target artifact you control.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "New Generation's Technique",
+   "mana_cost": "{3}{G}",
+   "type_line": "Sorcery",
+   "oracle_text": "Sneak {2}{G} (You may cast this spell for {2}{G} if you also return an unblocked attacker you control to hand during the declare blockers step.)\nSearch your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Raphael's Technique",
+   "mana_cost": "{4}{R}{R}",
+   "type_line": "Instant",
+   "oracle_text": "Sneak {2}{R} (You may cast this spell for {2}{R} if you also return an unblocked attacker you control to hand during the declare blockers step.)\nEach player may discard their hand and draw seven cards.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Oroku Saki, Shredder Rising",
+   "mana_cost": "{2}{B}",
+   "type_line": "Legendary Creature — Human Ninja",
+   "oracle_text": "Sneak {1}{B} (You may cast this spell for {1}{B} if you also return an unblocked attacker you control to hand during the declare blockers step. He enters tapped and attacking.)\nWhenever Oroku Saki deals combat damage to a player, you draw a card and lose 1 life.",
+   "power": "3",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Karai's Technique",
+   "mana_cost": "{1}{W}{B}",
+   "type_line": "Sorcery",
+   "oracle_text": "Sneak {W}{B} (You may cast this spell for {W}{B} if you also return an unblocked attacker you control to hand during the declare blockers step.)\nChoose one or both —\n• Target creature gets +3/+3 until end of turn.\n• Target creature gets -3/-3 until end of turn.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B",
+    "W"
+   ]
+  },
+  {
+   "name": "Foot Ninjas",
+   "mana_cost": "{4}{W/B}{W/B}",
+   "type_line": "Creature — Human Ninja",
+   "oracle_text": "Sneak {3}{W/B} (You may cast this spell for {3}{W/B} if you also return an unblocked attacker you control to hand during the declare blockers step. It enters tapped and attacking.)\nWhen this creature enters, you gain 3 life.",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "B",
+    "W"
+   ]
+  },
+  {
+   "name": "Donatello's Technique",
+   "mana_cost": "{2}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Sneak {U} (You may cast this spell for {U} if you also return an unblocked attacker you control to hand during the declare blockers step.)\nDraw two cards.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Elektra, Daughter of the Hand",
+   "mana_cost": "{2}{B}{B}",
+   "type_line": "Legendary Creature — Human Ninja Villain",
+   "oracle_text": "Sneak {1}{B}{B} (You may cast this spell for {1}{B}{B} if you also return an unblocked attacker you control to hand during the declare blockers step. She enters tapped and attacking.)\nWhen Elektra enters, destroy target creature an opponent controls with power 3 or less.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Jennika's Technique",
+   "mana_cost": "{2}{R}",
+   "type_line": "Instant",
+   "oracle_text": "Sneak {R} (You may cast this spell for {R} if you also return an unblocked attacker you control to hand during the declare blockers step.)\nJennika's Technique deals 2 damage to each creature.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Leonardo, Cutting Edge",
+   "mana_cost": "{1}{W}",
+   "type_line": "Legendary Creature — Mutant Ninja Turtle",
+   "oracle_text": "Sneak {W} (You may cast this spell for {W} if you also return an unblocked attacker you control to hand during the declare blockers step. He enters tapped and attacking.)\nLifelink\nWhenever you gain life, put a +1/+1 counter on Leonardo.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Raphael, the Nightwatcher",
+   "mana_cost": "{2}{R}{R}",
+   "type_line": "Legendary Creature — Mutant Ninja Turtle",
+   "oracle_text": "Sneak {1}{R}{R} (You may cast this spell for {1}{R}{R} if you also return an unblocked attacker you control to hand during the declare blockers step. He enters tapped and attacking.)\nAttacking creatures you control have double strike.",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Splinter, Hamato Yoshi",
+   "mana_cost": "{1}{B}",
+   "type_line": "Legendary Creature — Mutant Ninja Rat",
+   "oracle_text": "Sneak {B} (You may cast this spell for {B} if you also return an unblocked attacker you control to hand during the declare blockers step. He enters tapped and attacking.)\nMenace (This creature can't be blocked except by two or more creatures.)\nOther Ninjas you control get +1/+1.",
+   "power": "1",
+   "toughness": "3",
+   "colors": [
+    "B"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
