@@ -96,6 +96,7 @@ class AlternativeCost:
     spectacle: bool = False  # Spectacle {cost} (CR 702.137): only once an opponent lost life this turn
     impending: int = 0  # Impending N: it enters with N time counters and isn't a creature until the last is removed
     once_a_turn: bool = False  # One with the Multiverse: free, once during each of its caster's turns
+    sneak: bool = False  # Sneak (CR 702.190a): an unblocked attacker you control is returned to its owner's hand as it is paid
     awaken: int = 0  # Awaken N—{cost} (CR 702.113): cast for that cost, it also awakens a land you control with N +1/+1 counters
     prototype: tuple[str, str] | None = None  # Prototype {cost} — P/T (CR 702.160, 718): cast with that cost, those colors, and that power and toughness
 
@@ -240,6 +241,16 @@ def plot_of(card: Card) -> str | None:
 
 
 _NINJUTSU = re.compile(r"(Commander ninjutsu|Ninjutsu) ((?:\{[^}]+\})+)")
+_SNEAK = re.compile(r"Sneak ((?:\{[^}]+\})+)")  # CR 702.190
+
+
+@lru_cache(maxsize=None)
+def sneak_of(card: Card) -> str | None:
+    """The cost of the card's Sneak: cast for it during its controller's declare blockers step, returning an unblocked creature."""
+    for line in rules_lines(card):
+        if m := _SNEAK.fullmatch(line):
+            return m[1]
+    return None
 
 
 @lru_cache(maxsize=None)
@@ -889,7 +900,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _CASUALTY, _CONSPIRE, _SACRIFICE_DISCOUNT, _SQUAD, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _FREE_IF_LANDS, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _MAYHEM, _COLLECT_EVIDENCE, _TEAMWORK, _ASSIST, _RETRACE, _ENCORE, _ETERNALIZE, _EMBALM, _UNEARTH, _MADNESS, _MIRACLE, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
+    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SNEAK, _SACRIFICE_FOR_COPIES, _CASUALTY, _CONSPIRE, _SACRIFICE_DISCOUNT, _SQUAD, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _FREE_IF_LANDS, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _MAYHEM, _COLLECT_EVIDENCE, _TEAMWORK, _ASSIST, _RETRACE, _ENCORE, _ETERNALIZE, _EMBALM, _UNEARTH, _MADNESS, _MIRACLE, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _IMPENDING, _DASH, _PROTOTYPE, _SPECTACLE, _BLITZ, _WARP, _OVERLOAD, _AWAKEN, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_DISCARD, _SPLICE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION, _TAPPED_TARGET_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)

@@ -853,6 +853,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     player or planeswalker (`Game.ninjutsu_enter`) without being declared as an attacker. Not understood: Silver-Fur Master's discount
     and the many ninjas' own combat-damage triggers that no template reads yet ("that player discards", "target creature that player
     controls", "a Ninja you control deals combat damage").
+  - Sneak (`tests/test_sneak.py`, #853): `Sneak {cost}` (CR 702.190) is the action `Sneak: <card>`, offered from the hand any time its
+    controller could cast an instant during their own declare blockers step, with an unblocked attacker to return, the mana and a legal
+    target (`Game._sneak_cards`). It casts the card for its sneak cost (`AlternativeCost.sneak`, forced as madness forces one); the
+    attacker goes back to its owner's hand as the cost is paid, after targets are chosen (`Caster._pay_extras`, CR 601.2h), and a
+    permanent spell enters tapped and attacking whom that creature attacked (`StackItem.sneaked`). Sorceries too: Splinter's
+    Technique, Oroku Saki and eleven more.
   - Ninja combat-damage triggers (`tests/test_ninja_triggers.py`): a self trigger of "deals combat damage to a player" may speak of
     "that player" (`Event.maybe_player`: "that player discards two cards", "look at that player's hand"), and a target may be
     "creature that player controls" (`Game.targeting_player` while the trigger's targets are chosen, the resolving item's `player`

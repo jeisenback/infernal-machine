@@ -52,6 +52,7 @@ class Caster:
 
     def __init__(self, game: g.Game):
         self.game = game
+        self.sneaked: tuple | None = None  # whom the creature returned for a sneak cost attacked, for the spell being cast
 
     def _cast(self, seat: g.Seat, card: Card, zone: list[Card], from_command_zone: bool = False,
               graveyard: GraveyardCast | None = None, prepared: g.Permanent | None = None, free: bool = False,
@@ -199,6 +200,7 @@ class Caster:
             self.game._left_graveyard(seat, [whole or card])
         if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
             prepared.prepared = False
+        self.sneaked = None
         discarded = self._pay_extras(seat, card, alternative, graveyard, x, kicked, bought_back, picked)
         kind = sacrifice_discount(card)
         for _ in range(sacrificing):  # Rottenmouth Viper: the permanents chosen to make it cheaper
@@ -219,7 +221,7 @@ class Caster:
                          dashed=bool(alternative and alternative.dash), blitzed=bool(alternative and alternative.blitz), warped=bool(alternative and alternative.warp),
                          impending=alternative.impending if alternative else 0, whole=whole, face_down=face_down,
                          from_hand=zone is seat.hand, owner=self._cast_owner(seat, card, zone), phyrexian_life=tapped.phyrexian_life,
-                         evidence=evidence, teamwork=teamwork, prototyped=bool(alternative and alternative.prototype))
+                         evidence=evidence, teamwork=teamwork, prototyped=bool(alternative and alternative.prototype), sneaked=self.sneaked)
         self.game.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
@@ -689,6 +691,11 @@ class Caster:
                 self.game._leave_together([(choice, "sacrificed")])
             else:
                 self.game.return_to_hand(options[seat.player.choose(g.RETURN_COST_PROMPT(card.name), [self.game.label(p) for p in options])])
+        if alternative and alternative.sneak:  # CR 702.190a, 601.2h: returned as the cost is paid, after the targets were chosen
+            attacks = self.game._unblocked_attackers(seat)
+            attack = attacks[seat.player.choose(g.SNEAK_PROMPT(card.name), [self.game.label(a.attacker) for a in attacks]) if len(attacks) > 1 else 0]
+            self.game.return_to_hand(attack.attacker)
+            self.sneaked = (attack.defender, attack.walker)
         if alternative and alternative.no_lands_in_hand:  # Land Grant: the hand is revealed
             self.game.broadcast({"event": "revealed_hand", "seat": seat.index, "cards": [c.name for c in seat.hand]})
         if alternative and alternative.exile_color:
