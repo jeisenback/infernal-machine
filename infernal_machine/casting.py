@@ -313,6 +313,8 @@ class Caster:
             others = len(seat.graveyard) - (card in seat.graveyard)
             if graveyard.discard_land and not any(is_land(c) for c in seat.hand) or graveyard.discard and not seat.hand:
                 return []
+            if graveyard.mayhem and seat.discarded_on.get(id(card)) != self.game.turn:
+                return []  # Mayhem: "if you discarded it this turn"
             if graveyard.requires and not any(parse_filter(graveyard.requires).matches(p.card) for p in seat.battlefield):
                 return []  # Gravecrawler: only while its caster controls a Zombie
             if graveyard.sacrifices and sum(g._permanent_matches(graveyard.sacrifice, p.card) for p in seat.battlefield) < graveyard.sacrifices:
