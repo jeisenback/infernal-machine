@@ -91,6 +91,9 @@ from .families.combat_and_pump import (  # noqa: F401
     PumpOtherAttackers,
     PumpSource,
     PumpThatIfType,
+    PumpThatIfTreasure,
+    MayDestroyEquipmentOnThat,
+    AttachEquipmentToThatUntilEnd,
     SacrificeThatAtEndIfKicked,
     PumpSourceX,
     PumpX,
@@ -1970,6 +1973,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"CARDNAME deals (\d+) damage to any other target\.", re.I), lambda m: Damage(int(m[1]), "any", not_chosen=True)),  # Bond of Passion
     (re.compile(r"If that creature is an? ((?-i:[A-Z][a-z]+)), it also gets \+(\d+)/\+(\d+) until end of turn\.", re.I),
      lambda m: PumpThatIfType(int(m[2]), int(m[3]), m[1])),  # Goatnap
+    (re.compile(r"If mana from a Treasure was spent to cast this spell, that creature gets \+(\d+)/\+(\d+) until end of turn\.", re.I),
+     lambda m: PumpThatIfTreasure(int(m[1]), int(m[2]))),  # Price of Loyalty
+    (re.compile(r"If it's equipped, you may destroy all Equipment attached to that creature\.", re.I),
+     lambda m: MayDestroyEquipmentOnThat()),  # Awaken the Sleeper
+    (re.compile(r"You may attach an Equipment you control to that creature\. If you do, unattach it at the beginning of the next end step\.", re.I),
+     lambda m: AttachEquipmentToThatUntilEnd()),  # Unexpected Request
     (re.compile(r"If this spell was kicked, sacrifice that creature at the beginning of the next end step\.", re.I),
      lambda m: SacrificeThatAtEndIfKicked()),  # In Thrall to the Pit
     (re.compile(r"if a player is dealt damage this way, they can't gain life for the rest of the game\.", re.I),

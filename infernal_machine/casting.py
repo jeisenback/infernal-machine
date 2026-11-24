@@ -221,7 +221,8 @@ class Caster:
                          dashed=bool(alternative and alternative.dash), blitzed=bool(alternative and alternative.blitz), warped=bool(alternative and alternative.warp),
                          impending=alternative.impending if alternative else 0, whole=whole, face_down=face_down,
                          from_hand=zone is seat.hand, owner=self._cast_owner(seat, card, zone), phyrexian_life=tapped.phyrexian_life,
-                         evidence=evidence, teamwork=teamwork, prototyped=bool(alternative and alternative.prototype), sneaked=self.sneaked)
+                         evidence=evidence, teamwork=teamwork, prototyped=bool(alternative and alternative.prototype), sneaked=self.sneaked,
+                         treasure_mana=any("Treasure" in p.card.type_line for p in tapped))
         self.game.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
