@@ -2123,7 +2123,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   an "it" with no target before it is the source), "When this Aura enters, suspect enchanted creature." and "Suspect up to one target
   creature." (Reasonable Doubt). Asking whether it is suspected: Repeat Offender's "If this creature is suspected, put a +1/+1 counter
   on it. Otherwise, suspect it.", Agrus Kos's "choose up to one target creature. If it's suspected, exile it. Otherwise, suspect it.",
-  Rubblebelt Braggart's "Whenever this creature attacks, if it's not suspected, you may suspect it." and Eliminate the Impossible's "If
+  Rubblebelt Braggart's "Whenever this creature attacks, if it's not suspected, you may suspect it." (an intervening "if", CR 603.4) and Eliminate the Impossible's "If
   any of them are suspected, they're no longer suspected." (its opponents' creatures). Not yet: Deadly Complication's "target suspected
   creature", Agency Coroner's "if the sacrificed creature was suspected" and Presumed Dead's granted "... and suspect it.".
 - **Vehicles:** "Crew N" is an ability at instant speed: tap untapped creatures you control, one at a time, until their

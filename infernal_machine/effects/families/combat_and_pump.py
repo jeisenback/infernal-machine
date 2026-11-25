@@ -283,11 +283,12 @@ class ExileIfSuspectedElseSuspect:
 
 @dataclass(frozen=True)
 class MaySuspectSelf:
-    """Rubblebelt Braggart: "Whenever this creature attacks, if it's not suspected, you may suspect it." """
+    """Rubblebelt Braggart: "Whenever this creature attacks, if it's not suspected, you may suspect it." (its trigger's condition is the
+    "if", checked as it triggers and as it resolves)"""
     binds = SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and game.on_battlefield(target) and not target.suspected:
+        if target is not None and game.on_battlefield(target):
             game.may_suspect(controller, target)
 
 

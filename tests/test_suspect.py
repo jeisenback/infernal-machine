@@ -26,8 +26,8 @@ MUTATIONS = [
      "Agrus Kos exiles a suspected creature"),
     ("infernal_machine/effects/families/combat_and_pump.py", "        for seat in game.opponents(controller):\n            for permanent in seat.battlefield:\n                permanent.suspected = False",
      "        for seat in game.seats:\n            for permanent in seat.battlefield:\n                permanent.suspected = False", "only the opponents' creatures"),
-    ("infernal_machine/effects/families/combat_and_pump.py", "if target is not None and game.on_battlefield(target) and not target.suspected:\n            game.may_suspect(",
-     "if target is not None and game.on_battlefield(target):\n            game.may_suspect(", "not asked once it is suspected"),
+    ("infernal_machine/effects/triggers.py", 'return [MaySuspectSelf()], False, False, Condition("source_not_suspected")',
+     "return [MaySuspectSelf()], False, False, None", "it doesn't trigger once it is suspected"),
     ("infernal_machine/game.py", 'or (permanent.suspected and keyword in ("menace", CANT_BLOCK))', 'or (permanent.suspected and keyword in ("menace",))',
      "it can't block"),
     ("infernal_machine/game.py", 'or (permanent.suspected and keyword in ("menace", CANT_BLOCK))', 'or (permanent.suspected and keyword in (CANT_BLOCK,))',
@@ -155,9 +155,21 @@ class SuspectTests(unittest.TestCase):
         game, players = table3(attack_all)
         a = game.seats[0]
         braggart = Permanent(REAL["Rubblebelt Braggart"], sick=False)
-        braggart.suspected = True  # (already suspected: not asked)
+        braggart.suspected = True  # (already suspected: it doesn't trigger, CR 603.4, so nothing is asked)
         a.battlefield = [braggart]
         game.combat.declare_attackers(a)
+        self.assertEqual([t for t in game.pending if t.permanent is braggart], [])
+        run_stack(game)
+        self.assertEqual([p for p, _ in players[0].prompts if SUSPECT_PROMPT.matches(p)], [])
+
+
+    def test_suspected_before_its_trigger_resolves_it_isnt_asked(self):
+        game, players = table3(attack_all)
+        a = game.seats[0]
+        braggart = Permanent(REAL["Rubblebelt Braggart"], sick=False)
+        a.battlefield = [braggart]
+        game.combat.declare_attackers(a)
+        braggart.suspected = True  # (between the trigger and its resolution: the "if" is checked again, CR 603.4)
         run_stack(game)
         self.assertEqual([p for p, _ in players[0].prompts if SUSPECT_PROMPT.matches(p)], [])
 
