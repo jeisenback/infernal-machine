@@ -633,7 +633,7 @@ _STILL_A_LAND = re.compile(r"It's still an? (?:land|artifact)\.|as though it did
 
 
 _NTH_TIME_IT = re.compile(r"\bIf it's the (?:second|third) time\b|resolved this turn, double the number of \+1/\+1 counters on it instead"
-                          r"|\bIf it is an? (?:Plains|Island|Swamp|Mountain|Forest), you may return that nonland permanent card", re.I)
+                          r"|\bIf it is an? (?:Plains|Island|Swamp|Mountain|Forest),", re.I)  # Emeria Shepherd, Koth: "If that land is a Mountain,"
 
 
 def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | None, bool, bool, Condition | None]:
@@ -693,7 +693,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     without_token_ability = _SELF_THEN_IT.sub(r"\1 This", without_token_ability)
     without_token_ability = _STILL_A_LAND.sub("", without_token_ability)  # "It's still a land." closes an Animate; it is not about the subject
     without_token_ability = _NTH_TIME_IT.sub("", without_token_ability)  # Omnath, Scythecat Cub: "it" is the time, or the creature targeted;
-    # Emeria Shepherd: the land is only looked at, by the condition (subject_land_type)
+    # Emeria Shepherd, Koth: the land is only looked at, by the condition (subject_land_type)
     about_subject = re.search(r"\bit\b|\bthat spell\b", _CAST_IT.sub("", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", without_token_ability)))))), re.I) is not None
     copies_spell = re.match(r"(?:you may )?(?:you may pay (?:\{[^}]+\})+\. If you do, )?copy (it|that spell)(?: for each [^.]*|, except the copy isn't legendary)?\.", rest,
                             re.I) is not None  # Codie: "it" is the spell cast (Mirari: after a payment; Thousand-Year Storm: so many times)

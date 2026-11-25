@@ -6671,6 +6671,86 @@
    "colors": [
     "B"
    ]
+  },
+  {
+   "name": "Oran-Rief Hydra",
+   "mana_cost": "{4}{G}{G}",
+   "type_line": "Creature — Hydra",
+   "oracle_text": "Trample\nLandfall — Whenever a land you control enters, put a +1/+1 counter on this creature. If that land is a Forest, put two +1/+1 counters on this creature instead.",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Akoum Hellkite",
+   "mana_cost": "{4}{R}{R}",
+   "type_line": "Creature — Dragon",
+   "oracle_text": "Flying\nLandfall — Whenever a land you control enters, this creature deals 1 damage to any target. If that land is a Mountain, this creature deals 2 damage instead.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Koth, the Geomancer",
+   "mana_cost": "{2}{R}",
+   "type_line": "Legendary Creature — Human Warrior",
+   "oracle_text": "Reach\nLandfall — Whenever a land you control enters, Koth deals 1 damage to each opponent. If that land is a Mountain, add {R}.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ],
+   "produced_mana": [
+    "R"
+   ]
+  },
+  {
+   "name": "Guul Draz Overseer",
+   "mana_cost": "{4}{B}{B}",
+   "type_line": "Creature — Vampire",
+   "oracle_text": "Flying\nLandfall — Whenever a land you control enters, other creatures you control get +1/+0 until end of turn. If that land is a Swamp, those creatures get +2/+0 until end of turn instead.",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Pride of Conquerors",
+   "mana_cost": "{1}{W}",
+   "type_line": "Instant",
+   "oracle_text": "Ascend (If you control ten or more permanents, you get the city's blessing for the rest of the game.)\nCreatures you control get +1/+1 until end of turn. If you have the city's blessing, those creatures get +2/+2 until end of turn instead.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Fiery Impulse",
+   "mana_cost": "{R}",
+   "type_line": "Instant",
+   "oracle_text": "Fiery Impulse deals 2 damage to target creature.\nSpell mastery — If there are two or more instant and/or sorcery cards in your graveyard, Fiery Impulse deals 3 damage instead.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Secrets of the Golden City",
+   "mana_cost": "{1}{U}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Ascend (If you control ten or more permanents, you get the city's blessing for the rest of the game.)\nDraw two cards. If you have the city's blessing, draw three cards instead.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

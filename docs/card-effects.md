@@ -1590,6 +1590,14 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     second, 4 damage to each opponent and each planeswalker they control the third: `DamageEach.walkers`), and Emeria Shepherd ("If that
     land is a Plains, you may return that nonland permanent card to the battlefield instead.": the condition `subject_land_type`, read
     on the land that entered; the card always goes to the battlefield then, the "may" is not asked).
+  - Landfall by land type (`tests/test_landfall_land_type.py`): `subject_land_type` is checked as the ability resolves, on the land
+    that entered, so any effect's condition may name it. Oran-Rief Hydra ("If that land is a Forest, put two +1/+1 counters on this
+    creature instead.": `PutCountersOnSource.instead`), Akoum Hellkite ("..., this creature deals 2 damage instead.": `Damage.instead`),
+    Guul Draz Overseer ("..., those creatures get +2/+0 until end of turn instead.": an `IfElse` of the two `PumpEach`) and Koth, the
+    Geomancer ("If that land is a Mountain, add {R}."). "That land" in the condition is not what the ability acts on.
+  - Ascend on an instant or sorcery (`tests/test_ascend_spells.py`, CR 702.131b): its controller gets the city's blessing as it resolves
+    if they control ten or more permanents (Pride of Conquerors, Secrets of the Golden City); the Ascend line is not a step of the spell.
+    Fiery Impulse's "Spell mastery — ... deals 3 damage instead." is read by Akoum Hellkite's sentence.
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with
