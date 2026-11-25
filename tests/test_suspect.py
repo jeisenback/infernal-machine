@@ -23,6 +23,8 @@ MUTATIONS = [
      "it has menace"),
     ("infernal_machine/effects/outcomes.py", "        effects[0] = replace(effects[0], binds=SOURCE)  # \"When this creature enters, suspect it.\"",
      "        pass  # \"When this creature enters, suspect it.\"", "an enters trigger's \"it\" is the creature itself"),
+    ("infernal_machine/game.py", "for p in reversed(s.battlefield) if p.card is creature.card", "for p in s.battlefield if p.card is creature.card",
+     "the copy that was returned"),
     ("infernal_machine/game.py", "        if isinstance(creature, GraveyardTarget):\n            found = next(", "        if False:\n            found = next(",
      "a returned card is the permanent it became"),
 ]
@@ -74,6 +76,16 @@ class SuspectTests(unittest.TestCase):
         game, a, _ = cast("It Doesn't Add Up", 5, graveyard=[OGRE])
         (ogre,) = [p for p in a.battlefield if p.card is OGRE]
         self.assertEqual(suspected(game, ogre), (True, True, True))
+
+    def test_the_returned_copy_is_suspected_not_another_copy(self):
+        game, players = table3()
+        a = game.seats[0]
+        older = Permanent(OGRE, sick=False)  # (another copy of the same card already on the battlefield)
+        a.battlefield, a.hand, a.graveyard = lands(5) + [older], [REAL["It Doesn't Add Up"]], [OGRE]
+        game._perform(a, CAST + "It Doesn't Add Up")
+        run_stack(game)
+        (returned,) = [p for p in a.battlefield if p.card is OGRE and p is not older]
+        self.assertEqual((returned.suspected, older.suspected), (True, False))
 
     def test_not_a_creature_never_suspected_nor_one_that_came_back(self):
         game, a, _ = cast("Barbed Servitor", 4)

@@ -3026,7 +3026,7 @@ class Game:
         """CR 701.60a, d: the creature becomes suspected (it can't become suspected again); a new object, when it comes back, isn't. A card
         (It Doesn't Add Up: "Return target creature card from your graveyard to the battlefield. Suspect it.") is the permanent it became."""
         if isinstance(creature, GraveyardTarget):
-            found = next((p for s in self.seats for p in s.battlefield if p.card is creature.card), None)
+            found = next((p for s in self.seats for p in reversed(s.battlefield) if p.card is creature.card), None)  # (the newest: copies share a card)
             if found is None:
                 return
             creature = found
