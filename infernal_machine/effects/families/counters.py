@@ -12,6 +12,7 @@ from ...prompts import PromptKind
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
+    from .base import Condition
 
 
 @dataclass(frozen=True)
@@ -324,14 +325,26 @@ class DrawOrCountersByPower:
 
 @dataclass(frozen=True)
 class PutCountersOnSource:
-    """ "Whenever this creature attacks, put a +1/+1 counter on it." """
+    """ "Whenever this creature attacks, put a +1/+1 counter on it." `instead` counters if `instead_if` holds as it resolves (Oran-Rief
+    Hydra: "If that land is a Forest, put two +1/+1 counters on this creature instead.")."""
     count: Quantity
     counter: str
+    instead: Quantity = 0
+    instead_if: Condition | None = None
     binds = SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.put_counters(target, self.counter, game.amount(self.count))
+            more = self.instead_if is not None and game.condition_holds(self.instead_if, controller, game.resolving_source)
+            game.put_counters(target, self.counter, game.amount(self.instead if more else self.count))
+
+
+@dataclass(frozen=True)
+class _InsteadCountersOnSource:
+    """ "If that land is a Forest, put two +1/+1 counters on this creature instead." after a PutCountersOnSource."""
+    count: int
+    counter: str
+    condition: Condition
 
 
 @dataclass(frozen=True)

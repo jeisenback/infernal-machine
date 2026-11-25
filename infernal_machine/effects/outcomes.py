@@ -246,6 +246,7 @@ from .families.counters import (  # noqa: F401
     PutCountersOnEachUpToX,
     PutCountersOnEntered,
     PutCountersOnSource,
+    _InsteadCountersOnSource,
     PutStunCounters,
     PutStunOnEach,
     PutStunOnSource,
@@ -2247,6 +2248,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _CounterInsteadIf(c) if (c := _condition(m[1])) else None),
     (re.compile(rf"(?:[A-Z][a-z]+ \u2014 )?that creature gets {_PT} until end of turn instead if (.+)\.", re.I),  # Tragic Slip (Morbid)
      lambda m: _InsteadPump(Modifier(_signed(m[1]), _signed(m[2])), c) if (c := _condition(m[3])) else None),
+    (re.compile(rf"if (.+?), those creatures get {_PT} until end of turn instead\.", re.I),  # Guul Draz Overseer: after a PumpEach
+     lambda m: _InsteadPump(Modifier(_signed(m[2]), _signed(m[3])), c) if (c := _condition(m[1])) else None),
+    (re.compile(r"if (.+?), (?:CARDNAME|this creature) deals (\d+) damage instead\.", re.I),  # Akoum Hellkite
+     lambda m: _InsteadDamage(int(m[2]), c) if (c := _condition(m[1])) else None),
+    (re.compile(rf"if (.+?), put {_N_FIXED} \+1/\+1 counters on (?:CARDNAME|this creature) instead\.", re.I),  # Oran-Rief Hydra
+     lambda m: _InsteadCountersOnSource(_number(m[2]), "+1/+1", c) if (c := _condition(m[1])) else None),
     (re.compile(r"you may cast spells this turn as though they had flash\.", re.I), lambda m: GrantFlash()),
     (re.compile(r"until your next turn, you may cast sorcery spells as though they had flash\.", re.I), lambda m: GrantSorceryFlash()),
     (re.compile(rf"if (.+), draw {_N_FIXED} cards instead\.", re.I),
@@ -4238,6 +4245,9 @@ _CONDITIONAL = Follows(
            fits=lambda previous, marker: previous.to == "hand" and previous.battlefield_if is None),
     Follow(_InsteadPump, Pump, set_fields(instead=lambda m: m.modifier, instead_if=lambda m: m.condition),
            fits=lambda previous, marker: previous.instead is None),
+    Follow(_InsteadPump, PumpEach, lambda previous, marker: IfElse(marker.condition, (replace(previous, modifier=marker.modifier),), (previous,))),
+    Follow(_InsteadCountersOnSource, PutCountersOnSource, set_fields(instead=lambda m: m.count, instead_if=lambda m: m.condition),
+           fits=lambda previous, marker: previous.instead_if is None and previous.counter == marker.counter),
     Follow(_InsteadUntapAll, UntapACreature, set_fields(all_if=lambda m: m.condition)),
     Follow(_ArtifactCreatureGetsCounter, Untap, set_fields(counter_if_artifact_creature=lambda m: True)),  # Tezzeret, Cruel Captain
     Follow(_GainsIfXAtLeast, PutCounters, set_fields(grant=lambda m: m.keywords, grant_at_least=lambda m: m.least)),  # Obsessive Pursuit

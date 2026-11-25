@@ -3280,6 +3280,10 @@ class Game:
             self.broadcast({"event": "fizzle", **about})
             return False
         self.broadcast({"event": "resolve", **about})
+        if (item.ability is None and not seat.citys_blessing and len(seat.battlefield) >= 10 and has_keyword(item.card, "ascend")
+                and ("Instant" in item.card.type_line or "Sorcery" in item.card.type_line)):  # CR 702.131b: as the spell resolves
+            seat.citys_blessing = True
+            self.broadcast({"event": "citys_blessing", "seat": seat.index})
         checks = iter(zip(item.targets, legal))
         previous = None  # the last targeting effect's target, for "Its controller ..." follow-ups
         for effect in effects:
@@ -3501,6 +3505,7 @@ class Game:
         if kind == "all_hands_empty":  # Howltooth Hollow
             return not any(s.hand for s in self.live_seats())
         if kind == "subject_land_type":  # Emeria Shepherd: "If that land is a Plains" (the land that entered)
+            subject = subject or (self.resolving_item.subject if self.resolving_item is not None else None)  # (Koth: checked as it resolves)
             return subject is not None and condition.what in subject.card.type_line.partition("\u2014")[2].split()
         if kind == "different_powers":  # Coven: creatures you control with at least that many different powers
             return len({self.power(p) for p in seat.battlefield if "Creature" in p.card.type_line}) >= condition.count

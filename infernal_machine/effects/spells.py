@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import re
 
 from ..cards import Card
 
@@ -13,13 +14,17 @@ from .costs import is_casting_cost_line, is_cycling_line
 from .statics import is_replacement_line
 
 
+_ASCEND = re.compile(r"Ascend(?: \(.*\))?")
+
+
 def spell_effects(card: Card) -> list | None:
     """Effects of an instant or sorcery, in order; None if any sentence isn't understood. A modal spell
     ("Choose one — ...") gives a single Modal effect."""
     lines = [line for line in rules_lines(card) if not is_casting_cost_line(line) and not is_hand_ability_line(line)
              and not is_cycling_line(line)  # Cycling {3}: an ability of the card in hand, not a step of the spell (Intimidation Tactics)
              and not is_replacement_line(line)  # Nexus of Fate: its own replacement effect is not a step of the spell
-             and not FROM_LIBRARY.fullmatch(line)]  # Creeping Chill: an ability that works from the graveyard
+             and not FROM_LIBRARY.fullmatch(line)  # Creeping Chill: an ability that works from the graveyard
+             and not _ASCEND.fullmatch(line)]  # Ascend: the city's blessing as the spell resolves (Game._apply_effects_now), not a step
     if lines and (m := _MODAL_HEADER.fullmatch(lines[0])):
         return _parse_modal(m[1].lower(), lines[1:])
     if lines and (m := _MODAL_PAWPRINTS.fullmatch(lines[0])):
