@@ -280,6 +280,9 @@ LIFE_X_PROMPT = PromptKind("life_x", "Pay how much life (X) for ")  # followed b
 REMOVE_AMONG_PROMPT = PromptKind("remove_among", "Remove a counter from ")  # followed by the ability's source; Tekuthal's cost
 REMOVE_COUNTER_PROMPT = PromptKind("remove_counter", "Remove a counter to draw a card? ")  # followed by the permanent's name
 ATTACH_PROMPT = PromptKind("attach", "Attach it to the new token? ")  # followed by the Aura's name
+DESTROY_EQUIPMENT_PROMPT = PromptKind("destroy_equipment", "Destroy all Equipment attached to ")  # followed by the creature; Yes/No
+ATTACH_EQUIPMENT_PROMPT = PromptKind("attach_equipment", "Attach an Equipment you control to ")  # followed by the creature; options: none, or one
+NO_EQUIPMENT = "Don't attach one"
 MAY_PAY_PROMPT = PromptKind("may_pay", "Pay the cost for ")  # followed by the source's name; options are "Pay <cost>" and "Don't pay"
 DRAW_UP_TO_PROMPT = PromptKind("draw_up_to", "How many cards do you draw? ")
 SACRIFICE_DRAW_PROMPT = PromptKind("sacrifice_draw", "Sacrifice a permanent to draw cards? ")
@@ -491,6 +494,7 @@ class StackItem:
     warped: bool = False  # cast for its warp cost: exiled at the next end step, castable from exile on a later turn
     phyrexian_life: int = 0  # Phyrexian mana symbols of its cost paid with life: a Compleated walker enters with two fewer loyalty each
     dashed: bool = False  # cast for its dash cost: haste, and back to its owner's hand at the next end step
+    treasure_mana: bool = False  # mana from a Treasure was spent to cast it (Price of Loyalty)
     sneaked: "tuple[Seat, Any] | None" = None  # cast for its sneak cost: whom the returned creature attacked (player, planeswalker or battle)
     blitzed: bool = False  # cast for its blitz cost (CR 702.152)
     evidence: bool = False  # evidence was collected as it was cast (Deadly Cover-Up)
@@ -3016,6 +3020,27 @@ class Game:
         """ "You may attach it to the token.": asked, then the Aura moves."""
         if seat.player.choose(ATTACH_PROMPT(attachment.card.name), YES_NO) == 0:
             self.attach(attachment, creature)
+
+    def may_destroy_equipment_on(self, seat: Seat, creature: Permanent) -> None:
+        """Awaken the Sleeper: if the creature is equipped, `seat` may destroy all Equipment attached to it."""
+        equipment = [p for s in self.seats for p in s.battlefield if p.attached_to is creature and "Equipment" in p.card.type_line]
+        if equipment and seat.player.choose(DESTROY_EQUIPMENT_PROMPT(creature.card.name), YES_NO) == 0:
+            for permanent in equipment:
+                self.destroy(permanent)
+
+    def attach_equipment_until_end_step(self, seat: Seat, creature: Permanent) -> None:
+        """Unexpected Request: `seat` may attach an Equipment it controls to the creature; if it does, the Equipment is unattached as
+        the next end step begins, wherever it is attached by then."""
+        options = [p for p in seat.battlefield if "Equipment" in p.card.type_line and p.attached_to is not creature]
+        if not options:
+            return
+        pick = seat.player.choose(ATTACH_EQUIPMENT_PROMPT(creature.card.name), [NO_EQUIPMENT] + [self.label(p) for p in options])
+        if pick == 0:
+            return
+        equipment = options[pick - 1]
+        self.attach(equipment, creature)
+        fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
+        self.at_end_step.append((fire_turn, lambda: self.detach(equipment) if equipment.attached_to is not None and self.on_battlefield(equipment) else None))
 
     def untap_all(self, seat: Seat, kind: str) -> None:
         for permanent in seat.battlefield:

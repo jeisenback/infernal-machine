@@ -2112,6 +2112,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   gets +3/+0 until end of turn." (`PumpThatIfType`, a type an Aura gives counting), Bond of Passion's "CARDNAME deals 2 damage to any other target." (not a target
   the spell already chose, `Damage.not_chosen`), In Thrall to the Pit's "If this spell was kicked, sacrifice that creature at the
   beginning of the next end step." (`SacrificeThatAtEndIfKicked`) and Pack's Betrayal's "If you control a Wolf or Werewolf, scry 2."
+  Three more (`tests/test_threaten_equipment_treasure.py`): Price of Loyalty's "If mana from a Treasure was spent to cast this spell,
+  that creature gets +2/+0 until end of turn." (`PumpThatIfTreasure`, `StackItem.treasure_mana`), Awaken the Sleeper's "If it's
+  equipped, you may destroy all Equipment attached to that creature." (`Game.may_destroy_equipment_on`) and Unexpected Request's "You
+  may attach an Equipment you control to that creature. If you do, unattach it at the beginning of the next end step."
+  (`Game.attach_equipment_until_end_step`). Caught Red-Handed's "Suspect it." waits for suspect.
 - **Vehicles:** "Crew N" is an ability at instant speed: tap untapped creatures you control, one at a time, until their
   total power is N or more (summoning-sick creatures can crew, the Vehicle can't crew itself). Until end of turn the
   Vehicle is an artifact creature, with its printed power and toughness, so it can attack (not the turn it arrived)

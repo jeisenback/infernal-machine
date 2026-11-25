@@ -242,6 +242,39 @@ class PumpThatIfType:
 
 
 @dataclass(frozen=True)
+class PumpThatIfTreasure:
+    """Price of Loyalty: "If mana from a Treasure was spent to cast this spell, that creature gets +2/+0 until end of turn." """
+    power: int
+    toughness: int
+    binds = PREVIOUS_TARGET
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.resolving_item is not None and game.resolving_item.treasure_mana and game.on_battlefield(target):
+            game.modify_until_end_of_turn(target, Modifier(self.power, self.toughness))
+
+
+@dataclass(frozen=True)
+class MayDestroyEquipmentOnThat:
+    """Awaken the Sleeper: "If it's equipped, you may destroy all Equipment attached to that creature." """
+    binds = PREVIOUS_TARGET
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            game.may_destroy_equipment_on(controller, target)
+
+
+@dataclass(frozen=True)
+class AttachEquipmentToThatUntilEnd:
+    """Unexpected Request: "You may attach an Equipment you control to that creature. If you do, unattach it at the beginning of the
+    next end step." """
+    binds = PREVIOUS_TARGET
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            game.attach_equipment_until_end_step(controller, target)
+
+
+@dataclass(frozen=True)
 class SacrificeThatAtEndIfKicked:
     """In Thrall to the Pit: "If this spell was kicked, sacrifice that creature at the beginning of the next end step." """
     binds = PREVIOUS_TARGET
