@@ -51,6 +51,7 @@ from .outcomes import (
     Exile,
     ExileTopOfThatPlayerMayCast,
     RevealTopToHandDrain,
+    MaySuspectSelf,
     ExileUntilLeaves,
     TargetChooseDiscard,
     Exploit,
@@ -526,6 +527,8 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
         return [ReturnSelfAsEnchantment()], False, False, None
     if m := _SYLVAN_BODY.fullmatch(rest):
         return [SylvanLibrary(int(m[1]))], False, False, None
+    if rest == "if it's not suspected, you may suspect it.":  # Rubblebelt Braggart (the effect checks it again as it resolves)
+        return [MaySuspectSelf()], False, False, None
     if rest == _YURIKO_BODY:
         return [RevealTopToHandDrain()], False, False, None
     if rest == _RAGAVAN_BODY:

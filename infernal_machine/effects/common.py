@@ -175,7 +175,9 @@ def _rules_lines(card: Card) -> tuple[str, ...]:
 
 
 _WHOLE_LINE = re.compile(
-    r"You may attach an Equipment you control to that creature\. If you do, unattach it at the beginning of the next end step\."  # Unexpected Request
+    r"If this creature is suspected, put a \+1/\+1 counter on it\. Otherwise, suspect it\."  # Repeat Offender
+    r"|[Cc]hoose up to one target creature\. If it's suspected, exile it\. Otherwise, suspect it\."  # Agrus Kos
+    r"|You may attach an Equipment you control to that creature\. If you do, unattach it at the beginning of the next end step\."  # Unexpected Request
     r"|"
     r'[Yy]ou get an emblem with "[^"]+"\.?'  # an emblem's text is sentences of its own, kept inside the quotes (Elspeth, Sun's Champion)
     r"|"

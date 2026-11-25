@@ -1,22 +1,33 @@
 """Issue #874: suspect (CR 701.60): a suspected creature has menace and "This creature can't block" until it leaves the battlefield, from
 the cards' real Oracle text. Seven cards whose only gap it was are fully playable. Caught Red-Handed suspects the creature it takes;
 Barbed Servitor and Person of Interest suspect themselves as they enter, Convenient Target the creature it enchants, Reasonable Doubt
-its target, It Doesn't Add Up the creature it returns. A suspected creature has menace and can't block; one that isn't, or that left
+its target, It Doesn't Add Up the creature it returns. Repeat Offender suspects itself, then gets a +1/+1 counter; Agrus Kos suspects a
+creature, then exiles it; Eliminate the Impossible makes only opponents' creatures no longer suspected; Rubblebelt Braggart may suspect
+itself as it attacks, and isn't asked once it is. A suspected creature has menace and can't block; one that isn't, or that left
 the battlefield and came back, can block and has no menace."""
 
 import unittest
 
 from infernal_machine.effects import CANT_BLOCK
-from infernal_machine.game import CAST, Permanent
+from infernal_machine.game import ACTIVATE, CAST, SUSPECT_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import BEAR, OGRE, choose, lands, run_stack, table3, wording_unlocked
+from tests.helpers import BEAR, OGRE, attack_all, choose, lands, run_stack, table3, wording_unlocked
 from tests.real import REAL
 
-CARDS = ["Caught Red-Handed", "Barbed Servitor", "Person of Interest", "Convenient Target", "Incriminating Impetus", "It Doesn't Add Up"]
+CARDS = ["Caught Red-Handed", "Barbed Servitor", "Person of Interest", "Convenient Target", "Incriminating Impetus", "It Doesn't Add Up",
+         "Repeat Offender", "Agrus Kos, Spirit of Justice", "Eliminate the Impossible", "Rubblebelt Braggart"]
 NEED_A_TARGET = ["Reasonable Doubt"]  # (it counters a spell too: the smoke table has none, so only read)
 
 # The guards these tests are there to catch (python tools/mutate.py tests.test_suspect).
 MUTATIONS = [
+    ("infernal_machine/effects/families/combat_and_pump.py", "            if target.suspected:\n                game.put_counters(", "            if False:\n                game.put_counters(",
+     "a suspected Repeat Offender gets a counter"),
+    ("infernal_machine/effects/families/combat_and_pump.py", "            if target.suspected:\n                game.exile(target)", "            if False:\n                game.exile(target)",
+     "Agrus Kos exiles a suspected creature"),
+    ("infernal_machine/effects/families/combat_and_pump.py", "        for seat in game.opponents(controller):\n            for permanent in seat.battlefield:\n                permanent.suspected = False",
+     "        for seat in game.seats:\n            for permanent in seat.battlefield:\n                permanent.suspected = False", "only the opponents' creatures"),
+    ("infernal_machine/effects/families/combat_and_pump.py", "if target is not None and game.on_battlefield(target) and not target.suspected:\n            game.may_suspect(",
+     "if target is not None and game.on_battlefield(target):\n            game.may_suspect(", "not asked once it is suspected"),
     ("infernal_machine/game.py", 'or (permanent.suspected and keyword in ("menace", CANT_BLOCK))', 'or (permanent.suspected and keyword in ("menace",))',
      "it can't block"),
     ("infernal_machine/game.py", 'or (permanent.suspected and keyword in ("menace", CANT_BLOCK))', 'or (permanent.suspected and keyword in (CANT_BLOCK,))',
@@ -97,6 +108,58 @@ class SuspectTests(unittest.TestCase):
         back = Permanent(servitor.card)
         game._enter(a, back)  # (a new object: it isn't suspected until its trigger resolves)
         self.assertEqual(back.suspected, False)
+
+
+    def test_repeat_offender_suspects_itself_then_grows(self):
+        game, _ = table3()
+        a = game.seats[0]
+        offender = Permanent(REAL["Repeat Offender"], sick=False)
+        a.battlefield = lands(6) + [offender]
+        for _ in range(2):
+            (action,) = [x for x in game.legal_actions(a) if x.startswith(ACTIVATE) and "Repeat Offender" in x]
+            game._perform(a, action)
+            run_stack(game)
+        self.assertEqual((offender.suspected, offender.counters.get("+1/+1")), (True, 1))  # (suspected first, then a counter)
+
+    def test_agrus_kos_suspects_then_exiles(self):
+        game, players = table3()
+        a, b, _ = game.seats
+        ogre = Permanent(OGRE, sick=False)
+        b.battlefield = [ogre]
+        players[0].policy = choose(game, ogre)
+        for _ in range(2):  # (it enters twice: the first suspects the Ogre, the second exiles it)
+            game._enter(a, Permanent(REAL["Agrus Kos, Spirit of Justice"]))
+            run_stack(game)
+            if _ == 0:
+                self.assertEqual((ogre.suspected, ogre in b.battlefield), (True, True))
+        self.assertEqual(ogre in b.battlefield, False)
+
+    def test_eliminate_the_impossible_unsuspects_only_opponents_creatures(self):
+        game, _ = table3()
+        a, b, _ = game.seats
+        mine, theirs = Permanent(BEAR, sick=False), Permanent(OGRE, sick=False)
+        mine.suspected = theirs.suspected = True
+        a.battlefield, a.hand, b.battlefield = lands(3) + [mine], [REAL["Eliminate the Impossible"]], [theirs]
+        game._perform(a, CAST + "Eliminate the Impossible")
+        run_stack(game)
+        self.assertEqual((mine.suspected, theirs.suspected, game.power(theirs)), (True, False, 1))
+
+    def test_rubblebelt_braggart_may_suspect_itself_as_it_attacks(self):
+        game, players = table3(attack_all)
+        a = game.seats[0]
+        braggart = Permanent(REAL["Rubblebelt Braggart"], sick=False)
+        a.battlefield = [braggart]
+        game.combat.declare_attackers(a)
+        run_stack(game)
+        self.assertEqual((braggart.suspected, len([p for p, _ in players[0].prompts if SUSPECT_PROMPT.matches(p)])), (True, 1))
+        game, players = table3(attack_all)
+        a = game.seats[0]
+        braggart = Permanent(REAL["Rubblebelt Braggart"], sick=False)
+        braggart.suspected = True  # (already suspected: not asked)
+        a.battlefield = [braggart]
+        game.combat.declare_attackers(a)
+        run_stack(game)
+        self.assertEqual([p for p, _ in players[0].prompts if SUSPECT_PROMPT.matches(p)], [])
 
 
 if __name__ == "__main__":

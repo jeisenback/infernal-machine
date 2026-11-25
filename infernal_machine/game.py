@@ -280,6 +280,7 @@ LIFE_X_PROMPT = PromptKind("life_x", "Pay how much life (X) for ")  # followed b
 REMOVE_AMONG_PROMPT = PromptKind("remove_among", "Remove a counter from ")  # followed by the ability's source; Tekuthal's cost
 REMOVE_COUNTER_PROMPT = PromptKind("remove_counter", "Remove a counter to draw a card? ")  # followed by the permanent's name
 ATTACH_PROMPT = PromptKind("attach", "Attach it to the new token? ")  # followed by the Aura's name
+SUSPECT_PROMPT = PromptKind("suspect", "Suspect ")  # followed by the creature's name; Yes/No (Rubblebelt Braggart)
 DESTROY_EQUIPMENT_PROMPT = PromptKind("destroy_equipment", "Destroy all Equipment attached to ")  # followed by the creature; Yes/No
 ATTACH_EQUIPMENT_PROMPT = PromptKind("attach_equipment", "Attach an Equipment you control to ")  # followed by the creature; options: none, or one
 NO_EQUIPMENT = "Don't attach one"
@@ -3033,6 +3034,11 @@ class Game:
         if self.on_battlefield(creature) and "Creature" in creature.card.type_line and not creature.suspected:
             creature.suspected = True
             self.broadcast({"event": "suspected", "card": creature.card.name})
+
+    def may_suspect(self, seat: Seat, creature: Permanent) -> None:
+        """ "you may suspect it": asked, then suspected."""
+        if seat.player.choose(SUSPECT_PROMPT(creature.card.name), YES_NO) == 0:
+            self.suspect(creature)
 
     def may_destroy_equipment_on(self, seat: Seat, creature: Permanent) -> None:
         """Awaken the Sleeper: if the creature is equipped, `seat` may destroy all Equipment attached to it."""
