@@ -333,6 +333,9 @@ _WHOLE_LINE = re.compile(
     r"cost\."  # Mind's Desire
     r"|exile cards from the top of your library until you exile a nonland card\. You may cast it without paying its mana cost if that "
     r"spell's mana value is \d+ or less\. If you don't, put that card into your hand\."  # Breaching Dragonstorm
+    r"|[Ee]xile cards from the top of your library until you exile a nonland card\. You may cast that card without paying its mana cost\."  # Nico Minoru
+    r"|[Rr]eveal cards from the top of your library until you reveal a nonland card with mana value \d+ or less\. You may cast that card "
+    r"without paying its mana cost\. Put all revealed cards not cast this way on the bottom of your library in a random order\."  # Treasure Keeper
     r"|You may cast up to two instant and/or sorcery spells with total mana value \d+ or less from your graveyard and/or hand without "
     r"paying their mana costs\. If those spells would be put into your graveyard, exile them instead\."  # Invoke Calamity
     r"|Exile target instant or sorcery card from a graveyard\. Copy that card three times\. You may cast the copies without paying their "

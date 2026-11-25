@@ -6482,10 +6482,11 @@ class Game:
         if total := sum(int(c.cmc) for c in exiled):
             self.damage(owner, total, source=self.resolving_source)
 
-    def cascade(self, seat: Seat, value: int | None, kind: str = "nonland", owner: Seat | None = None) -> None:
+    def cascade(self, seat: Seat, value: int | None, kind: str = "nonland", owner: Seat | None = None, reveal: bool = False) -> None:
         """Exile cards from the top of the library until a nonland card that costs less than `value` is exiled; the
         player may cast it for free, and the rest go to the bottom of the library in a random order. Jodah, the Unifier: a `kind`
-        "legendary nonland" card; Gríma, Saruman's Footman: an "instant or sorcery" card from `owner`'s library, with no cap."""
+        "legendary nonland" card; Gríma, Saruman's Footman: an "instant or sorcery" card from `owner`'s library, with no cap.
+        `reveal` (Treasure Keeper: "reveal cards ... until you reveal"): nothing is exiled, the card is cast from the library."""
         owner = owner or seat
         passed: list[Card] = []
         found = None
@@ -6498,11 +6499,15 @@ class Game:
         self.broadcast({"event": "cascade", "seat": owner.index, "exiled": len(passed) + (found is not None),
                         **({"card": found.name} if found else {})})
         if found is not None:
-            owner.exile.append(found)
+            zone = owner.library if reveal else owner.exile
+            if reveal:
+                zone.insert(0, found)
+            else:
+                zone.append(found)
             if seat.player.choose(CASCADE_PROMPT(found.name), YES_NO) == 0:
-                self._cast(seat, found, owner.exile, free=True)
-            if found in owner.exile:  # not cast: it goes to the bottom too
-                owner.exile.remove(found)
+                self._cast(seat, found, zone, free=True)
+            if any(c is found for c in zone):  # not cast: it goes to the bottom too
+                del zone[next(i for i, c in enumerate(zone) if c is found)]
                 passed.append(found)
         self.rng.shuffle(passed)
         owner.library += passed
@@ -8238,9 +8243,10 @@ class Game:
         if seat.library and seat.library[0] is card:
             seat.hand.append(seat.library.pop(0))
 
-    def exile_until_nonland_cast_or_take(self, seat: Seat, most: int) -> None:
+    def exile_until_nonland_cast_or_take(self, seat: Seat, most: int | None, take: bool = True) -> None:
         """Breaching Dragonstorm: exile cards from the top until a nonland card is exiled; `seat` may cast it without paying its mana cost
-        if its mana value is `most` or less; if it isn't cast, it is put into the hand. The others stay exiled."""
+        if its mana value is `most` or less (None: any); if it isn't cast, it is put into the hand, or stays exiled if not `take` (Nico
+        Minoru, Runaway: "You may cast that card without paying its mana cost."). The others stay exiled."""
         found = None
         while seat.library and found is None:
             card = seat.library.pop(0)
@@ -8248,9 +8254,9 @@ class Game:
             found = None if is_land(card) else card
         if found is None:
             return
-        if found.cmc <= most and seat.player.choose(CASCADE_PROMPT(found.name), YES_NO) == 0:
+        if (most is None or found.cmc <= most) and seat.player.choose(CASCADE_PROMPT(found.name), YES_NO) == 0:
             self._cast(seat, found, seat.exile, free=True)
-        if any(c is found for c in seat.exile):
+        if take and any(c is found for c in seat.exile):
             seat.exile.remove(found)
             seat.hand.append(found)
 

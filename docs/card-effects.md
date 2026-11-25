@@ -1601,6 +1601,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Landfall on an instant (`tests/test_spell_landfall.py`): "Landfall — If you had a land enter the battlefield under your control
     this turn, ... instead." is the condition `land_entered`: Groundswell and Tomb Hex (a `Pump.instead`), Mysteries of the Deep (a
     `Draw.more`) and Rest for the Weary ("that player gains 8 life instead.": `TargetGainLife.instead`). Another player's land does not count.
+  - Exile or reveal until a nonland card, then cast it free (`tests/test_exile_until_cast_free.py`): "Exile cards from the top of your
+    library until you exile a nonland card. You may cast that card without paying its mana cost." (`ExileUntilNonlandCastFree`: not a
+    cascade, the exiled cards stay exiled, that one too if it isn't cast; Nico Minoru, Runaway, Wanda's Vision, Q, Your Illustrious Host)
+    and Treasure Keeper's "reveal ... until you reveal a nonland card with mana value 3 or less ... Put all revealed cards not cast this
+    way on the bottom" (a `Cascade` below 4, `reveal`: cast from the library, not from exile).
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with
