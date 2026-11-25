@@ -303,6 +303,25 @@ class UnsuspectOpponentsCreatures:
 
 
 @dataclass(frozen=True)
+class MayUnsuspect:
+    """Deadly Complication: "You may have it become no longer suspected." (the creature the effect before it targeted)"""
+    binds = PREVIOUS_TARGET
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target) and target.suspected:
+            game.may_unsuspect(controller, target)
+
+
+@dataclass(frozen=True)
+class DrawIfSacrificedSuspected:
+    """Agency Coroner: "Draw a card. If the sacrificed creature was suspected, draw two cards instead." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        game.draw(controller, 2 if item is not None and item.sacrificed_suspected else 1)
+
+
+@dataclass(frozen=True)
 class SuspectTarget:
     """Reasonable Doubt: "Suspect up to one target creature." """
     target: str = "creature"

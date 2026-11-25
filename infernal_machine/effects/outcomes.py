@@ -98,6 +98,8 @@ from .families.combat_and_pump import (  # noqa: F401
     ExileIfSuspectedElseSuspect,
     MaySuspectSelf,
     UnsuspectOpponentsCreatures,
+    MayUnsuspect,
+    DrawIfSacrificedSuspected,
     MayDestroyEquipmentOnThat,
     AttachEquipmentToThatUntilEnd,
     SacrificeThatAtEndIfKicked,
@@ -352,6 +354,7 @@ from .families.exile_and_return import (  # noqa: F401
 )
 from .families.returning import (  # noqa: F401
     GrantReturnWhenDies,
+    GrantReturnSuspected,
     _ToBattlefieldInstead,
     RETURN_LAND_PROMPT,
     ReturnPerOpponent,
@@ -1767,7 +1770,7 @@ def kicked_effects(effects: list | None, kicked: int, kickers: tuple[str, ...] =
 _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocking creature|artifact, enchantment, or nonbasic land|artifact, creature, enchantment, or planeswalker"
                    r"|creature, enchantment, or planeswalker|non-outlaw creature"  # Get Lost; Shoot the Sheriff
                    r"|artifact, enchantment, or land|legendary permanent|multicolored permanent"  # Acidic Slime; Minamo; Null Elemental Blast
-                   r"|monocolored permanent|(?:white|blue|black|red|green) permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
+                   r"|monocolored permanent|(?:white|blue|black|red|green) permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature|suspected creature"
                    r"|nonartifact, non(?:white|blue|black|red|green) creature"  # Shriekmaw
                    r"|non(?:white|blue|black|red|green|artifact|legendary) creature|noncreature artifact or noncreature enchantment"
                    r"|noncreature, nonland permanent|non-(?-i:[A-Z][a-z]+), nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker"
@@ -1987,6 +1990,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"choose up to one target creature\. If it's suspected, exile it\. Otherwise, suspect it\.", re.I),
      lambda m: ExileIfSuspectedElseSuspect()),  # Agrus Kos, Spirit of Justice
     (re.compile(r"If any of them are suspected, they're no longer suspected\.", re.I), lambda m: UnsuspectOpponentsCreatures()),  # Eliminate the Impossible
+    (re.compile(r"You may have it become no longer suspected\.", re.I), lambda m: MayUnsuspect()),  # Deadly Complication
+    (re.compile(r"Draw a card\. If the sacrificed creature was suspected, draw two cards instead\.", re.I),
+     lambda m: DrawIfSacrificedSuspected()),  # Agency Coroner
+    (re.compile(r'Until end of turn, target creature gets \+(\d+)/\+(\d+) and gains "When this creature dies, return it to the battlefield under '
+                r'its owner\'s control and suspect it\."', re.I),
+     lambda m: [Pump(Modifier(int(m[1]), int(m[2])), "creature"), GrantReturnSuspected()]),  # Presumed Dead
     (re.compile(r"If mana from a Treasure was spent to cast this spell, that creature gets \+(\d+)/\+(\d+) until end of turn\.", re.I),
      lambda m: PumpThatIfTreasure(int(m[1]), int(m[2]))),  # Price of Loyalty
     (re.compile(r"If it's equipped, you may destroy all Equipment attached to that creature\.", re.I),

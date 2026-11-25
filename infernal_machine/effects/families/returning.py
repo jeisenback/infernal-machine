@@ -284,10 +284,11 @@ class ReturnWithCounter:
     "return it to the battlefield tapped under its owner's control"."""
     counter: str = ""  # "-1/-1" (persist) or "+1/+1" (undying)
     tapped: bool = False
+    suspect: bool = False  # Presumed Dead: "return it to the battlefield under its owner's control and suspect it."
     binds = DEAD_SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.return_with_counter(target, self.counter, self.tapped)
+        game.return_with_counter(target, self.counter, self.tapped, self.suspect)
 
 
 @dataclass(frozen=True)
@@ -299,6 +300,17 @@ class GrantReturnWhenDies:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             target.returns_when_dies, target.returns_with_counter = game.turn, "+1/+1"
+
+
+@dataclass(frozen=True)
+class GrantReturnSuspected:
+    """Presumed Dead: '... and gains "When this creature dies, return it to the battlefield under its owner's control and suspect it."'
+    (until end of turn: the creature the effect before it pumped)"""
+    binds = PREVIOUS_TARGET
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            target.returns_when_dies, target.returns_with_counter = game.turn, "suspect"
 
 
 @dataclass(frozen=True)
