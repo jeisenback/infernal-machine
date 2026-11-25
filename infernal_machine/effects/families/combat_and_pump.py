@@ -242,6 +242,30 @@ class PumpThatIfType:
 
 
 @dataclass(frozen=True)
+class Suspect:
+    """Suspect a creature (CR 701.60): Caught Red-Handed's "Suspect it." (the creature the effect before it took: `binds` PREVIOUS_TARGET),
+    Barbed Servitor's "When this creature enters, suspect it." (SOURCE), or an Aura's "suspect enchanted creature" (`enchanted`)."""
+    binds: str = PREVIOUS_TARGET
+    enchanted: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        creature = target.attached_to if self.enchanted and target is not None else target
+        if creature is not None:
+            game.suspect(creature)
+
+
+@dataclass(frozen=True)
+class SuspectTarget:
+    """Reasonable Doubt: "Suspect up to one target creature." """
+    target: str = "creature"
+    optional_target: bool = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.suspect(target)
+
+
+@dataclass(frozen=True)
 class PumpThatIfTreasure:
     """Price of Loyalty: "If mana from a Treasure was spent to cast this spell, that creature gets +2/+0 until end of turn." """
     power: int

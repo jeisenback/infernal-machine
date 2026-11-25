@@ -2116,7 +2116,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   that creature gets +2/+0 until end of turn." (`PumpThatIfTreasure`, `StackItem.treasure_mana`), Awaken the Sleeper's "If it's
   equipped, you may destroy all Equipment attached to that creature." (`Game.may_destroy_equipment_on`) and Unexpected Request's "You
   may attach an Equipment you control to that creature. If you do, unattach it at the beginning of the next end step."
-  (`Game.attach_equipment_until_end_step`). Caught Red-Handed's "Suspect it." waits for suspect.
+  (`Game.attach_equipment_until_end_step`). Caught Red-Handed's "Suspect it." suspects the creature it took (below).
+- **Suspect** (`tests/test_suspect.py`, #874, CR 701.60): a suspected creature (`Permanent.suspected`, set by `Game.suspect`) has menace
+  and "can't block" (`Game.has_keyword`) until it leaves the battlefield; it can't become suspected again. Read: "Suspect it." after a
+  target (Caught Red-Handed; It Doesn't Add Up, the creature it returned), "When this creature enters, suspect it." (the creature itself:
+  an "it" with no target before it is the source), "When this Aura enters, suspect enchanted creature." and "Suspect up to one target
+  creature." (Reasonable Doubt). Not yet: the cards that ask whether a creature is suspected or make it no longer suspected.
 - **Vehicles:** "Crew N" is an ability at instant speed: tap untapped creatures you control, one at a time, until their
   total power is N or more (summoning-sick creatures can crew, the Vehicle can't crew itself). Until end of turn the
   Vehicle is an artifact creature, with its printed power and toughness, so it can attack (not the turn it arrived)
