@@ -22,6 +22,8 @@ NEED_A_TARGET = ["Reasonable Doubt", "Deadly Complication"]  # (a spell to count
 
 # The guards these tests are there to catch (python tools/mutate.py tests.test_suspect).
 MUTATIONS = [
+    ("infernal_machine/game.py", "sacrificed_suspected=item.sacrificed_suspected, tapped_power=item.tapped_power))",
+     "tapped_power=item.tapped_power))", "a copied ability keeps it"),
     ("infernal_machine/game.py", '        if state == "suspected":  # Deadly Complication: "target suspected creature you control"\n            return permanent.suspected',
      '        if state == "suspected":  # Deadly Complication: "target suspected creature you control"\n            return True', "only a suspected creature is a target"),
     ("infernal_machine/game.py", "        if seat.player.choose(UNSUSPECT_PROMPT(creature.card.name), YES_NO) == 0:\n            creature.suspected = False",
@@ -209,6 +211,18 @@ class SuspectTests(unittest.TestCase):
             game._perform(a, action)
             run_stack(game)
             self.assertEqual(len(a.hand), drawn, suspected_one)
+
+    def test_a_copy_of_agency_coroners_ability_knows_the_creature_was_suspected(self):
+        game, players = table3()
+        a = game.seats[0]
+        coroner, bear = Permanent(REAL["Agency Coroner"], sick=False), Permanent(BEAR, sick=False)
+        bear.suspected = True
+        a.battlefield, a.hand, a.library = lands(3) + [coroner, bear], [], [OGRE] * 6
+        (action,) = [x for x in game.legal_actions(a) if x.startswith(ACTIVATE) and "Agency Coroner" in x]
+        game._perform(a, action)
+        game.copy_ability(game.stack[-1], a)  # (Rings of Brighthearth, say)
+        run_stack(game)
+        self.assertEqual(len(a.hand), 4)  # (two for the ability, two for its copy)
 
     def test_presumed_dead_returns_the_creature_suspected(self):
         game, players = table3()

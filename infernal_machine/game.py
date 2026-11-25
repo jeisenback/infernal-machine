@@ -7800,7 +7800,8 @@ class Game:
                 targets = chosen[0]
             self.stack.append(StackItem(item.card, controller, item.effects, targets, item.ability, item.source, x=item.x,
                                         sacrificed_power=item.sacrificed_power, sacrificed_toughness=item.sacrificed_toughness,
-                                        tapped_power=item.tapped_power))
+                                        sacrificed_value=item.sacrificed_value, sacrificed_cards=item.sacrificed_cards,
+                                        sacrificed_suspected=item.sacrificed_suspected, tapped_power=item.tapped_power))
             self.broadcast({"event": "copied_ability", "seat": controller.index, "card": item.card.name})
 
     def copy_spell_for_each_other_creature(self, item: StackItem, caster: Seat, source: Permanent) -> None:
