@@ -71,6 +71,7 @@ class Payment(list["Permanent"]):
     phyrexian_life: int = 0  # how many Phyrexian mana symbols were paid with 2 life instead of mana (Compleated reads it)
     surplus: tuple[frozenset[str], ...] = ()  # the mana the tapped permanents made and the cost did not use: it goes to the pool (CR 106.4)
     spent: tuple[frozenset[str], ...] = ()  # the types each mana spent on the cost itself could be ("if {U}{U} was spent to cast it")
+    spent_from: tuple["Permanent | None", ...] = ()  # the permanent that made each of those mana (None: from the pool), not a filter's own cost
 
 
 class ManaPayer:
@@ -456,6 +457,7 @@ class ManaPayer:
         payment.pool = tuple(s.types for s, _ in used if s.permanent is None and not s.life)  # a life-paid {C} (Channel) isn't pooled
         payment.filters = tuple(p for p, _, _ in ordered)
         payment.spent = tuple((s.types & symbol) if symbol else s.types for s, symbol in on_cost)
+        payment.spent_from = tuple(s.permanent for s, _ in on_cost)
         # CR 106.4: a Sol Ring tapped for {1} made {C}{C}, and the other {C} stays in the pool until the step ends. Mana with a
         # restriction, a cost in life or damage, or a counter taken off the permanent is left out: whether it pays for the next thing is its own question.
         tapped = {id(p) for p in permanents}

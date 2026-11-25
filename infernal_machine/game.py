@@ -3030,7 +3030,7 @@ class Game:
 
     def attach_equipment_until_end_step(self, seat: Seat, creature: Permanent) -> None:
         """Unexpected Request: `seat` may attach an Equipment it controls to the creature; if it does, the Equipment is unattached as
-        the next end step begins (if it is still attached to that creature)."""
+        the next end step begins, wherever it is attached by then."""
         options = [p for p in seat.battlefield if "Equipment" in p.card.type_line and p.attached_to is not creature]
         if not options:
             return
@@ -3040,7 +3040,7 @@ class Game:
         equipment = options[pick - 1]
         self.attach(equipment, creature)
         fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
-        self.at_end_step.append((fire_turn, lambda: self.detach(equipment) if equipment.attached_to is creature and self.on_battlefield(equipment) else None))
+        self.at_end_step.append((fire_turn, lambda: self.detach(equipment) if equipment.attached_to is not None and self.on_battlefield(equipment) else None))
 
     def untap_all(self, seat: Seat, kind: str) -> None:
         for permanent in seat.battlefield:
