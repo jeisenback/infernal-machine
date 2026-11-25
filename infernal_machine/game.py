@@ -5754,9 +5754,9 @@ class Game:
     def _fixed_kind(self, kind: str, source: Permanent | None, x: int | None = None) -> str:
         """A target kind with "mv<=power" turned into the source creature's power right now, or "mv<=x" into the X the
         ability carries (Venerable Warsinger: the damage dealt)."""
-        if "mv<=power" in kind and source is not None:
+        if ("mv<=power" in kind or "mv<power" in kind) and source is not None:  # (Narset, Enlightened Exile: "less than CARDNAME's power")
             power = self.power(source) if self.on_battlefield(source) else source.last_power
-            return kind.replace("mv<=power", f"mv<={max(power, 0)}")
+            return kind.replace("mv<=power", f"mv<={max(power, 0)}").replace("mv<power", f"mv<{max(power, 0)}")
         if "mv<=x" in kind:
             return kind.replace("mv<=x", f"mv<={max(self.targeting_x if x is None else x, 0)}")
         return kind

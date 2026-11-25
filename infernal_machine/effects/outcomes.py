@@ -2858,6 +2858,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnFromGraveyard(f"graveyard:permanent|mv<={m[1]}:yours", "battlefield")),
     (re.compile(r"exile up to one target instant or sorcery card from your graveyard and copy it\. You may cast the copy without "
                 r"paying its mana cost\.", re.I), lambda m: ExileThenCastCopy()),
+    (re.compile(r"exile (up to one )?target (instant or sorcery|nonland|noncreature, nonland) card( with mana value \d+ or less| with mana "
+                r"value less than (?:or equal to )?(?:this creature's|CARDNAME's) power)? from (your|a|an opponent's) graveyard(?: and copy it\. You may cast|\. Copy (?:it|"
+                r"that card)\. You may cast|\. Copy it, then you may cast) the copy without paying its mana cost\.", re.I),
+     lambda m: ExileThenCastCopy(_copy_from_graveyard(m[2], m[3], m[4]), optional_target=bool(m[1]))),  # Shiko, Flawless Forgery
     (re.compile(r"exile an instant or sorcery card at random from your graveyard\. Then copy each card exiled with this enchantment\. You "
                 r"may cast any number of the copies without paying their mana costs\.", re.I),
      lambda m: ExileRandomThenCastCopiesOfExiled()),  # Arcane Bombardment
@@ -3988,6 +3992,14 @@ def _merge_stun(effects: list) -> list | None:
         for tap in taps:
             merged += [tap, PutStunCounters(effect.count)]
     return merged
+
+
+def _copy_from_graveyard(kind: str, mana_value: str | None, whose: str) -> str:
+    """The graveyard target of "exile target <kind> card [with mana value ...] from <whose> graveyard. Copy it. You may cast the copy ..."."""
+    limit = ("" if not mana_value else ("|mv<=power" if "or equal" in mana_value else "|mv<power") if "power" in mana_value
+             else f"|mv<={''.join(ch for ch in mana_value if ch.isdigit())}")
+    owner = {"your": "yours", "a": "any", "an opponent's": "opponents"}[whose.lower()]
+    return f"graveyard:{kind.lower()}{limit}:{owner}"
 
 
 def _singular(word: str) -> str:

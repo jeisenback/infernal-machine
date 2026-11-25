@@ -6885,6 +6885,52 @@
    "power": "3",
    "toughness": "3",
    "colors": []
+  },
+  {
+   "name": "Narset, Enlightened Exile",
+   "mana_cost": "{1}{U}{R}{W}",
+   "type_line": "Legendary Creature — Human Monk",
+   "oracle_text": "Creatures you control have prowess.\nWhenever Narset attacks, exile target noncreature, nonland card with mana value less than Narset's power from a graveyard and copy it. You may cast the copy without paying its mana cost.",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "R",
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Shiko, Paragon of the Way",
+   "mana_cost": "{2}{U}{R}{W}",
+   "type_line": "Legendary Creature — Spirit Dragon",
+   "oracle_text": "Flying, vigilance\nWhen Shiko enters, exile target nonland card with mana value 3 or less from your graveyard. Copy it, then you may cast the copy without paying its mana cost. (A copy of a permanent spell becomes a token.)",
+   "power": "4",
+   "toughness": "5",
+   "colors": [
+    "R",
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Flawless Forgery",
+   "mana_cost": "{3}{U}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Casualty 3 (As you cast this spell, you may sacrifice a creature with power 3 or greater. When you do, copy this spell and you may choose a new target for the copy.)\nExile target instant or sorcery card from an opponent's graveyard. Copy that card. You may cast the copy without paying its mana cost.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Arcane Proxy",
+   "mana_cost": "{7}",
+   "type_line": "Artifact Creature — Wizard",
+   "oracle_text": "Prototype {1}{U}{U} — 2/1 (You may cast this spell with different mana cost, color, and size. It keeps its abilities and types.)\nWhen this creature enters, if you cast it, exile target instant or sorcery card with mana value less than or equal to this creature's power from your graveyard. Copy that card. You may cast the copy without paying its mana cost.",
+   "power": "4",
+   "toughness": "3",
+   "colors": []
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
