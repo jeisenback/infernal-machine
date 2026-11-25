@@ -183,10 +183,21 @@ class _GainLifeLost:
 class TargetGainLife:
     amount: int | str
     target: str = "player"
+    instead: int = 0  # Rest for the Weary: "Landfall — If ..., that player gains 8 life instead." (checked as it resolves)
+    instead_if: "Condition | None" = None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.change_life(target, game.amount(self.amount))
+            more = self.instead_if is not None and game.condition_holds(self.instead_if, controller, game.resolving_source)
+            game.change_life(target, self.instead if more else game.amount(self.amount))
+
+
+@dataclass(frozen=True)
+class _InsteadTargetLife:
+    """ "Landfall — If you had a land enter the battlefield under your control this turn, that player gains 8 life instead." after a
+    TargetGainLife."""
+    amount: int
+    condition: "Condition"
 
 
 @dataclass(frozen=True)

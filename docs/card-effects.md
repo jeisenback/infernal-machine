@@ -1598,6 +1598,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Ascend on an instant or sorcery (`tests/test_ascend_spells.py`, CR 702.131b): its controller gets the city's blessing as it resolves
     if they control ten or more permanents (Pride of Conquerors, Secrets of the Golden City); the Ascend line is not a step of the spell.
     Fiery Impulse's "Spell mastery — ... deals 3 damage instead." is read by Akoum Hellkite's sentence.
+  - Landfall on an instant (`tests/test_spell_landfall.py`): "Landfall — If you had a land enter the battlefield under your control
+    this turn, ... instead." is the condition `land_entered`: Groundswell and Tomb Hex (a `Pump.instead`), Mysteries of the Deep (a
+    `Draw.more`) and Rest for the Weary ("that player gains 8 life instead.": `TargetGainLife.instead`). Another player's land does not count.
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with

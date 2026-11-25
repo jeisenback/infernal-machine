@@ -504,6 +504,7 @@ from .families.life_and_damage import (  # noqa: F401
     DamageEachPlayerPerNonbasic,
     Damage,
     _InsteadDamage,
+    _InsteadTargetLife,
     _NoLifeGainForDamaged,
     DamageFromSubject,
     DamageEach,
@@ -2248,7 +2249,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _CounterInsteadIf(c) if (c := _condition(m[1])) else None),
     (re.compile(rf"(?:[A-Z][a-z]+ \u2014 )?that creature gets {_PT} until end of turn instead if (.+)\.", re.I),  # Tragic Slip (Morbid)
      lambda m: _InsteadPump(Modifier(_signed(m[1]), _signed(m[2])), c) if (c := _condition(m[3])) else None),
-    (re.compile(rf"if (.+?), those creatures get {_PT} until end of turn instead\.", re.I),  # Guul Draz Overseer: after a PumpEach
+    (re.compile(rf"(?:Landfall \u2014 )?if (.+?), (?:those creatures|that creature) get(?:s)? {_PT} until end of turn instead\.", re.I),  # Guul Draz Overseer
      lambda m: _InsteadPump(Modifier(_signed(m[2]), _signed(m[3])), c) if (c := _condition(m[1])) else None),
     (re.compile(r"if (.+?), (?:CARDNAME|this creature) deals (\d+) damage instead\.", re.I),  # Akoum Hellkite
      lambda m: _InsteadDamage(int(m[2]), c) if (c := _condition(m[1])) else None),
@@ -2256,8 +2257,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _InsteadCountersOnSource(_number(m[2]), "+1/+1", c) if (c := _condition(m[1])) else None),
     (re.compile(r"you may cast spells this turn as though they had flash\.", re.I), lambda m: GrantFlash()),
     (re.compile(r"until your next turn, you may cast sorcery spells as though they had flash\.", re.I), lambda m: GrantSorceryFlash()),
-    (re.compile(rf"if (.+), draw {_N_FIXED} cards instead\.", re.I),
+    (re.compile(rf"(?:Landfall \u2014 )?if (.+), draw {_N_FIXED} cards instead\.", re.I),  # (Mysteries of the Deep)
      lambda m: _InsteadDraw(c, _number(m[2])) if (c := _condition(m[1])) else None),
+    (re.compile(rf"(?:Landfall \u2014 )?if (.+?), that player gains (\d+) life instead\.", re.I),  # Rest for the Weary
+     lambda m: _InsteadTargetLife(int(m[2]), c) if (c := _condition(m[1])) else None),
     (re.compile(r"(?:Threshold \u2014 )?add ((?:\{[WUBRGC]\})+) instead if (there are seven or more cards in your graveyard)\.", re.I),
      lambda m: _InsteadMana(c, tuple(frozenset(s) for s in re.findall(r"[WUBRGC]", m[1].upper()))) if (c := _condition(m[2])) else None),
     (re.compile(r"add ((?:\{[WUBRGC]\})+), then add (\{[WUBRGC]\}) for each card named CARDNAME in each graveyard\.", re.I),
@@ -4009,7 +4012,8 @@ _CONDITIONS = [
      lambda m: Condition("opponent_poison_at_least", _number(m[1]))),
     (re.compile(rf"you attacked with {_N_FIXED} or more creatures this turn"), lambda m: Condition("attacked_with_at_least", _number(m[1]))),
     (re.compile(r"a card left your graveyard this turn"), lambda m: Condition("graveyard_left")),
-    (re.compile(r"a land entered the battlefield under your control this turn"), lambda m: Condition("land_entered")),
+    (re.compile(r"a land entered the battlefield under your control this turn|you had a land enter the battlefield under your control this turn"),
+     lambda m: Condition("land_entered")),  # (Groundswell)
     (re.compile(r"you control a prime number of lands"), lambda m: Condition("lands_prime")),
     (re.compile(r"you gained life this turn"), lambda m: Condition("gained_life")),
     (re.compile(r"you cast this spell during your main phase"), lambda m: Condition("your_main_phase")),  # Addendum
@@ -4246,6 +4250,8 @@ _CONDITIONAL = Follows(
     Follow(_InsteadPump, Pump, set_fields(instead=lambda m: m.modifier, instead_if=lambda m: m.condition),
            fits=lambda previous, marker: previous.instead is None),
     Follow(_InsteadPump, PumpEach, lambda previous, marker: IfElse(marker.condition, (replace(previous, modifier=marker.modifier),), (previous,))),
+    Follow(_InsteadTargetLife, TargetGainLife, set_fields(instead=lambda m: m.amount, instead_if=lambda m: m.condition),
+           fits=lambda previous, marker: previous.instead_if is None),
     Follow(_InsteadCountersOnSource, PutCountersOnSource, set_fields(instead=lambda m: m.count, instead_if=lambda m: m.condition),
            fits=lambda previous, marker: previous.instead_if is None and previous.counter == marker.counter),
     Follow(_InsteadUntapAll, UntapACreature, set_fields(all_if=lambda m: m.condition)),
