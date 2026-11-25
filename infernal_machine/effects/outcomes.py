@@ -2971,7 +2971,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"mana cost\.", re.I), lambda m: ExileUntilNonlandCastFree()),  # Nico Minoru, Runaway: the rest stay exiled
     (re.compile(r"reveal cards from the top of your library until you reveal a nonland card with mana value (\d+) or less\. You may cast "
                 r"that card without paying its mana cost\. Put all revealed cards not cast this way on the bottom of your library in a "
-                r"random order\.", re.I), lambda m: Cascade(int(m[1]) + 1)),  # Treasure Keeper: a cascade, below N + 1
+                r"random order\.", re.I), lambda m: Cascade(int(m[1]) + 1, reveal=True)),  # Treasure Keeper: below N + 1, from the library
     (re.compile(r"you may cast up to two instant and/or sorcery spells with total mana value (\d+) or less from your graveyard and/or "
                 r"hand without paying their mana costs\. If those spells would be put into your graveyard, exile them instead\.", re.I),
      lambda m: CastTwoFreeFromHandOrGraveyard(int(m[1]))),  # Invoke Calamity

@@ -188,11 +188,12 @@ class ShuffleRevealCast:
 @dataclass(frozen=True)
 class Cascade:
     """Cascade: exile cards from the top of your library until you exile a nonland card that costs less than `value`;
-    you may cast it without paying its mana cost."""
+    you may cast it without paying its mana cost. `reveal`: revealed, not exiled (Treasure Keeper), so it is cast from the library."""
     value: int
+    reveal: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.cascade(controller, self.value)
+        game.cascade(controller, self.value, reveal=self.reveal)
 
 
 @dataclass(frozen=True)
