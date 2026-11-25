@@ -411,6 +411,7 @@ class Permanent:
     animated_until: int | None = None  # Karn, the Great Creator: animated "until your next turn", the index of the seat whose turn ends it
     skips_next_untap: bool = False  # "It doesn't untap during its controller's next untap step." (Sleep of the Dead)
     harnessed: bool = False  # an Infinity Stone that was harnessed: its \u221e ability works
+    suspected: bool = False  # CR 701.60: it has menace and can't block until it leaves the battlefield
     awakened: bool = False  # a land awakened into a 0/0 Elemental creature with haste for good (CR 702.113a): `original` is the land
     earthbent: bool = False  # a land earthbent into a creature for good: `original` is the land, and it returns tapped when it dies or is exiled
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
@@ -3021,6 +3022,18 @@ class Game:
         if seat.player.choose(ATTACH_PROMPT(attachment.card.name), YES_NO) == 0:
             self.attach(attachment, creature)
 
+    def suspect(self, creature: "Permanent | GraveyardTarget") -> None:
+        """CR 701.60a, d: the creature becomes suspected (it can't become suspected again); a new object, when it comes back, isn't. A card
+        (It Doesn't Add Up: "Return target creature card from your graveyard to the battlefield. Suspect it.") is the permanent it became."""
+        if isinstance(creature, GraveyardTarget):
+            found = next((p for s in self.seats for p in reversed(s.battlefield) if p.card is creature.card), None)  # (the newest: copies share a card)
+            if found is None:
+                return
+            creature = found
+        if self.on_battlefield(creature) and "Creature" in creature.card.type_line and not creature.suspected:
+            creature.suspected = True
+            self.broadcast({"event": "suspected", "card": creature.card.name})
+
     def may_destroy_equipment_on(self, seat: Seat, creature: Permanent) -> None:
         """Awaken the Sleeper: if the creature is equipped, `seat` may destroy all Equipment attached to it."""
         equipment = [p for s in self.seats for p in s.battlefield if p.attached_to is creature and "Equipment" in p.card.type_line]
@@ -5452,7 +5465,8 @@ class Game:
             return False  # CR 613.1f: a later "loses flying" (Colossus Hammer) wins over the printed or granted keyword
         printed = has_keyword(permanent.card, keyword) and not self.loses_abilities(permanent)
         return printed or permanent.counters.get(keyword, 0) > 0 or any(keyword in m.keywords for m in mods) \
-            or (keyword == "haste" and (permanent.blitzed or permanent.rioted))  # CR 122.1b: a keyword counter; CR 702.152a, 702.136a
+            or (keyword == "haste" and (permanent.blitzed or permanent.rioted)) \
+            or (permanent.suspected and keyword in ("menace", CANT_BLOCK))  # CR 122.1b: a keyword counter; CR 702.152a, 702.136a; CR 701.60c
 
     def _stripped(self) -> set[int]:
         """`id`s of the permanents an Aura or Equipment takes every ability from (Infinite Coursework): one pass over the board

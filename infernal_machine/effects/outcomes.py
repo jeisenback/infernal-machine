@@ -92,6 +92,8 @@ from .families.combat_and_pump import (  # noqa: F401
     PumpSource,
     PumpThatIfType,
     PumpThatIfTreasure,
+    Suspect,
+    SuspectTarget,
     MayDestroyEquipmentOnThat,
     AttachEquipmentToThatUntilEnd,
     SacrificeThatAtEndIfKicked,
@@ -1973,6 +1975,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"CARDNAME deals (\d+) damage to any other target\.", re.I), lambda m: Damage(int(m[1]), "any", not_chosen=True)),  # Bond of Passion
     (re.compile(r"If that creature is an? ((?-i:[A-Z][a-z]+)), it also gets \+(\d+)/\+(\d+) until end of turn\.", re.I),
      lambda m: PumpThatIfType(int(m[2]), int(m[3]), m[1])),  # Goatnap
+    (re.compile(r"suspect it\.", re.I), lambda m: Suspect()),  # CR 701.60a: Caught Red-Handed; an enters trigger's "it" is its source (_parse)
+    (re.compile(r"suspect enchanted creature\.", re.I), lambda m: Suspect(SOURCE, enchanted=True)),  # Convenient Target
+    (re.compile(r"suspect up to one target creature\.", re.I), lambda m: SuspectTarget()),  # Reasonable Doubt
     (re.compile(r"If mana from a Treasure was spent to cast this spell, that creature gets \+(\d+)/\+(\d+) until end of turn\.", re.I),
      lambda m: PumpThatIfTreasure(int(m[1]), int(m[2]))),  # Price of Loyalty
     (re.compile(r"If it's equipped, you may destroy all Equipment attached to that creature\.", re.I),
@@ -3889,6 +3894,8 @@ def _parse(sentences: list[str]) -> list | None:
             return None  # "instead" has to change the effect just before it
         if isinstance(effect, KickedReplaces) and not i:
             return None
+    if effects and isinstance(effects[0], Suspect) and effects[0].binds == PREVIOUS_TARGET:
+        effects[0] = replace(effects[0], binds=SOURCE)  # "When this creature enters, suspect it.": no target before it, so "it" is the source
     merged: list | None = _merge_no_regen(effects)
     for merge in (_merge_three_way, _merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_conditional, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_new_target, _merge_stun_self, _merge_stun, _merge_attacking_tokens, _merge_prevention, _merge_token_copies, _merge_target_copies):  # each returns None for a line it rejects
         if merged is None:
