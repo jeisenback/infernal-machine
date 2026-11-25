@@ -94,6 +94,10 @@ from .families.combat_and_pump import (  # noqa: F401
     PumpThatIfTreasure,
     Suspect,
     SuspectTarget,
+    CounterIfSuspectedElseSuspect,
+    ExileIfSuspectedElseSuspect,
+    MaySuspectSelf,
+    UnsuspectOpponentsCreatures,
     MayDestroyEquipmentOnThat,
     AttachEquipmentToThatUntilEnd,
     SacrificeThatAtEndIfKicked,
@@ -1978,6 +1982,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"suspect it\.", re.I), lambda m: Suspect()),  # CR 701.60a: Caught Red-Handed; an enters trigger's "it" is its source (_parse)
     (re.compile(r"suspect enchanted creature\.", re.I), lambda m: Suspect(SOURCE, enchanted=True)),  # Convenient Target
     (re.compile(r"suspect up to one target creature\.", re.I), lambda m: SuspectTarget()),  # Reasonable Doubt
+    (re.compile(r"If this creature is suspected, put a \+1/\+1 counter on it\. Otherwise, suspect it\.", re.I),
+     lambda m: CounterIfSuspectedElseSuspect()),  # Repeat Offender
+    (re.compile(r"choose up to one target creature\. If it's suspected, exile it\. Otherwise, suspect it\.", re.I),
+     lambda m: ExileIfSuspectedElseSuspect()),  # Agrus Kos, Spirit of Justice
+    (re.compile(r"If any of them are suspected, they're no longer suspected\.", re.I), lambda m: UnsuspectOpponentsCreatures()),  # Eliminate the Impossible
     (re.compile(r"If mana from a Treasure was spent to cast this spell, that creature gets \+(\d+)/\+(\d+) until end of turn\.", re.I),
      lambda m: PumpThatIfTreasure(int(m[1]), int(m[2]))),  # Price of Loyalty
     (re.compile(r"If it's equipped, you may destroy all Equipment attached to that creature\.", re.I),

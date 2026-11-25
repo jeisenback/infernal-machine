@@ -6592,6 +6592,51 @@
    "colors": [
     "B"
    ]
+  },
+  {
+   "name": "Repeat Offender",
+   "mana_cost": "{1}{B}",
+   "type_line": "Creature — Human Assassin",
+   "oracle_text": "{2}{B}: If this creature is suspected, put a +1/+1 counter on it. Otherwise, suspect it. (A suspected creature has menace and can't block.)",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Agrus Kos, Spirit of Justice",
+   "mana_cost": "{2}{R}{W}",
+   "type_line": "Legendary Creature — Spirit Detective",
+   "oracle_text": "Double strike, vigilance\nWhenever Agrus Kos enters or attacks, choose up to one target creature. If it's suspected, exile it. Otherwise, suspect it. (A suspected creature has menace and can't block.)",
+   "power": "2",
+   "toughness": "4",
+   "colors": [
+    "R",
+    "W"
+   ]
+  },
+  {
+   "name": "Eliminate the Impossible",
+   "mana_cost": "{1}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Investigate. Creatures your opponents control get -2/-0 until end of turn. If any of them are suspected, they're no longer suspected. (To investigate, create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Rubblebelt Braggart",
+   "mana_cost": "{4}{R}",
+   "type_line": "Creature — Lizard Warrior",
+   "oracle_text": "Whenever this creature attacks, if it's not suspected, you may suspect it. (A suspected creature has menace and can't block.)",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "R"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

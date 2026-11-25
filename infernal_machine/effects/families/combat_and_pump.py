@@ -255,6 +255,54 @@ class Suspect:
 
 
 @dataclass(frozen=True)
+class CounterIfSuspectedElseSuspect:
+    """Repeat Offender: "If this creature is suspected, put a +1/+1 counter on it. Otherwise, suspect it." """
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            if target.suspected:
+                game.put_counters(target, "+1/+1", 1, by=controller)
+            else:
+                game.suspect(target)
+
+
+@dataclass(frozen=True)
+class ExileIfSuspectedElseSuspect:
+    """Agrus Kos: "choose up to one target creature. If it's suspected, exile it. Otherwise, suspect it." """
+    target: str = "creature"
+    optional_target: bool = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            if target.suspected:
+                game.exile(target)
+            else:
+                game.suspect(target)
+
+
+@dataclass(frozen=True)
+class MaySuspectSelf:
+    """Rubblebelt Braggart: "Whenever this creature attacks, if it's not suspected, you may suspect it." (its trigger's condition is the
+    "if", checked as it triggers and as it resolves)"""
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            game.may_suspect(controller, target)
+
+
+@dataclass(frozen=True)
+class UnsuspectOpponentsCreatures:
+    """Eliminate the Impossible: "If any of them are suspected, they're no longer suspected." (the creatures your opponents control)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.opponents(controller):
+            for permanent in seat.battlefield:
+                permanent.suspected = False
+
+
+@dataclass(frozen=True)
 class SuspectTarget:
     """Reasonable Doubt: "Suspect up to one target creature." """
     target: str = "creature"

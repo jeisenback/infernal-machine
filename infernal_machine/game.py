@@ -280,6 +280,7 @@ LIFE_X_PROMPT = PromptKind("life_x", "Pay how much life (X) for ")  # followed b
 REMOVE_AMONG_PROMPT = PromptKind("remove_among", "Remove a counter from ")  # followed by the ability's source; Tekuthal's cost
 REMOVE_COUNTER_PROMPT = PromptKind("remove_counter", "Remove a counter to draw a card? ")  # followed by the permanent's name
 ATTACH_PROMPT = PromptKind("attach", "Attach it to the new token? ")  # followed by the Aura's name
+SUSPECT_PROMPT = PromptKind("suspect", "Suspect ")  # followed by the creature's name; Yes/No (Rubblebelt Braggart)
 DESTROY_EQUIPMENT_PROMPT = PromptKind("destroy_equipment", "Destroy all Equipment attached to ")  # followed by the creature; Yes/No
 ATTACH_EQUIPMENT_PROMPT = PromptKind("attach_equipment", "Attach an Equipment you control to ")  # followed by the creature; options: none, or one
 NO_EQUIPMENT = "Don't attach one"
@@ -3034,6 +3035,11 @@ class Game:
             creature.suspected = True
             self.broadcast({"event": "suspected", "card": creature.card.name})
 
+    def may_suspect(self, seat: Seat, creature: Permanent) -> None:
+        """ "you may suspect it": asked, then suspected."""
+        if seat.player.choose(SUSPECT_PROMPT(creature.card.name), YES_NO) == 0:
+            self.suspect(creature)
+
     def may_destroy_equipment_on(self, seat: Seat, creature: Permanent) -> None:
         """Awaken the Sleeper: if the creature is equipped, `seat` may destroy all Equipment attached to it."""
         equipment = [p for s in self.seats for p in s.battlefield if p.attached_to is creature and "Equipment" in p.card.type_line]
@@ -3487,6 +3493,8 @@ class Game:
             return subject is not None and condition.what in subject.card.type_line.partition("\u2014")[2].split()
         if kind == "different_powers":  # Coven: creatures you control with at least that many different powers
             return len({self.power(p) for p in seat.battlefield if "Creature" in p.card.type_line}) >= condition.count
+        if kind == "source_not_suspected":  # Rubblebelt Braggart: "if it's not suspected"
+            return source is not None and not source.suspected
         if kind == "source_not_token":  # Progenitor Mimic: "if this creature isn't a token"
             return source is not None and not _is_token(source.card)
         if kind == "nth_resolution":  # Tannuk: "If this is the second time this ability has resolved this turn"
