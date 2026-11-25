@@ -8238,9 +8238,10 @@ class Game:
         if seat.library and seat.library[0] is card:
             seat.hand.append(seat.library.pop(0))
 
-    def exile_until_nonland_cast_or_take(self, seat: Seat, most: int) -> None:
+    def exile_until_nonland_cast_or_take(self, seat: Seat, most: int | None, take: bool = True) -> None:
         """Breaching Dragonstorm: exile cards from the top until a nonland card is exiled; `seat` may cast it without paying its mana cost
-        if its mana value is `most` or less; if it isn't cast, it is put into the hand. The others stay exiled."""
+        if its mana value is `most` or less (None: any); if it isn't cast, it is put into the hand, or stays exiled if not `take` (Nico
+        Minoru, Runaway: "You may cast that card without paying its mana cost."). The others stay exiled."""
         found = None
         while seat.library and found is None:
             card = seat.library.pop(0)
@@ -8248,9 +8249,9 @@ class Game:
             found = None if is_land(card) else card
         if found is None:
             return
-        if found.cmc <= most and seat.player.choose(CASCADE_PROMPT(found.name), YES_NO) == 0:
+        if (most is None or found.cmc <= most) and seat.player.choose(CASCADE_PROMPT(found.name), YES_NO) == 0:
             self._cast(seat, found, seat.exile, free=True)
-        if any(c is found for c in seat.exile):
+        if take and any(c is found for c in seat.exile):
             seat.exile.remove(found)
             seat.hand.append(found)
 

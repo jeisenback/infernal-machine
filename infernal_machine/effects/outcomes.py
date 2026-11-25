@@ -684,6 +684,7 @@ from .families.free_casting import (  # noqa: F401
     ShuffleExileTopPlayFree,
     ExileUntilNonlandCast,
     ExileUntilNonlandCastOrTake,
+    ExileUntilNonlandCastFree,
     CastTwoFreeFromHandOrGraveyard,
     TargetCascades,
     CastTargetFromGraveyardFree,
@@ -2966,6 +2967,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"exile cards from the top of your library until you exile a nonland card\. You may cast it without paying its mana cost "
                 r"if that spell's mana value is (\d+) or less\. If you don't, put that card into your hand\.", re.I),
      lambda m: ExileUntilNonlandCastOrTake(int(m[1]))),  # Breaching Dragonstorm
+    (re.compile(r"exile cards from the top of your library until you exile a nonland card\. You may cast that card without paying its "
+                r"mana cost\.", re.I), lambda m: ExileUntilNonlandCastFree()),  # Nico Minoru, Runaway: the rest stay exiled
+    (re.compile(r"reveal cards from the top of your library until you reveal a nonland card with mana value (\d+) or less\. You may cast "
+                r"that card without paying its mana cost\. Put all revealed cards not cast this way on the bottom of your library in a "
+                r"random order\.", re.I), lambda m: Cascade(int(m[1]) + 1)),  # Treasure Keeper: a cascade, below N + 1
     (re.compile(r"you may cast up to two instant and/or sorcery spells with total mana value (\d+) or less from your graveyard and/or "
                 r"hand without paying their mana costs\. If those spells would be put into your graveyard, exile them instead\.", re.I),
      lambda m: CastTwoFreeFromHandOrGraveyard(int(m[1]))),  # Invoke Calamity

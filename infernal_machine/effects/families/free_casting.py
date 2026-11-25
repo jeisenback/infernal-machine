@@ -200,6 +200,15 @@ class ExileUntilNonlandCastOrTake:
 
 
 @dataclass(frozen=True)
+class ExileUntilNonlandCastFree:
+    """Nico Minoru, Runaway: "Exile cards from the top of your library until you exile a nonland card. You may cast that card without
+    paying its mana cost." Not cascade: nothing goes back to the library; the cards exiled, and that one if it isn't cast, stay exiled."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_until_nonland_cast_or_take(controller, None, take=False)
+
+
+@dataclass(frozen=True)
 class CastTwoFreeFromHandOrGraveyard:
     """Invoke Calamity: "You may cast up to two instant and/or sorcery spells with total mana value 6 or less from your graveyard and/or
     hand without paying their mana costs. If those spells would be put into your graveyard, exile them instead." """
