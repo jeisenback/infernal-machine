@@ -22,7 +22,7 @@ from functools import lru_cache
 COLOR_LETTER = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
 PERMANENT_TYPES = frozenset({"artifact", "battle", "creature", "enchantment", "land", "planeswalker"})
 _CONTROLLERS = ((" an opponent controls", "opponent"), (" you don't control", "opponent"), (" you control", "you"), (" you own", "own"))
-_STATES = ("attacking or blocking", "tapped", "untapped", "attacking")
+_STATES = ("attacking or blocking", "tapped", "untapped", "attacking", "suspected")  # suspected: Deadly Complication (CR 701.60)
 _ENTERED_THIS_TURN = re.compile(r" that entered (?:the battlefield )?this turn$")
 _NOTHING_TO_CHECK = {"", "card", "spell", "cards", "spells"}
 

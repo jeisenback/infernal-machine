@@ -280,6 +280,7 @@ LIFE_X_PROMPT = PromptKind("life_x", "Pay how much life (X) for ")  # followed b
 REMOVE_AMONG_PROMPT = PromptKind("remove_among", "Remove a counter from ")  # followed by the ability's source; Tekuthal's cost
 REMOVE_COUNTER_PROMPT = PromptKind("remove_counter", "Remove a counter to draw a card? ")  # followed by the permanent's name
 ATTACH_PROMPT = PromptKind("attach", "Attach it to the new token? ")  # followed by the Aura's name
+UNSUSPECT_PROMPT = PromptKind("unsuspect", "Have it become no longer suspected: ")  # followed by the creature's name; Yes/No
 SUSPECT_PROMPT = PromptKind("suspect", "Suspect ")  # followed by the creature's name; Yes/No (Rubblebelt Braggart)
 DESTROY_EQUIPMENT_PROMPT = PromptKind("destroy_equipment", "Destroy all Equipment attached to ")  # followed by the creature; Yes/No
 ATTACH_EQUIPMENT_PROMPT = PromptKind("attach_equipment", "Attach an Equipment you control to ")  # followed by the creature; options: none, or one
@@ -490,6 +491,7 @@ class StackItem:
     sacrificed_toughness: int = 0  # ... and its toughness (Witch's Oven)
     sacrificed_value: int = 0  # ... and its mana value (Repurposing Bay)
     sacrificed_cards: tuple[Card, ...] = ()  # ... and what it was, as it last was (Cleaver Skaab)
+    sacrificed_suspected: bool = False  # ... and whether it was suspected (Agency Coroner)
     tapped_power: int = 0  # for an ability: the power of the creature tapped to pay for it (Station)
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
     cant_be_countered: bool = False  # Cavern of Souls: mana from it was spent to cast this spell
@@ -528,6 +530,8 @@ RETURN_WHEN_DIES = TriggeredAbility("dies", (ReturnWithCounter("", True),), Fals
 RETURN_WHEN_DIES_COUNTER = TriggeredAbility("dies", (ReturnWithCounter("+1/+1", True),), False,  # Undying Malice, Feign Death
                                             "When this creature dies, return it to the battlefield tapped under its owner's control with a "
                                             "+1/+1 counter on it.")
+RETURN_WHEN_DIES_SUSPECTED = TriggeredAbility("dies", (ReturnWithCounter("", False, suspect=True),), False,  # Presumed Dead
+                                              "When this creature dies, return it to the battlefield under its owner's control and suspect it.")
 BLITZ_DRAW = TriggeredAbility("dies", (Draw(1),), False, "When this creature dies, draw a card.")  # CR 702.152a
 RETURN_WHEN_EXILED = TriggeredAbility("leaves", (ReturnWithCounter("", True),), False,
                                       "When this creature is exiled, return it to the battlefield tapped.")  # an earthbent land
@@ -821,6 +825,7 @@ class Game:
         self.cost_sacrificed_power = 0  # the power of what the ability being activated sacrificed
         self.cost_sacrificed_toughness = 0  # ... and its toughness
         self.cost_sacrificed_value = 0  # ... and its mana value (Repurposing Bay)
+        self.cost_sacrificed_suspected = False  # ... and whether it was suspected (Agency Coroner)
         self.cost_sacrificed_cards: tuple[Card, ...] = ()  # ... and what it was (Cleaver Skaab: "copies of the sacrificed creature")
         self.cost_tapped_power = 0  # the power of what the ability being activated tapped as a cost (Station)
         self.x_value = 0  # X of the spell resolving right now
@@ -1694,6 +1699,7 @@ class Game:
         self.cost_sacrificed_toughness = sum(self.toughness(p) or 0 for p in chosen)
         self.cost_sacrificed_value = int(sum(p.card.cmc for p in chosen))
         self.cost_sacrificed_cards = tuple(p.card for p in chosen)
+        self.cost_sacrificed_suspected = any(p.suspected for p in chosen)
         if chosen:
             self._leave_together([(p, "sacrificed") for p in chosen])
 
@@ -2660,7 +2666,7 @@ class Game:
                                     destination="exile" if ability.exile_source else "hand")
         item = StackItem(permanent.card, seat, effects, targets, ability, permanent, x=x,
                          sacrificed_power=self.cost_sacrificed_power, sacrificed_toughness=self.cost_sacrificed_toughness,
-                         sacrificed_value=self.cost_sacrificed_value, sacrificed_cards=self.cost_sacrificed_cards,
+                         sacrificed_value=self.cost_sacrificed_value, sacrificed_cards=self.cost_sacrificed_cards, sacrificed_suspected=self.cost_sacrificed_suspected,
                          tapped_power=self.cost_tapped_power)
         self.stack.append(item)
         if ability.loyalty is not None:  # Ajani Unrelenting: "Whenever you activate a loyalty ability" (above the ability)
@@ -3034,6 +3040,11 @@ class Game:
         if self.on_battlefield(creature) and "Creature" in creature.card.type_line and not creature.suspected:
             creature.suspected = True
             self.broadcast({"event": "suspected", "card": creature.card.name})
+
+    def may_unsuspect(self, seat: Seat, creature: Permanent) -> None:
+        """ "You may have it become no longer suspected." """
+        if seat.player.choose(UNSUSPECT_PROMPT(creature.card.name), YES_NO) == 0:
+            creature.suspected = False
 
     def may_suspect(self, seat: Seat, creature: Permanent) -> None:
         """ "you may suspect it": asked, then suspected."""
@@ -4701,6 +4712,8 @@ class Game:
             return any(a.attacker is permanent or permanent in a.blockers for a in self.combat.attacks)
         if state == "entered this turn":  # Octomancer
             return permanent.entered_turn == self.turn
+        if state == "suspected":  # Deadly Complication: "target suspected creature you control"
+            return permanent.suspected
         return {"tapped": permanent.tapped, "untapped": not permanent.tapped}.get(state, True)
 
     def _spared(self, permanent: Permanent, spared: MassFilter) -> bool:
@@ -5594,7 +5607,7 @@ class Game:
         if not one_sided:
             self.damage(first, hit_first, source=second)
 
-    def return_with_counter(self, dead: Permanent | None, counter: str, tapped: bool = False) -> None:
+    def return_with_counter(self, dead: Permanent | None, counter: str, tapped: bool = False, suspect: bool = False) -> None:
         """Persist and undying: put the card that just died back onto the battlefield with a counter, under its
         owner's control, if it is still in the graveyard (a token or a commander sent elsewhere isn't)."""
         if dead is None:
@@ -5611,8 +5624,10 @@ class Game:
             self._left_graveyard(seat, [dead.card])
         else:
             return
-        self._enter(seat, Permanent(dead.card, sick=True, tapped=tapped, loyalty=_starting_loyalty(dead.card),
-                                    counters={counter: 1} if counter else {}))
+        returned = Permanent(dead.card, sick=True, tapped=tapped, loyalty=_starting_loyalty(dead.card), counters={counter: 1} if counter else {})
+        self._enter(seat, returned)
+        if suspect:  # Presumed Dead: "... and suspect it."
+            self.suspect(returned)
 
     def _unearth(self, seat: Seat, card: Card) -> None:
         """Unearth: pay its cost and return it from the graveyard (it is not cast); it has haste, and is exiled at the beginning
@@ -7785,7 +7800,8 @@ class Game:
                 targets = chosen[0]
             self.stack.append(StackItem(item.card, controller, item.effects, targets, item.ability, item.source, x=item.x,
                                         sacrificed_power=item.sacrificed_power, sacrificed_toughness=item.sacrificed_toughness,
-                                        tapped_power=item.tapped_power))
+                                        sacrificed_value=item.sacrificed_value, sacrificed_cards=item.sacrificed_cards,
+                                        sacrificed_suspected=item.sacrificed_suspected, tapped_power=item.tapped_power))
             self.broadcast({"event": "copied_ability", "seat": controller.index, "card": item.card.name})
 
     def copy_spell_for_each_other_creature(self, item: StackItem, caster: Seat, source: Permanent) -> None:
@@ -8016,6 +8032,8 @@ class Game:
                 self.trigger("dies", permanent, controller)
                 if permanent.returns_when_dies == self.turn and permanent.returns_with_counter == "+1/+1":
                     self._queue(RETURN_WHEN_DIES_COUNTER, permanent, controller)
+                elif permanent.returns_when_dies == self.turn and permanent.returns_with_counter == "suspect":
+                    self._queue(RETURN_WHEN_DIES_SUSPECTED, permanent, controller)
                 elif permanent.returns_when_dies == self.turn or permanent.earthbent:
                     self._queue(RETURN_WHEN_DIES, permanent, controller)
                 if permanent.blitzed:

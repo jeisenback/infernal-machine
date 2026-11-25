@@ -3,23 +3,35 @@ the cards' real Oracle text. Seven cards whose only gap it was are fully playabl
 Barbed Servitor and Person of Interest suspect themselves as they enter, Convenient Target the creature it enchants, Reasonable Doubt
 its target, It Doesn't Add Up the creature it returns. Repeat Offender suspects itself, then gets a +1/+1 counter; Agrus Kos suspects a
 creature, then exiles it; Eliminate the Impossible makes only opponents' creatures no longer suspected; Rubblebelt Braggart may suspect
-itself as it attacks, and isn't asked once it is. A suspected creature has menace and can't block; one that isn't, or that left
+itself as it attacks, and isn't asked once it is. Deadly Complication may target only a suspected creature you control, which then may
+become no longer suspected; Agency Coroner draws two for a suspected creature, one for another; Presumed Dead's creature comes back
+suspected when it dies. A suspected creature has menace and can't block; one that isn't, or that left
 the battlefield and came back, can block and has no menace."""
 
 import unittest
 
 from infernal_machine.effects import CANT_BLOCK
-from infernal_machine.game import ACTIVATE, CAST, SUSPECT_PROMPT, Permanent
+from infernal_machine.game import ACTIVATE, CAST, SUSPECT_PROMPT, UNSUSPECT_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.helpers import BEAR, OGRE, attack_all, choose, lands, run_stack, table3, wording_unlocked
 from tests.real import REAL
 
 CARDS = ["Caught Red-Handed", "Barbed Servitor", "Person of Interest", "Convenient Target", "Incriminating Impetus", "It Doesn't Add Up",
-         "Repeat Offender", "Agrus Kos, Spirit of Justice", "Eliminate the Impossible", "Rubblebelt Braggart"]
-NEED_A_TARGET = ["Reasonable Doubt"]  # (it counters a spell too: the smoke table has none, so only read)
+         "Repeat Offender", "Agrus Kos, Spirit of Justice", "Eliminate the Impossible", "Rubblebelt Braggart", "Agency Coroner", "Presumed Dead"]
+NEED_A_TARGET = ["Reasonable Doubt", "Deadly Complication"]  # (a spell to counter, a suspected creature: the smoke table has neither, so only read)
 
 # The guards these tests are there to catch (python tools/mutate.py tests.test_suspect).
 MUTATIONS = [
+    ("infernal_machine/game.py", "sacrificed_suspected=item.sacrificed_suspected, tapped_power=item.tapped_power))",
+     "tapped_power=item.tapped_power))", "a copied ability keeps it"),
+    ("infernal_machine/game.py", '        if state == "suspected":  # Deadly Complication: "target suspected creature you control"\n            return permanent.suspected',
+     '        if state == "suspected":  # Deadly Complication: "target suspected creature you control"\n            return True', "only a suspected creature is a target"),
+    ("infernal_machine/game.py", "        if seat.player.choose(UNSUSPECT_PROMPT(creature.card.name), YES_NO) == 0:\n            creature.suspected = False",
+     "        if seat.player.choose(UNSUSPECT_PROMPT(creature.card.name), YES_NO) == 0:\n            pass", "it can become no longer suspected"),
+    ("infernal_machine/game.py", "        self.cost_sacrificed_suspected = any(p.suspected for p in chosen)", "        self.cost_sacrificed_suspected = False",
+     "the sacrificed creature was suspected"),
+    ("infernal_machine/game.py", "        if suspect:  # Presumed Dead: \"... and suspect it.\"\n            self.suspect(returned)",
+     "        if suspect:  # Presumed Dead: \"... and suspect it.\"\n            pass", "it comes back suspected"),
     ("infernal_machine/effects/families/combat_and_pump.py", "            if target.suspected:\n                game.put_counters(", "            if False:\n                game.put_counters(",
      "a suspected Repeat Offender gets a counter"),
     ("infernal_machine/effects/families/combat_and_pump.py", "            if target.suspected:\n                game.exile(target)", "            if False:\n                game.exile(target)",
@@ -172,6 +184,68 @@ class SuspectTests(unittest.TestCase):
         braggart.suspected = True  # (between the trigger and its resolution: the "if" is checked again, CR 603.4)
         run_stack(game)
         self.assertEqual([p for p, _ in players[0].prompts if SUSPECT_PROMPT.matches(p)], [])
+
+
+    def test_deadly_complication_counters_a_suspected_creature_that_may_become_unsuspected(self):
+        game, players = table3()
+        a = game.seats[0]
+        suspect, other = Permanent(BEAR, sick=False), Permanent(OGRE, sick=False)
+        suspect.suspected = True
+        a.battlefield, a.hand = lands(4) + [suspect, other], [REAL["Deadly Complication"]]
+        self.assertEqual([o for _, o in game.target_options("suspected creature you control", a)], [suspect])  # (not the Ogre)
+        aim = choose(game, suspect)
+        players[0].policy = lambda prompt, options: (next(i for i, o in enumerate(options) if o.startswith(("Put", "Done"))) if "mode" in prompt
+                                                     else 0 if UNSUSPECT_PROMPT.matches(prompt) else aim(prompt, options))
+        game._perform(a, CAST + "Deadly Complication")
+        run_stack(game)
+        self.assertEqual((suspect.counters.get("+1/+1"), suspect.suspected), (1, False))
+
+    def test_agency_coroner_draws_two_for_a_suspected_creature(self):
+        for suspected_one, drawn in ((True, 2), (False, 1)):
+            game, players = table3()
+            a = game.seats[0]
+            coroner, bear = Permanent(REAL["Agency Coroner"], sick=False), Permanent(BEAR, sick=False)
+            bear.suspected = suspected_one
+            a.battlefield, a.hand, a.library = lands(3) + [coroner, bear], [], [OGRE, OGRE, OGRE]
+            (action,) = [x for x in game.legal_actions(a) if x.startswith(ACTIVATE) and "Agency Coroner" in x]
+            game._perform(a, action)
+            run_stack(game)
+            self.assertEqual(len(a.hand), drawn, suspected_one)
+
+    def test_a_copy_of_agency_coroners_ability_knows_the_creature_was_suspected(self):
+        game, players = table3()
+        a = game.seats[0]
+        coroner, bear = Permanent(REAL["Agency Coroner"], sick=False), Permanent(BEAR, sick=False)
+        bear.suspected = True
+        a.battlefield, a.hand, a.library = lands(3) + [coroner, bear], [], [OGRE] * 6
+        (action,) = [x for x in game.legal_actions(a) if x.startswith(ACTIVATE) and "Agency Coroner" in x]
+        game._perform(a, action)
+        game.copy_ability(game.stack[-1], a)  # (Rings of Brighthearth, say)
+        run_stack(game)
+        self.assertEqual(len(a.hand), 4)  # (two for the ability, two for its copy)
+
+    def test_presumed_dead_returns_the_creature_suspected(self):
+        game, players = table3()
+        a = game.seats[0]
+        bear = Permanent(BEAR, sick=False)
+        a.battlefield, a.hand = lands(2) + [bear], [REAL["Presumed Dead"]]
+        players[0].policy = choose(game, bear)
+        game._perform(a, CAST + "Presumed Dead")
+        run_stack(game)
+        self.assertEqual(game.power(bear), 4)
+        game.destroy(bear)
+        run_stack(game)
+        (back,) = [p for p in a.battlefield if p.card is BEAR]
+        self.assertEqual((back is not bear, back.suspected, back.tapped), (True, True, False))
+
+    def test_without_presumed_dead_it_stays_dead(self):
+        game, _ = table3()
+        a = game.seats[0]
+        bear = Permanent(BEAR, sick=False)
+        a.battlefield = [bear]
+        game.destroy(bear)
+        run_stack(game)
+        self.assertEqual([p for p in a.battlefield if p.card is BEAR], [])
 
 
 if __name__ == "__main__":
