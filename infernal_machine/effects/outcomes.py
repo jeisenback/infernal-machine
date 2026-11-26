@@ -246,6 +246,7 @@ from .families.counters import (  # noqa: F401
     PutCountersOnEachUpToX,
     PutCountersOnEntered,
     PutCountersOnSource,
+    Adapt,
     _InsteadCountersOnSource,
     PutStunCounters,
     PutStunOnEach,
@@ -2118,6 +2119,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: CounterAbility(strip=bool(m[2]), optional_target=bool(m[1]))),  # Tishana's Tidebinder
     (re.compile(r"counter target spell, activated ability, or triggered ability\.", re.I), lambda m: CounterAbility(target="spell or ability")),  # Disallow
     (re.compile(r"(?:then )?draw half X cards, rounded down\.", re.I), lambda m: Draw("hX")),  # Wan Shi Tong, Librarian
+    (re.compile(r"adapt (\d+)\.", re.I), lambda m: Adapt(int(m[1]))),  # CR 701.46a
     (re.compile(rf"put {_N} {_COUNTER} on (?:him|her)\.", re.I), lambda m: PutCountersOnSource(_count(m[1]), _counter_name(m[2]))),  # Wan Shi Tong
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF} and draw {_N} cards?\.", re.I),
      lambda m: [PutCountersOnSource(_count(m[1]), _counter_name(m[2])), Draw(_count(m[3]))]),  # Wan Shi Tong

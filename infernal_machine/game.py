@@ -1709,7 +1709,9 @@ class Game:
                          x: int = 0, target: Permanent | None = None) -> Payment | None:
         cost = (cost_of(ability.mana_cost) if ability.mana_cost else Cost()).with_x(x)
         if ability.discount_each:  # The Lonely Mountain: "costs {1} less to activate for each Equipment you control"
-            cost = cost.reduced(sum(_permanent_matches(ability.discount_each, p.card) for p in seat.battlefield))
+            kind = ability.discount_each.removeprefix("other ")  # Etherium Pteramander: "for each other artifact": not itself
+            cost = cost.reduced(sum(_permanent_matches(kind, p.card) for p in seat.battlefield
+                                    if not (kind != ability.discount_each and p is permanent)))
         if ability.equip:
             cost = Cost() if self._free_equip(seat) else cost.reduced(self._equip_discount(seat, ability, target))
         if ability.power_up and permanent.entered_turn == self.turn and permanent.card.mana_cost:  # "Reduce the cost by her mana cost
