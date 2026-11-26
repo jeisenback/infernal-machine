@@ -1610,6 +1610,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     with the card's kind ("instant or sorcery", "nonland", "noncreature, nonland"), its mana value ("3 or less", "less than [or equal to]
     this creature's power": `mv<power` is fixed as the target is chosen) and whose graveyard ("your", "a", "an opponent's"): Shiko,
     Paragon of the Way, Flawless Forgery, Narset, Enlightened Exile and Arcane Proxy.
+  - Level up and levelers (`tests/test_level_up.py`, CR 702.87, 711): "Level up {cost}" is "{cost}: Put a level counter on this creature.
+    Activate only as a sorcery." A leveler on the battlefield reads as the band its level counters are in (`leveler_view`, the whole card
+    in `real_card`, as a Class's): that band's power/toughness and abilities beside its own, and none of a band below its first. It is
+    read again whenever level counters are put on it or removed, from anywhere. 21 cards, among them Hexdrinker, Student of Warfare,
+    Coralhelm Commander and Kazandu Tuskcaller.
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with

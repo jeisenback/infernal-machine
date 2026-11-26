@@ -1612,6 +1612,38 @@ def class_view(card: Card, level: int) -> Card:
     return dataclasses.replace(card, oracle_text="\n".join(kept))
 
 
+_LEVEL_BAND = re.compile(r"LEVEL (\d+)(?:-(\d+)|\+)")
+_BARE_PT = re.compile(r"(\d+)/(\d+)")
+
+
+def is_leveler(card: Card) -> bool:
+    """A leveler (CR 711): "Level up {cost}" and its level bands ("LEVEL 1-4", its power/toughness, its abilities)."""
+    return re.search(r"^Level up \{", card.oracle_text, re.M) is not None and re.search(r"^LEVEL \d", card.oracle_text, re.M) is not None
+
+
+def is_level_band_line(line: str) -> bool:
+    """A leveler's band header ("LEVEL 1-4", "LEVEL 5+") or the power/toughness under it ("1/2"): not an ability (CR 711.2)."""
+    return _LEVEL_BAND.fullmatch(line) is not None or _BARE_PT.fullmatch(line) is not None
+
+
+@lru_cache(maxsize=None)
+def leveler_view(card: Card, level: int) -> Card:
+    """A leveler as it reads with `level` level counters (CR 711.2): its own abilities, and the power/toughness and abilities of the
+    band the counters are in; in no band (fewer counters than the first), the card's printed power/toughness and abilities only."""
+    kept, power, toughness, inside = [], card.power, card.toughness, None
+    for line in card.oracle_text.splitlines():
+        if m := _LEVEL_BAND.fullmatch(line.strip()):
+            inside = int(m[1]) <= level and (m[2] is None or level <= int(m[2]))
+        elif inside is None:
+            kept.append(line)
+        elif inside:
+            if m := _BARE_PT.fullmatch(line.strip()):
+                power, toughness = m[1], m[2]
+            else:
+                kept.append(line)
+    return dataclasses.replace(card, oracle_text="\n".join(kept), power=power, toughness=toughness)
+
+
 def is_room(card: Card) -> bool:
     """A Room: one card with two doors, the second being `alternate`."""
     return "Room" in card.type_line and card.alternate is not None

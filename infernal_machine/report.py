@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from .analysis import is_land
 from .cards import Card, Deck
 from .companion import CONDITIONS as COMPANION_CONDITIONS
-from .effects import (PROTECTION, activated_abilities, attached_abilities, is_casting_cost_line, is_cost_reduction_line,
+from .effects import (PROTECTION, activated_abilities, is_leveler, is_level_band_line, attached_abilities, is_casting_cost_line, is_cost_reduction_line,
                       is_clone_line, is_replacement_line, is_control_aura_line, is_cycling_line, is_enchant_line, is_granting_line, is_group_activated_grant_line, is_exiled_abilities_line, is_search_opposition_line, is_instant_loyalty_line, is_group_mana_grant_line, is_cast_keyword_line, is_cumulative_upkeep_line, is_echo_line, is_reanimation_aura_line, is_enters_prepared_line, is_overload_line, overloaded_effects, is_extra_vote_line, is_graveyard_permission_line, is_graveyard_permit_line, is_library_top_line, is_no_max_hand_line, is_cda_line, is_hand_by_counters_line, is_enters_tapped_line, is_enters_with_counters, is_choose_color_line, is_choose_name_line, is_choose_siege_line, is_equip_rules_line, is_your_turn_creature_line, is_optional_untap_line, is_station_line, is_hand_ability_line, is_mana_ability, is_modal_header,
                       is_additional_mana_line, is_haste_abilities_line, is_prevention_line, is_restricted_mana_line, is_tap_mana_line, is_rules_static_line, is_choose_type_line, is_choose_basic_type_line, is_chosen_self_line, is_x_discount_line, is_attack_tax_line, is_quest_untap_line, is_combat_restriction_line, is_opening_hand_line, is_return_exiled_line, is_ward_line, line_effects, mode_text, rules_lines, spell_effects, static_abilities,
                       triggered_abilities)
@@ -103,6 +103,8 @@ def unsupported_lines(card: Card) -> list[str]:
             continue
         if _is_keyword_line(line) or _DECKBUILDING.fullmatch(line) or is_cycling_line(line) or line == "CARDNAME is every creature type.":
             continue
+        if is_level_band_line(line) and is_leveler(card):
+            continue  # a leveler's band header and power/toughness (CR 711.2): read by leveler_view
         if line.startswith("Companion — ") and line.removeprefix("Companion — ").strip() in COMPANION_CONDITIONS:
             continue  # a companion the deck check knows (companion.py)
         if is_casting_cost_line(line) or (spell and is_hand_ability_line(line) and line in abilities):
