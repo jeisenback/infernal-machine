@@ -340,6 +340,17 @@ class PutCountersOnSource:
 
 
 @dataclass(frozen=True)
+class Adapt:
+    """Adapt N (CR 701.46a): "If this permanent has no +1/+1 counters on it, put N +1/+1 counters on it." Checked as it resolves."""
+    count: int
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target) and not target.counters.get("+1/+1"):
+            game.put_counters(target, "+1/+1", self.count)
+
+
+@dataclass(frozen=True)
 class _InsteadCountersOnSource:
     """ "If that land is a Forest, put two +1/+1 counters on this creature instead." after a PutCountersOnSource."""
     count: int

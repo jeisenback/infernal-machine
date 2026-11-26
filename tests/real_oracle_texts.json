@@ -7162,6 +7162,84 @@
    "colors": [
     "B"
    ]
+  },
+  {
+   "name": "Aeromunculus",
+   "mana_cost": "{1}{G}{U}",
+   "type_line": "Creature — Homunculus Mutant",
+   "oracle_text": "Flying\n{2}{G}{U}: Adapt 1. (If this creature has no +1/+1 counters on it, put a +1/+1 counter on it.)",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "G",
+    "U"
+   ]
+  },
+  {
+   "name": "Etherium Pteramander",
+   "mana_cost": "{B}",
+   "type_line": "Artifact Creature — Salamander Drake",
+   "oracle_text": "Flying\nThis creature can block only creatures with flying.\n{6}{B}: Adapt 4. This ability costs {1} less to activate for each other artifact you control. (If this creature has no +1/+1 counters on it, put four +1/+1 counters on it.)",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Sauroform Hybrid",
+   "mana_cost": "{1}{G}",
+   "type_line": "Creature — Human Lizard Warrior",
+   "oracle_text": "{4}{G}{G}: Adapt 4. (If this creature has no +1/+1 counters on it, put four +1/+1 counters on it.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Skatewing Spy",
+   "mana_cost": "{3}{U}",
+   "type_line": "Creature — Vedalken Rogue Mutant",
+   "oracle_text": "{5}{U}: Adapt 2. (If this creature has no +1/+1 counters on it, put two +1/+1 counters on it.)\nEach creature you control with a +1/+1 counter on it has flying.",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Skitter Eel",
+   "mana_cost": "{3}{U}",
+   "type_line": "Creature — Fish Crab",
+   "oracle_text": "{2}{U}: Adapt 2. (If this creature has no +1/+1 counters on it, put two +1/+1 counters on it.)",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Temperamental Oozewagg",
+   "mana_cost": "{3}{G}",
+   "type_line": "Creature — Ooze Brushwagg",
+   "oracle_text": "{2}{G}: Adapt 2. (If this creature has no +1/+1 counters on it, put two +1/+1 counters on it.)\nModified creatures you control have trample. (Equipment, Auras you control, and counters are modifications.)",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Trollbred Guardian",
+   "mana_cost": "{4}{G}",
+   "type_line": "Creature — Troll Frog Warrior",
+   "oracle_text": "{2}{G}: Adapt 2. (If this creature has no +1/+1 counters on it, put two +1/+1 counters on it.)\nEach creature you control with a +1/+1 counter on it has trample.",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "G"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
