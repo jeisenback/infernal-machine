@@ -7240,6 +7240,118 @@
    "colors": [
     "G"
    ]
+  },
+  {
+   "name": "Basking Broodscale",
+   "mana_cost": "{1}{G}",
+   "type_line": "Creature — Eldrazi Lizard",
+   "oracle_text": "Devoid (This card has no color.)\n{1}{G}: Adapt 1. (If this creature has no +1/+1 counters on it, put a +1/+1 counter on it.)\nWhenever one or more +1/+1 counters are put on this creature, you may create a 0/1 colorless Eldrazi Spawn creature token with \"Sacrifice this token: Add {C}.\"",
+   "power": "2",
+   "toughness": "2",
+   "colors": [],
+   "produced_mana": [
+    "C"
+   ]
+  },
+  {
+   "name": "Benthic Biomancer",
+   "mana_cost": "{U}",
+   "type_line": "Creature — Merfolk Wizard Mutant",
+   "oracle_text": "{1}{U}: Adapt 1. (If this creature has no +1/+1 counters on it, put a +1/+1 counter on it.)\nWhenever one or more +1/+1 counters are put on this creature, draw a card, then discard a card.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Dreamdrinker Vampire",
+   "mana_cost": "{1}{B}",
+   "type_line": "Creature — Vampire",
+   "oracle_text": "Lifelink\n{1}{B}: Adapt 1. (If this creature has no +1/+1 counters on it, put a +1/+1 counter on it.)\nWhenever one or more +1/+1 counters are put on this creature, it gains menace until end of turn.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Dusk Legion Duelist",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Vampire Soldier",
+   "oracle_text": "Vigilance\nWhenever one or more +1/+1 counters are put on this creature, draw a card. This ability triggers only once each turn.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Evolution Witness",
+   "mana_cost": "{2}{G}",
+   "type_line": "Creature — Elf Shaman Mutant",
+   "oracle_text": "{1}{G}: Adapt 2. (If this creature has no +1/+1 counters on it, put two +1/+1 counters on it.)\nWhenever one or more +1/+1 counters are put on this creature, return target permanent card from your graveyard to your hand.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Generous Pup",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Dog",
+   "oracle_text": "Vigilance\nWhenever one or more +1/+1 counters are put on this creature, put a +1/+1 counter on each other creature you control. This ability triggers only once each turn.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Herd Baloth",
+   "mana_cost": "{3}{G}{G}",
+   "type_line": "Creature — Beast",
+   "oracle_text": "Whenever one or more +1/+1 counters are put on this creature, you may create a 4/4 green Beast creature token.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Knighted Myr",
+   "mana_cost": "{2}{W}",
+   "type_line": "Artifact Creature — Myr Knight",
+   "oracle_text": "{2}{W}: Adapt 1. (If this creature has no +1/+1 counters on it, put a +1/+1 counter on it.)\nWhenever one or more +1/+1 counters are put on this creature, it gains double strike until end of turn.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Scurry Oak",
+   "mana_cost": "{2}{G}",
+   "type_line": "Creature — Treefolk",
+   "oracle_text": "Evolve (Whenever a creature you control enters, if that creature has greater power or toughness than this creature, put a +1/+1 counter on this creature.)\nWhenever one or more +1/+1 counters are put on this creature, you may create a 1/1 green Squirrel creature token.",
+   "power": "1",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Sharktocrab",
+   "mana_cost": "{2}{G}{U}",
+   "type_line": "Creature — Shark Octopus Crab",
+   "oracle_text": "{2}{G}{U}: Adapt 1. (If this creature has no +1/+1 counters on it, put a +1/+1 counter on it.)\nWhenever one or more +1/+1 counters are put on this creature, tap target creature an opponent controls. That creature doesn't untap during its controller's next untap step.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G",
+    "U"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
