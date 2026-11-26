@@ -1616,7 +1616,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     read again whenever level counters are put on it, moved onto it or removed, and when it is turned face up. 21 cards, among them Hexdrinker, Student of Warfare,
     Coralhelm Commander and Kazandu Tuskcaller.
   - Adapt (`tests/test_adapt.py`, CR 701.46a): "Adapt N." puts N +1/+1 counters on its source if it has none as the ability resolves
-    (`Adapt`): Trollbred Guardian, Skatewing Spy, Aeromunculus and four more.
+    (`Adapt`): Trollbred Guardian, Skatewing Spy, Aeromunculus and four more. An activated ability that "costs {1} less to activate for each
+    other artifact you control" (Etherium Pteramander) does not count its own source.
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with
