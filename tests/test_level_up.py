@@ -3,7 +3,8 @@
 counters are in: Hexdrinker (2/1) with no counters has no protection; with three it is a 4/4 with protection from instants; with eight a
 6/6 with protection from everything. Coralhelm Commander at level 2 is a 3/3 with flying, at level 4 a 4/4 that gives other Merfolk
 +1/+1, and it doesn't before. Counters from anywhere count (put or removed); Kazandu Tuskcaller's "{T}: Create a 3/3 Elephant" is
-offered only in its band; the card in the graveyard is the whole card again. Level up is offered only at sorcery speed."""
+offered only in its band; the card in the graveyard is the whole card again. Level up is offered only at sorcery speed. Level counters
+moved onto it count too, and a manifested Hexdrinker turned face up is a 2/1 with no protection until it has counters."""
 
 import unittest
 
@@ -27,6 +28,9 @@ MUTATIONS = [
     ("infernal_machine/game.py", "        elif is_leveler(permanent.card) and permanent.real_card is None:", "        elif False:",
      "it enters reading as its band"),
     ("infernal_machine/report.py", "        if is_level_band_line(line) and is_leveler(card):", "        if False:", "the band lines are read"),
+    ("infernal_machine/game.py", '        if counter == "level":\n            self._relevel(destination)', "", "counters moved onto it"),
+    ("infernal_machine/game.py", "        if is_leveler(permanent.card):  # CR 711.2: a leveler turned face up", "        if False:  # CR 711.2: a leveler turned face up",
+     "turned face up"),
 ]
 
 
@@ -78,6 +82,25 @@ class LevelUpTests(unittest.TestCase):
         self.assertFalse(any("Elephant" in x for x in game.legal_actions(a)))
         game.put_counters(tusk, "level", 2)
         self.assertTrue(any("Elephant" in x for x in game.legal_actions(a)))
+
+    def test_level_counters_moved_onto_it_change_its_band(self):
+        game, a, giver = leveler(HEX, 3)
+        taker = Permanent(HEX, sick=False)
+        game._enter(a, taker)
+        game.move_counters(giver, taker, "level", None)
+        self.assertEqual((size(game, giver), size(game, taker), game.has_keyword(taker, "protection from instants")),
+                         ((2, 1), (4, 4), True))
+
+    def test_turned_face_up_it_reads_as_its_band(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.library, a.battlefield = [HEX], lands(1)
+        game.manifest(a)
+        (hex_,) = [p for p in a.battlefield if p.manifested]
+        game.turn_face_up(a, hex_)
+        self.assertEqual((size(game, hex_), game.has_keyword(hex_, "protection from everything")), ((2, 1), False))
+        game.put_counters(hex_, "level", 8)
+        self.assertEqual((size(game, hex_), game.has_keyword(hex_, "protection from everything")), ((6, 6), True))
 
     def test_it_leaves_as_the_whole_card(self):
         game, a, hex_ = leveler(HEX, 3)

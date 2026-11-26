@@ -1619,6 +1619,8 @@ class Game:
         destination.counters[counter] = destination.counters.get(counter, 0) + moved
         self.broadcast({"event": "counters", "card": destination.card.name, "counter": counter,
                         "added": moved, "total": destination.counters[counter]})
+        if counter == "level":
+            self._relevel(destination)
 
     def _pay_card_costs(self, seat: Seat, source: Permanent | None, ability: ActivatedAbility, sacrifice_x: int = 0, name: str = "",
                         discard_x: int = 0) -> None:
@@ -4960,6 +4962,8 @@ class Game:
         self._spend_mana(seat, _checked(self._payment(seat, self._turn_up_card(permanent))))
         self._pay_morph(seat, permanent)
         permanent.card, permanent.real_card, permanent.manifested = _checked(permanent.real_card), None, False
+        if is_leveler(permanent.card):  # CR 711.2: a leveler turned face up reads as the band its level counters are in
+            permanent.real_card, permanent.card = permanent.card, leveler_view(permanent.card, permanent.counters.get("level", 0))
         self.broadcast({"event": "turned_face_up", "seat": seat.index, "card": permanent.card.name})
         if permanent.megamorph:
             self.put_counters(permanent, "+1/+1", 1)
