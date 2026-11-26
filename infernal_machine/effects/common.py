@@ -334,6 +334,8 @@ _WHOLE_LINE = re.compile(
     r"|exile cards from the top of your library until you exile a nonland card\. You may cast it without paying its mana cost if that "
     r"spell's mana value is \d+ or less\. If you don't, put that card into your hand\."  # Breaching Dragonstorm
     r"|[Ee]xile cards from the top of your library until you exile a nonland card\. You may cast that card without paying its mana cost\."  # Nico Minoru
+    r"|[Ee]xile (?:up to one )?target (?:instant or sorcery|nonland|noncreature, nonland) card[^.]* from (?:your|a|an opponent's) graveyard"
+    r"(?: and copy it\. You may cast|\. Copy (?:it|that card)\. You may cast|\. Copy it, then you may cast) the copy without paying its mana cost\."  # Shiko, Flawless Forgery
     r"|[Rr]eveal cards from the top of your library until you reveal a nonland card with mana value \d+ or less\. You may cast that card "
     r"without paying its mana cost\. Put all revealed cards not cast this way on the bottom of your library in a random order\."  # Treasure Keeper
     r"|You may cast up to two instant and/or sorcery spells with total mana value \d+ or less from your graveyard and/or hand without "
