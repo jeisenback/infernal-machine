@@ -247,6 +247,7 @@ from .families.counters import (  # noqa: F401
     PutCountersOnEntered,
     PutCountersOnSource,
     Adapt,
+    Monstrosity,
     _InsteadCountersOnSource,
     PutStunCounters,
     PutStunOnEach,
@@ -2120,6 +2121,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"counter target spell, activated ability, or triggered ability\.", re.I), lambda m: CounterAbility(target="spell or ability")),  # Disallow
     (re.compile(r"(?:then )?draw half X cards, rounded down\.", re.I), lambda m: Draw("hX")),  # Wan Shi Tong, Librarian
     (re.compile(r"adapt (\d+)\.", re.I), lambda m: Adapt(int(m[1]))),  # CR 701.46a
+    (re.compile(r"monstrosity (\d+|X)\.", re.I), lambda m: Monstrosity(m[1] if m[1] == "X" else int(m[1]))),  # CR 701.37a
     (re.compile(rf"put {_N} {_COUNTER} on (?:him|her)\.", re.I), lambda m: PutCountersOnSource(_count(m[1]), _counter_name(m[2]))),  # Wan Shi Tong
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF} and draw {_N} cards?\.", re.I),
      lambda m: [PutCountersOnSource(_count(m[1]), _counter_name(m[2])), Draw(_count(m[3]))]),  # Wan Shi Tong
@@ -4017,6 +4019,7 @@ _CONDITIONS = [
     (re.compile(r"(?:this creature's|CARDNAME's) power is (\d+) or greater"), lambda m: Condition("source_power_at_least", int(m[1]))),  # Kitsa
     (re.compile(r"(?:that land|it) is an? (Plains|Island|Swamp|Mountain|Forest)"), lambda m: Condition("subject_land_type", what=m[1])),  # Emeria Shepherd
     (re.compile(r"(?:this creature|CARDNAME) isn't a token"), lambda m: Condition("source_not_token")),  # Progenitor Mimic
+    (re.compile(r"(?:this creature|CARDNAME) is monstrous"), lambda m: Condition("source_monstrous")),  # CR 701.37b
     (re.compile(r"you control (three) or more creatures with different powers"), lambda m: Condition("different_powers", _number(m[1]))),  # Coven
     (re.compile(r"this is the (first|second|third) time this ability has resolved this turn"),  # Tannuk, Memorial Ensign
      lambda m: Condition("nth_resolution", ("first", "second", "third").index(m[1]) + 1)),

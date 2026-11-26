@@ -7352,6 +7352,218 @@
     "G",
     "U"
    ]
+  },
+  {
+   "name": "Chillerpillar",
+   "mana_cost": "{3}{U}",
+   "type_line": "Snow Creature — Insect",
+   "oracle_text": "{4}{S}{S}: Monstrosity 2. (If this creature isn't monstrous, put two +1/+1 counters on it and it becomes monstrous. {S} can be paid with one mana from a snow source.)\nAs long as this creature is monstrous, it has flying.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Domesticated Hydra",
+   "mana_cost": "{2}{G}{G}",
+   "type_line": "Creature — Hydra",
+   "oracle_text": "{X}{G}{G}{G}: Monstrosity X. (If this creature isn't monstrous, put X +1/+1 counters on it and it becomes monstrous.)\nAs long as this creature is monstrous, it has trample.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Ember Swallower",
+   "mana_cost": "{2}{R}{R}",
+   "type_line": "Creature — Elemental",
+   "oracle_text": "{5}{R}{R}: Monstrosity 3. (If this creature isn't monstrous, put three +1/+1 counters on it and it becomes monstrous.)\nWhen this creature becomes monstrous, each player sacrifices three lands of their choice.",
+   "power": "4",
+   "toughness": "5",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Fleecemane Lion",
+   "mana_cost": "{G}{W}",
+   "type_line": "Creature — Cat",
+   "oracle_text": "{3}{G}{W}: Monstrosity 1. (If this creature isn't monstrous, put a +1/+1 counter on it and it becomes monstrous.)\nAs long as this creature is monstrous, it has hexproof and indestructible.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Fleetfeather Cockatrice",
+   "mana_cost": "{3}{G}{U}",
+   "type_line": "Creature — Cockatrice",
+   "oracle_text": "Flash (You may cast this spell any time you could cast an instant.)\nFlying, deathtouch\n{5}{G}{U}: Monstrosity 3. (If this creature isn't monstrous, put three +1/+1 counters on it and it becomes monstrous.)",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "G",
+    "U"
+   ]
+  },
+  {
+   "name": "Gluttonous Cyclops",
+   "mana_cost": "{5}{R}",
+   "type_line": "Creature — Cyclops",
+   "oracle_text": "{5}{R}{R}: Monstrosity 3. (If this creature isn't monstrous, put three +1/+1 counters on it and it becomes monstrous.)",
+   "power": "5",
+   "toughness": "4",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Hydra Broodmaster",
+   "mana_cost": "{4}{G}{G}",
+   "type_line": "Creature — Hydra",
+   "oracle_text": "{X}{X}{G}: Monstrosity X. (If this creature isn't monstrous, put X +1/+1 counters on it and it becomes monstrous.)\nWhen this creature becomes monstrous, create X X/X green Hydra creature tokens.",
+   "power": "7",
+   "toughness": "7",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Hythonia the Cruel",
+   "mana_cost": "{4}{B}{B}",
+   "type_line": "Legendary Creature — Gorgon",
+   "oracle_text": "Deathtouch\n{6}{B}{B}: Monstrosity 3. (If this creature isn't monstrous, put three +1/+1 counters on it and it becomes monstrous.)\nWhen Hythonia becomes monstrous, destroy all non-Gorgon creatures.",
+   "power": "4",
+   "toughness": "6",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Ill-Tempered Cyclops",
+   "mana_cost": "{3}{R}",
+   "type_line": "Creature — Cyclops",
+   "oracle_text": "Trample\n{5}{R}: Monstrosity 3. (If this creature isn't monstrous, put three +1/+1 counters on it and it becomes monstrous.)",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Kalemne's Captain",
+   "mana_cost": "{3}{W}{W}",
+   "type_line": "Creature — Giant Soldier",
+   "oracle_text": "Vigilance\n{5}{W}{W}: Monstrosity 3. (If this creature isn't monstrous, put three +1/+1 counters on it and it becomes monstrous.)\nWhen this creature becomes monstrous, exile all artifacts and enchantments.",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Keepsake Gorgon",
+   "mana_cost": "{3}{B}{B}",
+   "type_line": "Creature — Gorgon",
+   "oracle_text": "Deathtouch\n{5}{B}{B}: Monstrosity 1. (If this creature isn't monstrous, put a +1/+1 counter on it and it becomes monstrous.)\nWhen this creature becomes monstrous, destroy target non-Gorgon creature an opponent controls.",
+   "power": "2",
+   "toughness": "5",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Nessian Asp",
+   "mana_cost": "{4}{G}",
+   "type_line": "Creature — Snake",
+   "oracle_text": "Reach\n{6}{G}: Monstrosity 4. (If this creature isn't monstrous, put four +1/+1 counters on it and it becomes monstrous.)",
+   "power": "4",
+   "toughness": "5",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Polis Crusher",
+   "mana_cost": "{2}{R}{G}",
+   "type_line": "Creature — Cyclops",
+   "oracle_text": "Trample, protection from enchantments\n{4}{R}{G}: Monstrosity 3. (If this creature isn't monstrous, put three +1/+1 counters on it and it becomes monstrous.)\nWhenever this creature deals combat damage to a player, if this creature is monstrous, destroy target enchantment that player controls.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G",
+    "R"
+   ]
+  },
+  {
+   "name": "Ravenous Leucrocota",
+   "mana_cost": "{3}{G}",
+   "type_line": "Creature — Beast",
+   "oracle_text": "Vigilance\n{6}{G}: Monstrosity 3. (If this creature isn't monstrous, put three +1/+1 counters on it and it becomes monstrous.)",
+   "power": "2",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Sinuous Vermin",
+   "mana_cost": "{1}{B}",
+   "type_line": "Creature — Rat Horror",
+   "oracle_text": "{3}{B}{B}: Monstrosity 3. (If this creature isn't monstrous, put three +1/+1 counters on it and it becomes monstrous.)\nAs long as this creature is monstrous, it has menace. (It can't be blocked except by two or more creatures.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Skittering Crustacean",
+   "mana_cost": "{2}{U}",
+   "type_line": "Creature — Crab",
+   "oracle_text": "{6}{U}: Monstrosity 4. (If this creature isn't monstrous, put four +1/+1 counters on it and it becomes monstrous.)\nAs long as this creature is monstrous, it has hexproof. (It can't be the target of spells or abilities your opponents control.)",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Splitting Slime",
+   "mana_cost": "{3}{G}{G}",
+   "type_line": "Creature — Ooze",
+   "oracle_text": "{4}{G}{G}: Monstrosity 3. (If this creature isn't monstrous, put three +1/+1 counters on it and it becomes monstrous.)\nWhen this creature becomes monstrous, create a token that's a copy of this creature. (The token has no counters and isn't monstrous.)",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Vitality Hunter",
+   "mana_cost": "{3}{W}",
+   "type_line": "Creature — Nightmare",
+   "oracle_text": "Lifelink\n{X}{W}{W}: Monstrosity X. (If this creature isn't monstrous, put X +1/+1 counters on it and it becomes monstrous.)\nWhen this creature becomes monstrous, put a lifelink counter on each of up to X target creatures.",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Wildfire Cerberus",
+   "mana_cost": "{4}{R}",
+   "type_line": "Creature — Dog",
+   "oracle_text": "{5}{R}{R}: Monstrosity 1. (If this creature isn't monstrous, put a +1/+1 counter on it and it becomes monstrous.)\nWhen this creature becomes monstrous, it deals 2 damage to each opponent and each creature they control.",
+   "power": "4",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

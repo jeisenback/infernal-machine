@@ -414,6 +414,7 @@ class Permanent:
     skips_next_untap: bool = False  # "It doesn't untap during its controller's next untap step." (Sleep of the Dead)
     harnessed: bool = False  # an Infinity Stone that was harnessed: its \u221e ability works
     suspected: bool = False  # CR 701.60: it has menace and can't block until it leaves the battlefield
+    monstrous: bool = False  # CR 701.37b: it stays monstrous until it leaves the battlefield
     awakened: bool = False  # a land awakened into a 0/0 Elemental creature with haste for good (CR 702.113a): `original` is the land
     earthbent: bool = False  # a land earthbent into a creature for good: `original` is the land, and it returns tapped when it dies or is exiled
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
@@ -3514,6 +3515,8 @@ class Game:
             return subject is not None and condition.what in subject.card.type_line.partition("\u2014")[2].split()
         if kind == "different_powers":  # Coven: creatures you control with at least that many different powers
             return len({self.power(p) for p in seat.battlefield if "Creature" in p.card.type_line}) >= condition.count
+        if kind == "source_monstrous":  # Fleecemane Lion: "As long as this creature is monstrous"
+            return source is not None and source.monstrous
         if kind == "source_not_suspected":  # Rubblebelt Braggart: "if it's not suspected"
             return source is not None and not source.suspected
         if kind == "source_not_token":  # Progenitor Mimic: "if this creature isn't a token"
@@ -5783,6 +5786,14 @@ class Game:
         if counter == "level":
             self._relevel(permanent)
         self._plus_counters_put(permanent, counter, count)
+
+    def become_monstrous(self, permanent: Permanent, count: int) -> None:
+        """Monstrosity N (CR 701.37a): N +1/+1 counters, and it is monstrous; "When this creature becomes monstrous" knows N as X."""
+        self.put_counters(permanent, "+1/+1", count)
+        permanent.monstrous = True
+        self.broadcast({"event": "monstrous", "card": permanent.card.name})
+        if (holder := self.controller_of(permanent)) is not None:
+            self.trigger("becomes_monstrous", permanent, holder, x=count)
 
     def _plus_counters_put(self, permanent: Permanent, counter: str, count: int) -> None:
         """"Whenever one or more +1/+1 counters are put on this creature" (CR 122.6): put, moved onto it, or arriving with it."""

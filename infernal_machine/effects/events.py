@@ -102,6 +102,7 @@ declare("dies", re.compile(rf"When(?:ever)? {_SELF} dies, (.+)", re.I))
 declare("attacks", re.compile(rf"Whenever {_SELF} attacks, (.+)", re.I))
 declare("attacks_alone", re.compile(rf"Whenever {_SELF} attacks alone, (.+)", re.I))  # Grunn, the Lonely King
 declare("damaged", re.compile(rf"When(?:ever)? {_SELF} is dealt damage, (.+)", re.I))  # Enrage; Game.deal_damage
+declare("becomes_monstrous", re.compile(rf"When(?:ever)? {_SELF} becomes monstrous, (.+)", re.I))  # Game.become_monstrous; x is N
 declare("plus_counters_put", re.compile(rf"Whenever one or more \+1/\+1 counters are put on {_SELF}, (.+)", re.I))  # Game.put_counters,
 # move_counters and _enter (CR 122.6: as it enters with them too); x is how many
 declare("attacks_player", re.compile(rf"Whenever {_SELF} attacks an opponent, (.+)", re.I))

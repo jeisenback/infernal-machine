@@ -1621,6 +1621,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - "Whenever one or more +1/+1 counters are put on this creature, ..." (`tests/test_counters_put_trigger.py`, CR 122.6): the event
     `plus_counters_put`, fired once per placement (x: how many) when +1/+1 counters are put on it, moved onto it, or as it enters with
     them. Knighted Myr, Herd Baloth, Scurry Oak, Dusk Legion Duelist, Generous Pup and five more.
+  - Monstrosity (`tests/test_monstrosity.py`, CR 701.37): "Monstrosity N." (or X, the ability's X) puts N +1/+1 counters on its source
+    and makes it monstrous (`Permanent.monstrous`) if it isn't yet; "When this creature becomes monstrous, ..." is the event
+    `becomes_monstrous`, with N as its X; "this creature is monstrous" is the condition `source_monstrous`, for "As long as ..."
+    statics and intervening ifs. 19 cards, among them Fleecemane Lion, Hydra Broodmaster, Polis Crusher and Splitting Slime.
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with
