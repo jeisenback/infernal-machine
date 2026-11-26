@@ -1621,6 +1621,7 @@ class Game:
                         "added": moved, "total": destination.counters[counter]})
         if counter == "level":
             self._relevel(destination)
+        self._plus_counters_put(destination, counter, moved)
 
     def _pay_card_costs(self, seat: Seat, source: Permanent | None, ability: ActivatedAbility, sacrifice_x: int = 0, name: str = "",
                         discard_x: int = 0) -> None:
@@ -5781,6 +5782,12 @@ class Game:
                         "added": count, "total": permanent.counters[counter]})
         if counter == "level":
             self._relevel(permanent)
+        self._plus_counters_put(permanent, counter, count)
+
+    def _plus_counters_put(self, permanent: Permanent, counter: str, count: int) -> None:
+        """"Whenever one or more +1/+1 counters are put on this creature" (CR 122.6): put, moved onto it, or arriving with it."""
+        if counter == "+1/+1" and count > 0 and (holder := self.controller_of(permanent)) is not None:
+            self.trigger("plus_counters_put", permanent, holder, x=count)
 
     def _relevel(self, permanent: Permanent) -> None:
         """A leveler reads as the band its level counters are in now (CR 711.2)."""
@@ -7675,6 +7682,7 @@ class Game:
                 seat.creatures_entered_turn, seat.creatures_entered = self.turn, 0
             seat.creatures_entered += 1
         self.trigger("enters", permanent, seat, x=x)  # the X it was cast with ("destroy ... with mana value X or less")
+        self._plus_counters_put(permanent, "+1/+1", permanent.counters.get("+1/+1", 0))  # CR 122.6: entering with them
         if not permanent.tapped:
             self.trigger("enters_untapped", permanent, seat)
         if saga_chapters(permanent.card):

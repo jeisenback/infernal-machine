@@ -1618,6 +1618,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Adapt (`tests/test_adapt.py`, CR 701.46a): "Adapt N." puts N +1/+1 counters on its source if it has none as the ability resolves
     (`Adapt`): Trollbred Guardian, Skatewing Spy, Aeromunculus and four more. An activated ability that "costs {1} less to activate for each
     other artifact you control" (Etherium Pteramander) does not count its own source.
+  - "Whenever one or more +1/+1 counters are put on this creature, ..." (`tests/test_counters_put_trigger.py`, CR 122.6): the event
+    `plus_counters_put`, fired once per placement (x: how many) when +1/+1 counters are put on it, moved onto it, or as it enters with
+    them. Knighted Myr, Herd Baloth, Scurry Oak, Dusk Legion Duelist, Generous Pup and five more.
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with
