@@ -32,7 +32,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
 from .effects.common import colors_spent
 from .effects import (HEXPROOF_FROM_COLOR, instant_loyalty, vehicle_crew, exiled_abilities_kind, opposes_searches, CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, sneak_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, embalm_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, unleashes, riots, amplify_of, has_sunburst, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, begins_with_luck, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, is_leveler, leveler_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, sneak_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, embalm_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, unleashes, riots, amplify_of, has_sunburst, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, begins_with_luck, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -1619,6 +1619,8 @@ class Game:
         destination.counters[counter] = destination.counters.get(counter, 0) + moved
         self.broadcast({"event": "counters", "card": destination.card.name, "counter": counter,
                         "added": moved, "total": destination.counters[counter]})
+        if counter == "level":
+            self._relevel(destination)
 
     def _pay_card_costs(self, seat: Seat, source: Permanent | None, ability: ActivatedAbility, sacrifice_x: int = 0, name: str = "",
                         discard_x: int = 0) -> None:
@@ -4960,6 +4962,8 @@ class Game:
         self._spend_mana(seat, _checked(self._payment(seat, self._turn_up_card(permanent))))
         self._pay_morph(seat, permanent)
         permanent.card, permanent.real_card, permanent.manifested = _checked(permanent.real_card), None, False
+        if is_leveler(permanent.card):  # CR 711.2: a leveler turned face up reads as the band its level counters are in
+            permanent.real_card, permanent.card = permanent.card, leveler_view(permanent.card, permanent.counters.get("level", 0))
         self.broadcast({"event": "turned_face_up", "seat": seat.index, "card": permanent.card.name})
         if permanent.megamorph:
             self.put_counters(permanent, "+1/+1", 1)
@@ -5773,6 +5777,13 @@ class Game:
         permanent.counters[counter] = permanent.counters.get(counter, 0) + count
         self.broadcast({"event": "counters", "card": permanent.card.name, "counter": counter,
                         "added": count, "total": permanent.counters[counter]})
+        if counter == "level":
+            self._relevel(permanent)
+
+    def _relevel(self, permanent: Permanent) -> None:
+        """A leveler reads as the band its level counters are in now (CR 711.2)."""
+        if permanent.real_card is not None and is_leveler(permanent.real_card) and not permanent.manifested:
+            permanent.card = leveler_view(permanent.real_card, permanent.counters.get("level", 0))
 
     def remove_counters(self, permanent: Permanent, counter: str | None, count: int | None) -> None:
         """Remove `count` counters of one kind (all of them if None), or every counter if `counter` is None."""
@@ -5784,6 +5795,8 @@ class Game:
                     del permanent.counters[kind]
                 self.broadcast({"event": "counters", "card": permanent.card.name, "counter": kind,
                                 "added": -removed, "total": permanent.counters.get(kind, 0)})
+                if kind == "level":
+                    self._relevel(permanent)
 
     def conjure(self, seat: Seat, name: str) -> None:
         """Alchemy: create the named card, from the cards this player's deck can conjure, onto the battlefield. A card the
@@ -7537,6 +7550,8 @@ class Game:
                 permanent.transformed_from, permanent.card = permanent.card, _checked(permanent.card.flip)
         if is_class(permanent.card):  # a Class enters at level 1: it reads as the abilities of that level
             permanent.real_card, permanent.card, permanent.level = permanent.card, class_view(permanent.card, 1), 1
+        elif is_leveler(permanent.card) and permanent.real_card is None:  # CR 711.2: it reads as the band its level counters are in
+            permanent.real_card, permanent.card = permanent.card, leveler_view(permanent.card, permanent.counters.get("level", 0))
         extra_when_copy = ""
         if keyword := temporary_clone_keyword(permanent.card):  # Cursed Mirror
             self._become_temporary_copy(seat, permanent, keyword)
