@@ -1650,6 +1650,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     activated abilities can't be activated." gives the host the pseudo-keyword `NO_ACTIVATING` beside can't attack and can't block, read
     by `Game._ability_barred` (its mana abilities too); with "... unless they're mana abilities" (Faith's Fetters, Realmbreaker's Grasp)
     it is `NO_ACTIVATING_NONMANA`, and its mana abilities still work. Arrest, Prison Term, Petrify, Suppression Bonds and eight more.
+    The same row reads an Aura that stops only part of it (`tests/test_attached_restrictions.py`): "can't attack." (Cessation, Forced
+    Worship), "can't block." (Sluggishness), "can't block, and its activated abilities can't be activated." (Demotion) and "can't
+    attack, block, or crew Vehicles." (Revoke Privileges; Intercessor's Arrest and Bound in Gold with "... unless they're mana
+    abilities"), the last a pseudo-keyword `CANT_CREW` that `Game._crew_candidates` leaves out when crewing.
   - Graft N (`tests/test_graft.py`, CR 702.58): a `_KEYWORD_RULES` row, "This creature enters with N +1/+1 counters on it. Whenever
     another creature enters, you may move a +1/+1 counter from this creature onto it." (`MoveCounterFromSourceOntoSubject`, bound to the
     source and the creature that entered; nothing moves once either has left): Simic Initiate, Vigean Hydropon and Llanowar Reborn (a land).
