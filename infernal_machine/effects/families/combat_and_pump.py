@@ -229,6 +229,18 @@ class PumpSource:
 
 
 @dataclass(frozen=True)
+class MeleePump:
+    """Melee (CR 702.121a): "Whenever this creature attacks, it gets +1/+1 until end of turn for each opponent you attacked with a
+    creature this combat." A player is attacked only by an attack on that player, not on a planeswalker they control (CR 702.121b)."""
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        attacked = {id(a.defender) for a in game.combat.attacks if a.controller is controller and a.walker is None}
+        if target is not None and attacked:
+            game.modify_until_end_of_turn(target, Modifier(len(attacked), len(attacked)))
+
+
+@dataclass(frozen=True)
 class PumpThatIfType:
     """Goatnap: "If that creature is a Goat, it also gets +3/+0 until end of turn." (the target of the effect before it)"""
     power: int

@@ -90,6 +90,7 @@ from .families.combat_and_pump import (  # noqa: F401
     PumpNamed,
     PumpOtherAttackers,
     PumpSource,
+    MeleePump,
     PumpThatIfType,
     PumpThatIfTreasure,
     Suspect,
@@ -2121,6 +2122,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"counter target spell, activated ability, or triggered ability\.", re.I), lambda m: CounterAbility(target="spell or ability")),  # Disallow
     (re.compile(r"(?:then )?draw half X cards, rounded down\.", re.I), lambda m: Draw("hX")),  # Wan Shi Tong, Librarian
     (re.compile(r"adapt (\d+)\.", re.I), lambda m: Adapt(int(m[1]))),  # CR 701.46a
+    (re.compile(r"it gets \+1/\+1 until end of turn for each opponent you attacked with a creature this combat\.", re.I),
+     lambda m: MeleePump()),  # Melee (CR 702.121a)
     (re.compile(r"monstrosity (\d+|X)\.", re.I), lambda m: Monstrosity(m[1] if m[1] == "X" else int(m[1]))),  # CR 701.37a
     (re.compile(rf"put {_N} {_COUNTER} on (?:him|her)\.", re.I), lambda m: PutCountersOnSource(_count(m[1]), _counter_name(m[2]))),  # Wan Shi Tong
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF} and draw {_N} cards?\.", re.I),
