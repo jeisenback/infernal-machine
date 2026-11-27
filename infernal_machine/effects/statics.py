@@ -1394,6 +1394,12 @@ _ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and h
 
 
 LOSES_ALL, NO_UNTAP = "loses all abilities", "doesn't untap"  # pseudo-keywords of an Aura: Infinite Coursework
+NO_ACTIVATING, NO_ACTIVATING_NONMANA = "can't activate", "can't activate nonmana"  # pseudo-keywords of an Aura: Arrest, Faith's Fetters
+
+
+# Arrest, Prison Term, Petrify, Faith's Fetters ("... unless they're mana abilities"): Game._ability_barred reads the second keyword.
+_ATTACHED_ARREST = re.compile(r"Enchanted (?:creature|permanent|artifact) can't attack or block, and its activated abilities can't be "
+                              r"activated( unless they're mana abilities)?\.")
 
 
 _GRANT = re.compile(rf'(?:Equipped|Enchanted) (?:creature|land|permanent) has (?:{_KEYWORDS_BARE} and )?"(.+)"\.?')
@@ -1557,6 +1563,9 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
             line, host_is = f"{m[1].capitalize()} creature {m[3]}.", m[2].lower()
         if m := _ATTACHED_PER_OWN_COUNTER.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(1, 0), line, per=("source_counters", m[1])))
+        elif m := _ATTACHED_ARREST.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(keywords=frozenset({CANT_ATTACK, CANT_BLOCK, NO_ACTIVATING_NONMANA if m[1] else NO_ACTIVATING})),
+                                      line))
         elif m := _ATTACHED.fullmatch(line):
             if "can't attack or block" in line:
                 modifier = Modifier(keywords=frozenset({CANT_ATTACK, CANT_BLOCK}))
