@@ -7790,6 +7790,495 @@
    "colors": [
     "U"
    ]
+  },
+  {
+   "name": "Agent of the Fates",
+   "mana_cost": "{1}{B}{B}",
+   "type_line": "Creature — Human Assassin",
+   "oracle_text": "Deathtouch\nHeroic — Whenever you cast a spell that targets this creature, each opponent sacrifices a creature of their choice.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Akroan Crusader",
+   "mana_cost": "{R}",
+   "type_line": "Creature — Human Soldier",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, create a 1/1 red Soldier creature token with haste. (It can attack and {T} as soon as it comes under your control.)",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Akroan Line Breaker",
+   "mana_cost": "{2}{R}",
+   "type_line": "Creature — Human Warrior",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, this creature gets +2/+0 and gains intimidate until end of turn. (It can't be blocked except by artifact creatures and/or creatures that share a color with it.)",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Akroan Skyguard",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Human Soldier",
+   "oracle_text": "Flying\nHeroic — Whenever you cast a spell that targets this creature, put a +1/+1 counter on this creature.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Anax and Cymede",
+   "mana_cost": "{1}{R}{W}",
+   "type_line": "Legendary Creature — Human Soldier",
+   "oracle_text": "First strike, vigilance\nHeroic — Whenever you cast a spell that targets Anax and Cymede, creatures you control get +1/+1 and gain trample until end of turn.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "R",
+    "W"
+   ]
+  },
+  {
+   "name": "Arena Athlete",
+   "mana_cost": "{1}{R}",
+   "type_line": "Creature — Human",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, target creature an opponent controls can't block this turn.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Artisan of Forms",
+   "mana_cost": "{1}{U}",
+   "type_line": "Creature — Human Wizard",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, you may have this creature become a copy of target creature, except it has this ability.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Ashiok's Adept",
+   "mana_cost": "{2}{B}",
+   "type_line": "Creature — Human Wizard",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, each opponent discards a card.",
+   "power": "1",
+   "toughness": "3",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Battlewise Hoplite",
+   "mana_cost": "{W}{U}",
+   "type_line": "Creature — Human Soldier",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, put a +1/+1 counter on this creature, then scry 1. (To scry 1, look at the top card of your library, then you may put that card on the bottom.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Brigone, Soldier of Meletis",
+   "mana_cost": "{1}{W}",
+   "type_line": "Legendary Creature — Human Soldier",
+   "oracle_text": "Vigilance\nHeroic — Whenever you cast a spell that targets Brigone, put a +1/+1 counter on Brigone.\n{T}, Remove a +1/+1 counter from Brigone: Draw a card.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Centaur Battlemaster",
+   "mana_cost": "{3}{G}{G}",
+   "type_line": "Creature — Centaur Warrior",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, put three +1/+1 counters on this creature.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Chorus of the Tides",
+   "mana_cost": "{3}{U}",
+   "type_line": "Creature — Siren",
+   "oracle_text": "Flying\nHeroic — Whenever you cast a spell that targets this creature, scry 1. (To scry 1, look at the top card of your library, then you may put that card on the bottom.)",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Cleon, Merry Champion",
+   "mana_cost": "{2}{R}",
+   "type_line": "Legendary Creature — Human Soldier",
+   "oracle_text": "Double strike\nHeroic — Whenever you cast a spell that targets Cleon, exile the top card of your library. You may play that card until the end of your next turn.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Dawnbringer Charioteers",
+   "mana_cost": "{2}{W}{W}",
+   "type_line": "Creature — Human Soldier",
+   "oracle_text": "Flying, lifelink\nHeroic — Whenever you cast a spell that targets this creature, put a +1/+1 counter on this creature.",
+   "power": "2",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Elite Skirmisher",
+   "mana_cost": "{2}{W}",
+   "type_line": "Creature — Human Soldier",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, you may tap target creature.",
+   "power": "3",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Fabled Hero",
+   "mana_cost": "{1}{W}{W}",
+   "type_line": "Creature — Human Soldier",
+   "oracle_text": "Double strike\nHeroic — Whenever you cast a spell that targets this creature, put a +1/+1 counter on it.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Gnarlback Rhino",
+   "mana_cost": "{2}{G}{G}",
+   "type_line": "Creature — Rhino",
+   "oracle_text": "Trample (This creature can deal excess combat damage to the player or planeswalker it's attacking.)\nWhenever you cast a spell that targets this creature, draw a card.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Hero of Iroas",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Human Soldier",
+   "oracle_text": "Aura spells you cast cost {1} less to cast.\nHeroic — Whenever you cast a spell that targets this creature, put a +1/+1 counter on this creature.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Hero of Leina Tower",
+   "mana_cost": "{G}",
+   "type_line": "Creature — Human Warrior",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, you may pay {X}. If you do, put X +1/+1 counters on this creature.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Hero of the Games",
+   "mana_cost": "{2}{R}",
+   "type_line": "Creature — Human Soldier",
+   "oracle_text": "Whenever you cast a spell that targets this creature, creatures you control get +1/+0 until end of turn.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Hero of the Nyxborn",
+   "mana_cost": "{1}{R}{W}",
+   "type_line": "Enchantment Creature — Human Soldier",
+   "oracle_text": "When this creature enters, create a 1/1 white Human Soldier creature token.\nWhenever you cast a spell that targets this creature, creatures you control get +1/+0 until end of turn.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "R",
+    "W"
+   ]
+  },
+  {
+   "name": "Hero of the Pride",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Cat Soldier",
+   "oracle_text": "Whenever you cast a spell that targets this creature, creatures you control get +1/+0 until end of turn.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Hero of the Winds",
+   "mana_cost": "{3}{W}",
+   "type_line": "Creature — Human Soldier",
+   "oracle_text": "Flying\nWhenever you cast a spell that targets this creature, creatures you control get +1/+0 until end of turn.",
+   "power": "1",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Heroes of the Revel",
+   "mana_cost": "{4}{R}",
+   "type_line": "Creature — Satyr Soldier",
+   "oracle_text": "When this creature enters, create a 1/1 red Satyr creature token with \"This token can't block.\"\nWhenever you cast a spell that targets this creature, creatures you control get +1/+0 until end of turn.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Labyrinth Champion",
+   "mana_cost": "{3}{R}",
+   "type_line": "Creature — Human Warrior",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, this creature deals 2 damage to any target.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Lagonna-Band Trailblazer",
+   "mana_cost": "{W}",
+   "type_line": "Creature — Centaur Scout",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, put a +1/+1 counter on it.",
+   "power": "0",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Meletis Astronomer",
+   "mana_cost": "{1}{U}",
+   "type_line": "Creature — Human Wizard",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, look at the top three cards of your library. You may reveal an enchantment card from among them and put it into your hand. Put the rest on the bottom of your library in any order.",
+   "power": "1",
+   "toughness": "3",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Phalanx Leader",
+   "mana_cost": "{W}{W}",
+   "type_line": "Creature — Human Soldier",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, put a +1/+1 counter on each creature you control.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Pheres-Band Thunderhoof",
+   "mana_cost": "{4}{G}",
+   "type_line": "Creature — Centaur Warrior",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, put two +1/+1 counters on this creature.",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Satyr Hoplite",
+   "mana_cost": "{R}",
+   "type_line": "Creature — Satyr Soldier",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, put a +1/+1 counter on this creature.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Setessan Battle Priest",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Human Cleric",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, you gain 2 life.",
+   "power": "1",
+   "toughness": "3",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Setessan Oathsworn",
+   "mana_cost": "{1}{G}{G}",
+   "type_line": "Creature — Satyr Warrior",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, put two +1/+1 counters on this creature.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Staunch-Hearted Warrior",
+   "mana_cost": "{3}{G}",
+   "type_line": "Creature — Human Warrior",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, put two +1/+1 counters on this creature.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Tenth District Legionnaire",
+   "mana_cost": "{R}{W}",
+   "type_line": "Creature — Human Soldier",
+   "oracle_text": "Haste\nWhenever you cast a spell that targets this creature, put a +1/+1 counter on this creature, then scry 1.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "R",
+    "W"
+   ]
+  },
+  {
+   "name": "Tethmos High Priest",
+   "mana_cost": "{2}{W}",
+   "type_line": "Creature — Cat Cleric",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, return target creature card with mana value 2 or less from your graveyard to the battlefield.",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Tormented Hero",
+   "mana_cost": "{B}",
+   "type_line": "Creature — Human Warrior",
+   "oracle_text": "This creature enters tapped.\nHeroic — Whenever you cast a spell that targets this creature, each opponent loses 1 life. You gain life equal to the life lost this way.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Triton Cavalry",
+   "mana_cost": "{3}{U}",
+   "type_line": "Creature — Merfolk Soldier",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, you may return target enchantment to its owner's hand.",
+   "power": "2",
+   "toughness": "4",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Triton Fortune Hunter",
+   "mana_cost": "{2}{U}",
+   "type_line": "Creature — Merfolk Soldier",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, draw a card.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Vanguard of Brimaz",
+   "mana_cost": "{W}{W}",
+   "type_line": "Creature — Cat Soldier",
+   "oracle_text": "Vigilance\nHeroic — Whenever you cast a spell that targets this creature, create a 1/1 white Cat Soldier creature token with vigilance.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "War-Wing Siren",
+   "mana_cost": "{2}{U}",
+   "type_line": "Creature — Siren Soldier",
+   "oracle_text": "Flying\nHeroic — Whenever you cast a spell that targets this creature, put a +1/+1 counter on this creature.",
+   "power": "1",
+   "toughness": "3",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Wavecrash Triton",
+   "mana_cost": "{2}{U}",
+   "type_line": "Creature — Merfolk Wizard",
+   "oracle_text": "Heroic — Whenever you cast a spell that targets this creature, tap target creature an opponent controls. That creature doesn't untap during its controller's next untap step.",
+   "power": "1",
+   "toughness": "4",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Wingsteed Rider",
+   "mana_cost": "{1}{W}{W}",
+   "type_line": "Creature — Human Knight",
+   "oracle_text": "Flying\nHeroic — Whenever you cast a spell that targets this creature, put a +1/+1 counter on this creature.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Giant Growth",
+   "mana_cost": "{G}",
+   "type_line": "Instant",
+   "oracle_text": "Target creature gets +3/+3 until end of turn.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Seeds of Strength",
+   "mana_cost": "{G}{W}",
+   "type_line": "Instant",
+   "oracle_text": "Target creature gets +1/+1 until end of turn.\nTarget creature gets +1/+1 until end of turn.\nTarget creature gets +1/+1 until end of turn.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G",
+    "W"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

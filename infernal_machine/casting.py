@@ -304,6 +304,10 @@ class Caster:
                     self.game.happened("creature_targeted", holder, subject=target)  # Venerated Rotpriest
                 if self.game.controller(target) is not item.controller:  # Tectonic Giant: "a spell an opponent controls"
                     self.game.trigger("targeted_by_opponent", target, self.game.controller(target))
+        heroes = {id(t): t for chosen in item.targets for t in (chosen if isinstance(chosen, list) else [chosen])
+                  if isinstance(t, g.Permanent) and self.game.on_battlefield(t) and self.game.controller(t) is item.controller}
+        for hero in heroes.values():  # Heroic: "Whenever you cast a spell that targets this creature" (once, however often it is targeted)
+            self.game.trigger("cast_targeting_self", hero, item.controller)
         self.game._targets_chosen(item)
         self.game._check_ward(item)
 

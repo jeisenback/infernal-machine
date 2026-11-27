@@ -85,6 +85,8 @@ def heard_on(occurrence: str) -> tuple[Event, ...]:
 
 declare("enters", re.compile(rf"When(?:ever)? {_SELF} enters?(?: the battlefield)?, (.+)", re.I))  # "enter": The Sackville-Bagginses
 declare("targeted", re.compile(rf"When(?:ever)? {_SELF} becomes the target of an? (?:spell|spell or ability), (.+)", re.I))
+declare("cast_targeting_self", re.compile(rf"Whenever you cast a spell that targets {_SELF}, (.+)", re.I))  # Heroic; Caster._cast: once
+# per spell, for each of the caster's own permanents it targets
 declare("creature_targeted", re.compile(r"Whenever a creature you control becomes the target of a spell, (.+)", re.I), to="you",
         about_creature=True)  # Venerated Rotpriest: once for each creature the spell targets (casting.py)
 declare("targeted_by_opponent", re.compile(rf"When(?:ever)? {_SELF} becomes the target of a spell an opponent controls, (.+)", re.I))  # Tectonic Giant

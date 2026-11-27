@@ -1638,6 +1638,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     control (Solid Ground's "a permanent", Caradora's "a creature or Vehicle", Mauhur's "an Army, Goblin, or Orc") or itself (Mowu).
   - Jump-start (`tests/test_jump_start.py`, CR 702.133): cast from the graveyard for its mana cost and a discarded card, then exiled (a
     `GraveyardCast` like flashback's with a discard): Quasiduplicate, Chemister's Insight, Radical Idea and three more.
+  - Heroic, "Whenever you cast a spell that targets this creature, ..." (`tests/test_heroic.py`): the event `cast_targeting_self`, fired by
+    `Caster._cast` once per spell for each of the caster's own permanents it targets (not for an opponent's spell, nor an ability, which
+    isn't cast). 42 cards, among them Hero of Iroas, Akroan Crusader, Phalanx Leader and Cleon, Merry Champion.
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with
