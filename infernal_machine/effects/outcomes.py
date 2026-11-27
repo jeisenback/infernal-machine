@@ -1985,6 +1985,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PayLifeDrawPerOpponentHit()),  # Tymna the Weaver
 
     (re.compile(r"it deals that much damage to any other target\.", re.I), lambda m: Damage("X", "any", another=True)),  # Screaming Nemesis
+    (re.compile(r"(?:CARDNAME|this creature) deals that much damage to (target opponent|target player|any target)\.", re.I),
+     lambda m: Damage("X", {"target opponent": "opponent", "target player": "player", "any target": "any"}[m[1].lower()])),  # Shalai and Hallar
     (re.compile(r"CARDNAME deals (\d+) damage to any other target\.", re.I), lambda m: Damage(int(m[1]), "any", not_chosen=True)),  # Bond of Passion
     (re.compile(r"If that creature is an? ((?-i:[A-Z][a-z]+)), it also gets \+(\d+)/\+(\d+) until end of turn\.", re.I),
      lambda m: PumpThatIfType(int(m[2]), int(m[3]), m[1])),  # Goatnap

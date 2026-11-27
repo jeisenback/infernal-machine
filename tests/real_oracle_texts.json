@@ -7631,6 +7631,53 @@
    "colors": [
     "W"
    ]
+  },
+  {
+   "name": "Enduring Scalelord",
+   "mana_cost": "{4}{G}{W}",
+   "type_line": "Creature — Dragon",
+   "oracle_text": "Flying\nWhenever one or more +1/+1 counters are put on another creature you control, you may put a +1/+1 counter on this creature.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Shalai and Hallar",
+   "mana_cost": "{1}{R}{G}{W}",
+   "type_line": "Legendary Creature — Angel Elf",
+   "oracle_text": "Flying, vigilance\nWhenever one or more +1/+1 counters are put on a creature you control, Shalai and Hallar deals that much damage to target opponent.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "G",
+    "R",
+    "W"
+   ]
+  },
+  {
+   "name": "Spider-Man, New Champion",
+   "mana_cost": "{2}{R}",
+   "type_line": "Legendary Creature — Spider Human Hero",
+   "oracle_text": "Reach\nWhenever you discard one or more cards, Spider-Man deals that much damage to any target.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Wildwood Scourge",
+   "mana_cost": "{X}{G}",
+   "type_line": "Creature — Hydra",
+   "oracle_text": "This creature enters with X +1/+1 counters on it.\nWhenever one or more +1/+1 counters are put on another non-Hydra creature you control, put a +1/+1 counter on this creature.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
