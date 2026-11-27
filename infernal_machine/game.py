@@ -3914,10 +3914,10 @@ class Game:
             return options
         if kind in ("any", "player", "player or planeswalker") or kind.startswith("any non-"):
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats()
-                        if not s.protected and not self._hexproof_from(s, caster, colors)]
+                        if not self._player_untargetable(s, caster, colors)]
         elif kind == "opponent":
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster)
-                        if not s.protected and not self._hexproof_from(s, caster, colors)]
+                        if not self._player_untargetable(s, caster, colors)]
         if (spell_filter := parse_filter(kind)) and re.search(r"spell( you control| you don't control)?( with mana value \d+( or less| or greater)?)?$", kind):  # "spell", "noncreature spell", "... spell you control", "spell with mana value 1"
             options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
                         if not i.ability and spell_filter.matches(i.card)
@@ -3981,6 +3981,15 @@ class Game:
                     continue
                 options.append((self.label(permanent), permanent))
         return options
+
+    def _player_untargetable(self, seat: Seat, caster: Seat, colors: frozenset[str]) -> bool:
+        """Whether `caster`'s spell or ability can't target the player `seat`: protection from everything, Veil of Summer's hexproof from
+        colors, Leyline of Sanctity's "You have hexproof." (only an opponent's: CR 702.11c) or Ivory Mask's "You have shroud." (anyone's:
+        CR 702.18c)."""
+        if seat.protected or self._hexproof_from(seat, caster, colors):
+            return True
+        return any(owner is seat and (key == "you_shroud" or (key == "you_hexproof" and caster is not seat))
+                   for owner, _, key in self._static_rules())
 
     def _hexproof_from(self, seat: Seat, caster: Seat, colors: frozenset[str]) -> bool:
         """Whether `seat` and its permanents have hexproof this turn from a source of `colors` an opponent controls (Veil of Summer)."""

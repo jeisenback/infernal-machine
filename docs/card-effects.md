@@ -1654,6 +1654,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Worship), "can't block." (Sluggishness), "can't block, and its activated abilities can't be activated." (Demotion) and "can't
     attack, block, or crew Vehicles." (Revoke Privileges; Intercessor's Arrest and Bound in Gold with "... unless they're mana
     abilities"), the last a pseudo-keyword `CANT_CREW` that `Game._crew_candidates` leaves out when crewing.
+  - A player with hexproof or shroud (`tests/test_player_hexproof.py`, CR 702.11c, 702.18c): "You have hexproof." and "You have
+    shroud." are rules statics (`you_hexproof`, `you_shroud`) that `Game._player_untargetable` reads beside protection and Veil of
+    Summer's hexproof from colors, so the player isn't offered as a target of an opponent's spell or ability (with shroud, of anyone's):
+    Leyline of Sanctity, Ivory Mask, Teyo, the Shieldmage, Spirit of the Hearth, True Believer and three more.
   - Graft N (`tests/test_graft.py`, CR 702.58): a `_KEYWORD_RULES` row, "This creature enters with N +1/+1 counters on it. Whenever
     another creature enters, you may move a +1/+1 counter from this creature onto it." (`MoveCounterFromSourceOntoSubject`, bound to the
     source and the creature that entered; nothing moves once either has left): Simic Initiate, Vigean Hydropon and Llanowar Reborn (a land).
