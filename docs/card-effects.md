@@ -1626,7 +1626,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     `becomes_monstrous`, with N as its X; "this creature is monstrous" is the condition `source_monstrous`, for "As long as ..."
     statics and intervening ifs. 19 cards, among them Fleecemane Lion, Hydra Broodmaster, Polis Crusher and Splitting Slime.
   - Melee (`tests/test_melee.py`, CR 702.121): "Whenever this creature attacks, it gets +1/+1 until end of turn for each opponent you
-    attacked with a creature this combat." (`MeleePump`: each opponent once; an attack on a planeswalker isn't one on its controller).
+    attacked with a creature this combat." (`MeleePump`: each opponent once, as the attackers were declared (`Combat.attacked`); an attack on a planeswalker isn't one on its
+    controller).
     Melee granted by a static (Adriana, Captain of the Guard) triggers too, once for each instance, as an attacker is declared.
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens

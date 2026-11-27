@@ -54,6 +54,7 @@ class Combat:
         self.attacks: list[Attack] = []
         self.damage_watches: list[tuple[Permanent, Permanent, Any]] = []  # (creature, watcher, effect): Stensian Sanguinist
         self.exile_at_end: list[Permanent] = []  # myriad tokens: exiled at end of combat
+        self.attacked: dict[int, set[int]] = {}  # Melee: each seat's opponents attacked this combat, as declared (id of seat -> ids)
 
     def declare_attackers(self, seat: Seat) -> None:
         """Ask the active player, creature by creature, whether and whom to attack (CR 508.1). The costs to attack are
@@ -100,6 +101,7 @@ class Combat:
             self.game._spend_mana(seat, payment)
         for permanent, _, _ in declared:
             self._enlist(seat, permanent)
+        self.attacked[id(seat)] = {id(defender) for _, defender, walker in declared if walker is None}  # CR 702.121b: not a planeswalker
         for permanent, defender, walker in declared:
             self.game.trigger("attacks", permanent, seat)
             if self.game.has_keyword(permanent, "myriad"):

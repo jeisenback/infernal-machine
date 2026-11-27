@@ -235,9 +235,9 @@ class MeleePump:
     binds = SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        attacked = {id(a.defender) for a in game.combat.attacks if a.controller is controller and a.walker is None}
+        attacked = len(game.combat.attacked.get(id(controller), ()))  # as declared: an attacker gone since still attacked
         if target is not None and attacked:
-            game.modify_until_end_of_turn(target, Modifier(len(attacked), len(attacked)))
+            game.modify_until_end_of_turn(target, Modifier(attacked, attacked))
 
 
 @dataclass(frozen=True)
