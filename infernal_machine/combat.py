@@ -102,8 +102,11 @@ class Combat:
         for permanent, _, _ in declared:
             self._enlist(seat, permanent)
         self.attacked[id(seat)] = {id(defender) for _, defender, walker in declared if walker is None}  # CR 702.121b: not a planeswalker
-        for permanent, defender, walker in declared:
+        powers = [self.game.power(p) for p, _, _ in declared]
+        for i, (permanent, defender, walker) in enumerate(declared):
             self.game.trigger("attacks", permanent, seat)
+            if any(power > powers[i] for j, power in enumerate(powers) if j != i):  # CR 702.149a: Training
+                self.game.trigger("attacks_with_greater", permanent, seat)
             if self.game.has_keyword(permanent, "myriad"):
                 self._myriad(permanent, seat, defender)
             if self.game.has_keyword(permanent, "melee"):  # Adriana: each melee granted triggers too (a printed one is its own trigger)

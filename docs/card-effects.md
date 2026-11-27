@@ -1643,6 +1643,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     isn't cast). 42 cards, among them Hero of Iroas, Akroan Crusader, Phalanx Leader and Cleon, Merry Champion.
   - Support N (`tests/test_support.py`, CR 701.34): "Put a +1/+1 counter on each of up to N other target creatures." (N optional,
     distinct, "another" `PutCounters`): Gladehart Cavalry, Relief Captain, Shoulder to Shoulder and eight more.
+  - Training (`tests/test_training.py`, CR 702.149): "Whenever this creature attacks with another creature with greater power, put a
+    +1/+1 counter on this creature." (a `_KEYWORD_RULES` row and the event `attacks_with_greater`, fired by `Combat.declare_attackers`
+    with the powers as the attackers are declared): Gryff Rider, Rural Recruit, Apprentice Sharpshooter and Torens, Fist of the Angels.
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with

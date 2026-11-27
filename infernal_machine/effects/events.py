@@ -103,6 +103,8 @@ declare("cast_self", re.compile(r"When you cast this spell, (.+)", re.I))  # goe
 declare("dies", re.compile(rf"When(?:ever)? {_SELF} dies, (.+)", re.I))
 declare("attacks", re.compile(rf"Whenever {_SELF} attacks, (.+)", re.I))
 declare("attacks_alone", re.compile(rf"Whenever {_SELF} attacks alone, (.+)", re.I))  # Grunn, the Lonely King
+declare("attacks_with_greater", re.compile(rf"Whenever {_SELF} attacks with another creature with greater power, (.+)", re.I))  # Training
+# (CR 702.149a); Combat.declare_attackers: the powers as attackers are declared
 declare("damaged", re.compile(rf"When(?:ever)? {_SELF} is dealt damage, (.+)", re.I))  # Enrage; Game.deal_damage
 declare("becomes_monstrous", re.compile(rf"When(?:ever)? {_SELF} becomes monstrous, (.+)", re.I))  # Game.become_monstrous; x is N
 declare("plus_counters_put", re.compile(rf"Whenever one or more \+1/\+1 counters are put on {_SELF}, (.+)", re.I))  # Game.put_counters,
