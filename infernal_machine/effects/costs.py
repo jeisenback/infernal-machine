@@ -338,6 +338,7 @@ _FROM_GRAVEYARD_BY_PAYING = re.compile(r"You may cast this card from your gravey
 
 
 _RETRACE = re.compile(r"Retrace")
+_JUMP_START = re.compile(r"Jump-start")  # CR 702.133a: cast from the graveyard for its mana cost and a discarded card, then exiled
 
 
 _BESTOW = re.compile(r"Bestow ((?:\{[^}]+\})+)")
@@ -691,6 +692,8 @@ def graveyard_casts(card: Card) -> list[GraveyardCast]:
             found.append(GraveyardCast("Escape", m[1], exile=_number(m[2])))
         elif _RETRACE.fullmatch(line):
             found.append(GraveyardCast("Retrace", card.mana_cost, discard_land=True))
+        elif _JUMP_START.fullmatch(line):
+            found.append(GraveyardCast("Jump-start", card.mana_cost, exile_after=True, discard=True))
         elif m := _MAYHEM.fullmatch(line):
             found.append(GraveyardCast("Mayhem", m[1], mayhem=True))
         elif m := _HARMONIZE.fullmatch(line):
@@ -900,7 +903,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SNEAK, _SACRIFICE_FOR_COPIES, _CASUALTY, _CONSPIRE, _SACRIFICE_DISCOUNT, _SQUAD, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _FREE_IF_LANDS, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _MAYHEM, _COLLECT_EVIDENCE, _TEAMWORK, _ASSIST, _RETRACE, _ENCORE, _ETERNALIZE, _EMBALM, _UNEARTH, _MADNESS, _MIRACLE, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
+    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SNEAK, _SACRIFICE_FOR_COPIES, _CASUALTY, _CONSPIRE, _SACRIFICE_DISCOUNT, _SQUAD, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _FREE_IF_LANDS, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _MAYHEM, _COLLECT_EVIDENCE, _TEAMWORK, _ASSIST, _RETRACE, _JUMP_START, _ENCORE, _ETERNALIZE, _EMBALM, _UNEARTH, _MADNESS, _MIRACLE, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _IMPENDING, _DASH, _PROTOTYPE, _SPECTACLE, _BLITZ, _WARP, _OVERLOAD, _AWAKEN, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_DISCARD, _SPLICE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION, _TAPPED_TARGET_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
