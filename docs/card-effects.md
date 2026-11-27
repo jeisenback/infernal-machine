@@ -1636,6 +1636,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - "If one or more +1/+1 counters would be put on <whom>, that many plus one +1/+1 counters are put on it instead." for whom the exact
     Hardened Scales sentences don't name (`tests/test_plus_one_counters.py`, `Replacements.plus_one_kinds`): a kind of permanent you
     control (Solid Ground's "a permanent", Caradora's "a creature or Vehicle", Mauhur's "an Army, Goblin, or Orc") or itself (Mowu).
+  - Jump-start (`tests/test_jump_start.py`, CR 702.133): cast from the graveyard for its mana cost and a discarded card, then exiled (a
+    `GraveyardCast` like flashback's with a discard): Quasiduplicate, Chemister's Insight, Radical Idea and three more.
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with
