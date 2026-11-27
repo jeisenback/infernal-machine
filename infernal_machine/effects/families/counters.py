@@ -351,6 +351,18 @@ class Adapt:
 
 
 @dataclass(frozen=True)
+class Monstrosity:
+    """Monstrosity N (CR 701.37a): "If this creature isn't monstrous, put N +1/+1 counters on it and it becomes monstrous." N may be
+    the ability's X ({X}{X}{G}: Monstrosity X.)."""
+    count: Quantity
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target) and not target.monstrous:
+            game.become_monstrous(target, game.amount(self.count))
+
+
+@dataclass(frozen=True)
 class _InsteadCountersOnSource:
     """ "If that land is a Forest, put two +1/+1 counters on this creature instead." after a PutCountersOnSource."""
     count: int
