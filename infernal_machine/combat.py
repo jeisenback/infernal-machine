@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .characteristics import Modifier, source_qualities
-from .effects import (copy_of, CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, NOT_BLOCKED_BY, ONLY_BLOCKED_BY, Annihilate, PutCountersOnSource, TriggeredAbility, attack_tax_per_counter, attack_taxes,
+from .effects import (copy_of, CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, NOT_BLOCKED_BY, ONLY_BLOCKED_BY, Annihilate, MeleePump, PutCountersOnSource, TriggeredAbility, attack_tax_per_counter, attack_taxes,
                       combat_restrictions)
 from .filters import parse_filter
 from .mana import Cost, cost_of
@@ -54,6 +54,7 @@ class Combat:
         self.attacks: list[Attack] = []
         self.damage_watches: list[tuple[Permanent, Permanent, Any]] = []  # (creature, watcher, effect): Stensian Sanguinist
         self.exile_at_end: list[Permanent] = []  # myriad tokens: exiled at end of combat
+        self.attacked: dict[int, set[int]] = {}  # Melee: each seat's opponents attacked this combat, as declared (id of seat -> ids)
 
     def declare_attackers(self, seat: Seat) -> None:
         """Ask the active player, creature by creature, whether and whom to attack (CR 508.1). The costs to attack are
@@ -100,10 +101,14 @@ class Combat:
             self.game._spend_mana(seat, payment)
         for permanent, _, _ in declared:
             self._enlist(seat, permanent)
+        self.attacked[id(seat)] = {id(defender) for _, defender, walker in declared if walker is None}  # CR 702.121b: not a planeswalker
         for permanent, defender, walker in declared:
             self.game.trigger("attacks", permanent, seat)
             if self.game.has_keyword(permanent, "myriad"):
                 self._myriad(permanent, seat, defender)
+            if self.game.has_keyword(permanent, "melee"):  # Adriana: each melee granted triggers too (a printed one is its own trigger)
+                for _ in range(sum("melee" in m.keywords for m in self.game.modifiers(permanent))):
+                    self.game._queue(TriggeredAbility("attacks", (MeleePump(),), False, "Melee"), permanent, seat)
             if walker is None:
                 self.game.trigger("attacks_player", permanent, seat, player=defender)
             if n := self.game.annihilator(permanent):

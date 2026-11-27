@@ -53,6 +53,8 @@ def _number(word: str) -> int:
 
 _WORDS = {1: "a", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
 _KEYWORD_RULES = [  # a keyword line and the rules text it stands for (the reminder text, put to work)
+    (re.compile(r"Melee"), lambda m: "Whenever this creature attacks, it gets +1/+1 until end of turn for each opponent you attacked "
+        "with a creature this combat."),  # CR 702.121a
     (re.compile(r"Level up ((?:\{[^}]+\})+)"), lambda m: f"{m[1]}: Put a level counter on this creature. Activate only as a sorcery."),  # CR 702.87a
     (re.compile(r"Outlast ((?:\{[^}]+\})+)"), lambda m: f"{m[1]}, {{T}}: Put a +1/+1 counter on this creature. Activate only as a sorcery."),
     (re.compile(r"Fabricate (\d+)"), lambda m: "When this creature enters, choose one \u2014\n"

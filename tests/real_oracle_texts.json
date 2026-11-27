@@ -7564,6 +7564,73 @@
    "colors": [
     "R"
    ]
+  },
+  {
+   "name": "Adriana, Captain of the Guard",
+   "mana_cost": "{3}{R}{W}",
+   "type_line": "Legendary Creature — Human Knight",
+   "oracle_text": "Melee (Whenever this creature attacks, it gets +1/+1 until end of turn for each opponent you attacked this combat.)\nOther creatures you control have melee. (If a creature has multiple instances of melee, each triggers separately.)",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "R",
+    "W"
+   ]
+  },
+  {
+   "name": "Deputized Protester",
+   "mana_cost": "{2}{R}",
+   "type_line": "Creature — Human Warrior",
+   "oracle_text": "Menace (This creature can't be blocked except by two or more creatures.)\nMelee (Whenever this creature attacks, it gets +1/+1 until end of turn for each opponent you attacked this combat.)",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Ferocious Colonist",
+   "mana_cost": "{1}{R}",
+   "type_line": "Creature — Klingon Citizen",
+   "oracle_text": "Double strike\nMelee (Whenever this creature attacks, it gets +1/+1 until end of turn for each opponent you attacked this combat.)",
+   "power": "0",
+   "toughness": "1",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Menagerie Liberator",
+   "mana_cost": "{3}{G}",
+   "type_line": "Creature — Human Warrior",
+   "oracle_text": "Trample\nMelee (Whenever this creature attacks, it gets +1/+1 until end of turn for each opponent you attacked this combat.)",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Titania, Proud Pummeler",
+   "mana_cost": "{3}{R}",
+   "type_line": "Legendary Creature — Human Villain",
+   "oracle_text": "First strike\nMelee (Whenever this creature attacks, it gets +1/+1 until end of turn for each opponent you attacked this combat.)\nOther creatures you control have melee.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Wings of the Guard",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Bird",
+   "oracle_text": "Flying\nMelee (Whenever this creature attacks, it gets +1/+1 until end of turn for each opponent you attacked this combat.)",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

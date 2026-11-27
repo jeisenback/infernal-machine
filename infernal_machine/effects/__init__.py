@@ -56,6 +56,7 @@ from .outcomes import (  # noqa: F401
     Earthbend,
     Awaken,
     Annihilate,
+    MeleePump,
     AttachAura,
     AttackingTokens,
     TokensJoinAttack,
