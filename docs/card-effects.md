@@ -1650,6 +1650,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     activated abilities can't be activated." gives the host the pseudo-keyword `NO_ACTIVATING` beside can't attack and can't block, read
     by `Game._ability_barred` (its mana abilities too); with "... unless they're mana abilities" (Faith's Fetters, Realmbreaker's Grasp)
     it is `NO_ACTIVATING_NONMANA`, and its mana abilities still work. Arrest, Prison Term, Petrify, Suppression Bonds and eight more.
+  - Graft N (`tests/test_graft.py`, CR 702.58): a `_KEYWORD_RULES` row, "This creature enters with N +1/+1 counters on it. Whenever
+    another creature enters, you may move a +1/+1 counter from this creature onto it." (`MoveCounterFromSourceOntoSubject`, bound to the
+    source and the creature that entered; nothing moves once either has left): Simic Initiate, Vigean Hydropon and Llanowar Reborn (a land).
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with
