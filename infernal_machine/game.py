@@ -30,7 +30,7 @@ from . import casting
 from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, MILLED, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects.common import colors_spent
-from .effects import (HEXPROOF_FROM_COLOR, instant_loyalty, vehicle_crew, exiled_abilities_kind, opposes_searches, CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, CANT_CREW, LOSES_ALL, NO_ACTIVATING, NO_ACTIVATING_NONMANA, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
+from .effects import (HEXPROOF_FROM_COLOR, instant_loyalty, vehicle_crew, exiled_abilities_kind, opposes_searches, CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, CANT_CREW, LOSES_ALL, NO_ACTIVATING, NO_ACTIVATING_NONMANA, NO_ACTIVATING_TAP, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, temporary_clone_keyword, is_class, class_view, is_leveler, leveler_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, sneak_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, embalm_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, unleashes, riots, amplify_of, has_sunburst, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, begins_with_luck, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
                       SacrificeSelf,
@@ -1363,6 +1363,8 @@ class Game:
         card = permanent.card
         if self._ability_barred(permanent):
             return False
+        if ability.tap and self._tap_abilities_barred(permanent):  # Serra Bestiary
+            return False
         if ability.sorcery_speed and not sorcery_timing and not (ability.loyalty is not None and instant_loyalty(card)):
             return False  # Teferi, Master of Time: his loyalty abilities at instant speed, on any turn (still once each turn)
         if ability.tap and (permanent.tapped or self.summoning_sick(seat, permanent)):
@@ -1839,7 +1841,7 @@ class Game:
             return True
         if permanent.locked_while_tapped:  # Braided Net, until it untaps (mana abilities too: they are activated abilities)
             return True
-        locks = {NO_ACTIVATING} if mana else {NO_ACTIVATING, NO_ACTIVATING_NONMANA}  # Arrest; Faith's Fetters: "unless they're mana
+        locks = {NO_ACTIVATING, NO_ACTIVATING_TAP} if mana else {NO_ACTIVATING, NO_ACTIVATING_NONMANA}  # Arrest; Faith's Fetters: "unless they're mana
         if any(locks & buff.modifier.keywords for a in self._board_view().attached.get(id(permanent), ())  # abilities"
                for buff in attached_abilities(a.card)):
             return True
@@ -1853,6 +1855,12 @@ class Game:
                     and any(t in permanent.card.type_line for t in key.removeprefix("opp_lock:").split(",")):
                 return True
         return False
+
+    def _tap_abilities_barred(self, permanent: Permanent) -> bool:
+        """Serra Bestiary: "its activated abilities with {T} in their costs can't be activated" (its mana abilities: `_ability_barred`
+        with `mana`, which takes them all to have {T} in their costs)."""
+        return any(NO_ACTIVATING_TAP in buff.modifier.keywords for a in self._board_view().attached.get(id(permanent), ())
+                   for buff in attached_abilities(a.card))
 
     def uncounterable(self, item: StackItem) -> bool:
         """Whether a permanent its controller has says the spell can't be countered (Rhythm of the Wild, Hexing Squelcher)."""

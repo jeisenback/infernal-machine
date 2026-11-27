@@ -283,6 +283,7 @@ from .statics import (  # noqa: F401
     LOSES_ALL,
     NO_ACTIVATING,
     NO_ACTIVATING_NONMANA,
+    NO_ACTIVATING_TAP,
     NO_UNTAP,
     Replacements,
     activates_as_though_haste,

@@ -1654,6 +1654,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Worship), "can't block." (Sluggishness), "can't block, and its activated abilities can't be activated." (Demotion) and "can't
     attack, block, or crew Vehicles." (Revoke Privileges; Intercessor's Arrest and Bound in Gold with "... unless they're mana
     abilities"), the last a pseudo-keyword `CANT_CREW` that `Game._crew_candidates` leaves out when crewing.
+    Brainwash's "Enchanted creature can't attack unless its controller pays {3}." is a cost to attack (`AttachedBuff.attack_tax`, added by
+    `Combat._attack_tax`, CR 508.1d), and Serra Bestiary's "... its activated abilities with {T} in their costs can't be activated."
+    stops those (`NO_ACTIVATING_TAP`; its mana abilities are taken to have {T}) but not the others (`tests/test_aura_attack_tax.py`).
   - A player with hexproof or shroud (`tests/test_player_hexproof.py`, CR 702.11c, 702.18c): "You have hexproof." and "You have
     shroud." are rules statics (`you_hexproof`, `you_shroud`) that `Game._player_untargetable` reads beside protection and Veil of
     Summer's hexproof from colors, so the player isn't offered as a target of an opponent's spell or ability (with shroud, of anyone's):

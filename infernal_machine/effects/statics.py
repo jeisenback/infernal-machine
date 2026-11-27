@@ -1340,6 +1340,7 @@ class AttachedBuff:
     goaded: bool = False  # "Enchanted creature gets +1/+1 and is goaded."
     subtype: str | None = None  # "... and is an Angel in addition to its other types."
     host_is: str = ""  # Champion's Helm: "As long as equipped creature is legendary, it has hexproof." ("legendary", "green", ...)
+    attack_tax: str = ""  # Brainwash: "Enchanted creature can't attack unless its controller pays {3}." (Combat._attack_tax)
 
 
 # An Aura or Equipment that grants a triggered ability: 'Enchanted creature has "Whenever this creature attacks, ..."' (Sixth Sense), and
@@ -1397,6 +1398,7 @@ _ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and h
 
 LOSES_ALL, NO_UNTAP = "loses all abilities", "doesn't untap"  # pseudo-keywords of an Aura: Infinite Coursework
 NO_ACTIVATING, NO_ACTIVATING_NONMANA = "can't activate", "can't activate nonmana"  # pseudo-keywords of an Aura: Arrest, Faith's Fetters
+NO_ACTIVATING_TAP = "can't activate tap"  # Serra Bestiary: "... its activated abilities with {T} in their costs can't be activated."
 CANT_CREW = "can't crew"  # Revoke Privileges: "... can't attack, block, or crew Vehicles." (Game._crew_candidates)
 
 
@@ -1404,7 +1406,9 @@ CANT_CREW = "can't crew"  # Revoke Privileges: "... can't attack, block, or crew
 # Cessation ("can't attack."), Sluggishness ("can't block."), Demotion ("can't block, and its activated abilities ..."), Revoke Privileges
 # and Intercessor's Arrest ("can't attack, block, or crew Vehicles. Its activated abilities can't be activated unless ...").
 _ATTACHED_ARREST = re.compile(r"Enchanted (?:creature|permanent|artifact) can't (attack or block|attack, block, or crew Vehicles|attack|block)"
-                              r"(?:(?:, and its|\. Its) activated abilities can't be activated( unless they're mana abilities)?)?\.")
+                              r"(?:(?:, and its|\. Its) activated abilities( with \{T\} in their costs)? can't be activated"
+                              r"( unless they're mana abilities)?)?\.")
+_ATTACHED_ATTACK_TAX = re.compile(r"Enchanted creature can't attack unless its controller pays (\{\d+\})\.")  # Brainwash
 _ARREST_KEYWORDS = {"attack": {CANT_ATTACK}, "block": {CANT_BLOCK}, "attack or block": {CANT_ATTACK, CANT_BLOCK},
                     "attack, block, or crew Vehicles": {CANT_ATTACK, CANT_BLOCK, CANT_CREW}}
 
@@ -1571,8 +1575,10 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
         if m := _ATTACHED_PER_OWN_COUNTER.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(1, 0), line, per=("source_counters", m[1])))
         elif m := _ATTACHED_ARREST.fullmatch(line):
-            locks = set() if "activated" not in line else {NO_ACTIVATING_NONMANA if m[2] else NO_ACTIVATING}
+            locks = set() if "activated" not in line else {NO_ACTIVATING_TAP if m[2] else NO_ACTIVATING_NONMANA if m[3] else NO_ACTIVATING}
             buffs.append(AttachedBuff(Modifier(keywords=frozenset(_ARREST_KEYWORDS[m[1]] | locks)), line))
+        elif m := _ATTACHED_ATTACK_TAX.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(), line, attack_tax=m[1]))
         elif m := _ATTACHED.fullmatch(line):
             if "can't attack or block" in line:
                 modifier = Modifier(keywords=frozenset({CANT_ATTACK, CANT_BLOCK}))
