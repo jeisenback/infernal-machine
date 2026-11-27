@@ -8946,6 +8946,91 @@
    "colors": [
     "W"
    ]
+  },
+  {
+   "name": "Akroma's Will",
+   "mana_cost": "{3}{W}",
+   "type_line": "Instant",
+   "oracle_text": "Choose one. If you control a commander as you cast this spell, you may choose both instead.\n• Creatures you control gain flying, vigilance, and double strike until end of turn.\n• Creatures you control gain lifelink, indestructible, and protection from each color until end of turn.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Dawn's Truce",
+   "mana_cost": "{1}{W}",
+   "type_line": "Instant",
+   "oracle_text": "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, they draw a card before its other effects.)\nYou and permanents you control gain hexproof until end of turn. If the gift was promised, permanents you control also gain indestructible until end of turn.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Eldritch Immunity",
+   "mana_cost": "{C}",
+   "type_line": "Kindred Instant — Eldrazi",
+   "oracle_text": "Target creature you control gains protection from each color until end of turn.\nOverload {4}{C} (You may cast this spell for its overload cost. If you do, change \"target\" in its text to \"each.\")",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Etched Champion",
+   "mana_cost": "{3}",
+   "type_line": "Artifact Creature — Soldier",
+   "oracle_text": "Metalcraft — This creature has protection from each color as long as you control three or more artifacts.",
+   "power": "2",
+   "toughness": "2",
+   "colors": []
+  },
+  {
+   "name": "Iridescent Angel",
+   "mana_cost": "{5}{W}{U}",
+   "type_line": "Creature — Angel",
+   "oracle_text": "Flying, protection from each color",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Lazotep Plating",
+   "mana_cost": "{1}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Amass Zombies 1. (Put a +1/+1 counter on an Army you control. It's also a Zombie. If you don't control an Army, create a 0/0 black Zombie Army creature token first.)\nYou and permanents you control gain hexproof until end of turn. (You and they can't be the targets of spells or abilities your opponents control.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Pristine Angel",
+   "mana_cost": "{4}{W}{W}",
+   "type_line": "Creature — Angel",
+   "oracle_text": "Flying\nAs long as this creature is untapped, it has protection from artifacts and from each color.\nWhenever you cast a spell, you may untap this creature.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Heroic Intervention",
+   "mana_cost": "{1}{G}",
+   "type_line": "Instant",
+   "oracle_text": "Permanents you control gain hexproof and indestructible until end of turn.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

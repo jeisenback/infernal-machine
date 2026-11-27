@@ -567,6 +567,7 @@ from .families.spells_and_misc import (  # noqa: F401
     PayAtUpkeepOrLose,
     UncounterableThisTurn,
     HexproofFromThisTurn,
+    HexproofThisTurn,
     TargetGraveyardToBottom,
     TargetShufflesGraveyard,
     TemptingOffer,
@@ -1728,6 +1729,8 @@ def _kicked(m: re.Match) -> IfKicked | None:
     kicker, rest = m[1] or "", m[2]
     sentence = rest[:1].upper() + rest[1:]
     effects = _parse([sentence])
+    if not effects and " also " in sentence:  # Dawn's Truce: "permanents you control also gain indestructible ...": the same effect, besides
+        effects = _parse([sentence.replace(" also ", " ", 1)])
     if not effects and isinstance(also := _template(sentence), _ThatAlsoGains):  # joins the pump before it once kicked
         return IfKicked(also, kicker)
     return IfKicked(effects[0], kicker) if effects else None
@@ -2460,6 +2463,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"draw a card if an opponent has cast an? ((?:white|blue|black|red|green)(?: or (?:white|blue|black|red|green))?) spell this "
                 r"turn\.", re.I), lambda m: Conditional(Condition("opponent_cast_this_turn", what=m[1].lower() + " spell"), Draw(1))),  # Veil of Summer
     (re.compile(r"spells you control can't be countered this turn\.", re.I), lambda m: UncounterableThisTurn()),  # Veil of Summer
+    (re.compile(r"you and permanents you control gain hexproof until end of turn\.", re.I),  # Lazotep Plating, Dawn's Truce
+     lambda m: [HexproofThisTurn(), PumpEach(Modifier(keywords=frozenset({"hexproof"})), permanents=True)]),
     (re.compile(r"you and permanents you control gain hexproof from (white|blue|black|red|green) and from (white|blue|black|red|green) until "
                 r"end of turn\.", re.I), lambda m: HexproofFromThisTurn(frozenset({_COLOR_LETTER[m[1].lower()], _COLOR_LETTER[m[2].lower()]}))),
     (re.compile(r"(up to one )?target player puts all the cards from their graveyard on the bottom of their library in a random order\.", re.I),
@@ -3567,7 +3572,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"((?-i:[A-Z][a-z]+s)(?:, (?-i:[A-Z][a-z]+s))+,? and (?-i:[A-Z][a-z]+s)) you control {_CHANGE}"),  # Valley Floodcaller (a list
     # of three or more: "Creatures and Vehicles" or "Soldiers and Heroes" would read badly as subtypes)
      lambda m: PumpEach(_modifier(m, 2), subtype="|".join(t[:-1] for t in re.findall(r"[A-Z][a-z]+s\b", m[1])))),
-    (re.compile(rf"((?-i:[A-Z][a-z]+))s you control {_CHANGE}"), lambda m: PumpEach(_modifier(m, 2), subtype=m[1])),
+    (re.compile(rf"((?-i:[A-Z][a-z]+))s you control {_CHANGE}"),  # "Spirits you control ..."; Heroic Intervention: "Permanents ..." is
+     lambda m: PumpEach(_modifier(m, 2), permanents=True) if m[1] == "Permanent" else PumpEach(_modifier(m, 2), subtype=m[1])),  # every one
     (re.compile(rf"(?i:non)-((?-i:[A-Z][a-z]+)) creatures you control {_CHANGE}"),
      lambda m: PumpEach(_modifier(m, 2), subtype="non-" + m[1])),  # Return of the Wildspeaker
     (re.compile(r'for each opponent, create (.+) that attack that opponent this turn if able\.("?)', re.I), _attacking_tokens),

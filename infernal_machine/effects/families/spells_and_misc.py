@@ -807,6 +807,15 @@ class UncounterableThisTurn:
 
 
 @dataclass(frozen=True)
+class HexproofThisTurn:
+    """Lazotep Plating, Dawn's Truce: the "You" of "You and permanents you control gain hexproof until end of turn." (the permanents are
+    a PumpEach beside it); Game._player_untargetable reads it (CR 702.11c: only an opponent's spells and abilities)."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.hexproof_turn = game.turn
+
+
+@dataclass(frozen=True)
 class HexproofFromThisTurn:
     """Veil of Summer: "You and permanents you control gain hexproof from blue and from black until end of turn." (color letters)"""
     colors: frozenset[str]
