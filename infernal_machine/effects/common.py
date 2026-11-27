@@ -514,7 +514,7 @@ _COLOR_NAMES = "white|blue|black|red|green"
 _COLOR_LETTER = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
 
 
-_PROTECTION_FROM = (_COLOR_NAMES + "|everything|all colors|monocolored|multicolored|creatures|artifacts|enchantments|instants"
+_PROTECTION_FROM = (_COLOR_NAMES + "|everything|all colors|each color|monocolored|multicolored|creatures|artifacts|enchantments|instants"
                     "|sorceries|planeswalkers")
 
 
@@ -545,7 +545,7 @@ _PROTECTION_TOKENS = {"everything": "everything", "monocolored": "monocolored", 
 def protection_tokens(keyword: str) -> frozenset[str]:
     """ "protection from red" -> {"R"}, "protection from creatures" -> {"creature"}, "protection from all colors" -> WUBRG"""
     what = keyword.removeprefix("protection from ").lower()
-    if what == "all colors":
+    if what in ("all colors", "each color"):  # Akroma's Will: "protection from each color" (CR 702.16j: from each one of them)
         return frozenset(_COLOR_LETTER.values())
     return frozenset({_COLOR_LETTER.get(what) or _PROTECTION_TOKENS[what]})
 

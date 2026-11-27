@@ -624,6 +624,7 @@ class Seat:
     sideboard: list = field(default_factory=list)  # cards outside the game: "an artifact card you own from outside the game" (Karn, the Great Creator)
     next_uncounterable_turn: int | None = None  # Mistrise Village: the turn in which the next spell this player casts can't be countered
     uncounterable_turn: int | None = None  # Veil of Summer: the turn in which this player's spells can't be countered
+    hexproof_turn: int = -1  # Lazotep Plating: the turn "You ... gain hexproof until end of turn"
     hexproof_from: tuple[int, frozenset[str]] | None = None  # Veil of Summer: (the turn, the colors) the player and their permanents have hexproof from
     flashback_granted: list = field(default_factory=list)  # (card, turn): it has flashback for its mana cost that turn (Snapcaster Mage)
     enduring_story: bool = False  # Storied: three or more artifacts, legendaries and/or Sagas once, with a storied permanent; for good
@@ -3994,7 +3995,7 @@ class Game:
         """Whether `caster`'s spell or ability can't target the player `seat`: protection from everything, Veil of Summer's hexproof from
         colors, Leyline of Sanctity's "You have hexproof." (only an opponent's: CR 702.11c) or Ivory Mask's "You have shroud." (anyone's:
         CR 702.18c)."""
-        if seat.protected or self._hexproof_from(seat, caster, colors):
+        if seat.protected or self._hexproof_from(seat, caster, colors) or (seat.hexproof_turn == self.turn and caster is not seat):
             return True
         return any(owner is seat and (key == "you_shroud" or (key == "you_hexproof" and caster is not seat))
                    for owner, _, key in self._static_rules())

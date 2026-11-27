@@ -1657,6 +1657,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Brainwash's "Enchanted creature can't attack unless its controller pays {3}." is a cost to attack (`AttachedBuff.attack_tax`, added by
     `Combat._attack_tax`, CR 508.1d), and Serra Bestiary's "... its activated abilities with {T} in their costs can't be activated."
     stops those (`NO_ACTIVATING_TAP`; its mana abilities are taken to have {T}) but not the others (`tests/test_aura_attack_tax.py`).
+  - "protection from each color" is a protection keyword like "from all colors" (Akroma's Will, Iridescent Angel, Etched Champion,
+    Eldritch Immunity, Pristine Angel), and "You and permanents you control gain hexproof until end of turn." gives the player hexproof
+    for the turn too (`HexproofThisTurn`; Lazotep Plating, Dawn's Truce, whose "If the gift was promised, permanents you control also
+    gain indestructible ..." is read without its "also"). "Permanents you control gain ..." (Heroic Intervention) now reaches every
+    permanent: it was read as a creature type, "Permanent", and gave nothing (`tests/test_protection_each_color.py`).
   - A player with hexproof or shroud (`tests/test_player_hexproof.py`, CR 702.11c, 702.18c): "You have hexproof." and "You have
     shroud." are rules statics (`you_hexproof`, `you_shroud`) that `Game._player_untargetable` reads beside protection and Veil of
     Summer's hexproof from colors, so the player isn't offered as a target of an opponent's spell or ability (with shroud, of anyone's):
