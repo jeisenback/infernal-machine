@@ -375,6 +375,8 @@ _RULES_STATICS = [
     (re.compile(r"Each spell a player casts costs \{1\} more to cast for each other spell that player has cast this turn\.", re.I),
      "spell_count_tax"),  # Damping Sphere
     (re.compile(r"Players can't gain life\.", re.I), "no_life_gain"),  # Sunspine Lynx, Erebos
+    (re.compile(r"You have hexproof\.", re.I), "you_hexproof"),  # Leyline of Sanctity (CR 702.11c): Game._player_untargetable
+    (re.compile(r"You have shroud\.", re.I), "you_shroud"),  # Ivory Mask (CR 702.18c)
     (re.compile(r"Each opponent can cast spells only any time they could cast a sorcery\.", re.I), "opp_sorcery_speed"),  # Teferi, Time Raveler
     (re.compile(r"Activated abilities of artifact tokens you control cost \{1\} less to activate\.", re.I), "token_ability_discount"),  # Mutagen Man
     (re.compile(r"Instant and sorcery spells you cast have storm\.", re.I), "grant_storm"),  # Ral, Crackling Wit's emblem
