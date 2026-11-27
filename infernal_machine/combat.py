@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .characteristics import Modifier, source_qualities
-from .effects import (copy_of, CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, NOT_BLOCKED_BY, ONLY_BLOCKED_BY, Annihilate, MeleePump, PutCountersOnSource, TriggeredAbility, attack_tax_per_counter, attack_taxes,
+from .effects import (copy_of, CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, NOT_BLOCKED_BY, ONLY_BLOCKED_BY, Annihilate, MeleePump, PutCountersOnSource, TriggeredAbility, attack_tax_per_counter, attack_taxes, attached_abilities,
                       combat_restrictions)
 from .filters import parse_filter
 from .mana import Cost, cost_of
@@ -202,6 +202,10 @@ class Combat:
         for source in defender.battlefield:
             for each in attack_taxes(source.card):
                 tax += Cost(generic=self.game.evaluate(each.amount, defender)) if each.amount is not None else cost_of(each.cost)
+        for aura in self.game._board_view().attached.get(id(permanent), ()):  # Brainwash: "... unless its controller pays {3}."
+            for buff in attached_abilities(aura.card):  # (CR 508.1d: a cost to attack)
+                if buff.attack_tax:
+                    tax += cost_of(buff.attack_tax)
         return tax
 
     def _barred_from_attacking(self, permanent: Permanent, defender: Seat) -> bool:
