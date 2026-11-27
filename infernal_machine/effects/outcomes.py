@@ -2124,6 +2124,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"counter target spell, activated ability, or triggered ability\.", re.I), lambda m: CounterAbility(target="spell or ability")),  # Disallow
     (re.compile(r"(?:then )?draw half X cards, rounded down\.", re.I), lambda m: Draw("hX")),  # Wan Shi Tong, Librarian
     (re.compile(r"adapt (\d+)\.", re.I), lambda m: Adapt(int(m[1]))),  # CR 701.46a
+    (re.compile(r"support (\d+)\.", re.I), lambda m: _support(int(m[1]))),  # CR 701.34
     (re.compile(r"it gets \+1/\+1 until end of turn for each opponent you attacked with a creature this combat\.", re.I),
      lambda m: MeleePump()),  # Melee (CR 702.121a)
     (re.compile(r"monstrosity (\d+|X)\.", re.I), lambda m: Monstrosity(m[1] if m[1] == "X" else int(m[1]))),  # CR 701.37a
@@ -4001,6 +4002,12 @@ def _merge_stun(effects: list) -> list | None:
         for tap in taps:
             merged += [tap, PutStunCounters(effect.count)]
     return merged
+
+
+def _support(count: int) -> list:
+    """Support N (CR 701.34a): "Put a +1/+1 counter on each of up to N other target creatures." ("other": not the permanent supporting;
+    an instant or sorcery has no such permanent, so "other" leaves nothing out)."""
+    return [PutCounters(1, "+1/+1", "creature", another=True, optional_target=True, distinct=n > 0) for n in range(count)]
 
 
 def _copy_from_graveyard(kind: str, mana_value: str | None, whose: str) -> str:
