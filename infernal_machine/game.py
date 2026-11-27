@@ -8471,6 +8471,7 @@ class Game:
                     count += replacements.plus_one_artifacts
                 if creature:
                     count += replacements.plus_one + (replacements.plus_one_others if p is not receiver else 0)
+                count += sum(p is receiver if kind == "self" else _permanent_matches(kind, card) for kind in replacements.plus_one_kinds)
             if creature:
                 count *= self._factor(seat, "plus_one_factor")  # Branching Evolution doubles it after the extra ones
         return count * self._factor(seat, "counters")
