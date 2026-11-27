@@ -234,6 +234,7 @@ from .families.counters import (  # noqa: F401
     MOVE_COUNTERS_PROMPT,
     MoveCountersFrom,
     MoveCountersOnto,
+    MoveCounterFromSourceOntoSubject,
     MoveCountersToOthers,
     OpponentsLoseCounters,
     PUT_COUNTERS_PROMPT,
@@ -2855,6 +2856,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"each player sacrifices a (creature or planeswalker) of their choice\. If you sacrificed a permanent this way, you may "
                 r"return another permanent card from your graveyard to your hand\.", re.I),
      lambda m: EachSacrificesThenReturn(m[1].lower())),
+    (re.compile(r"move an? ([+\-\u2212]1/[+\-\u2212]1) counter from (?:this creature|CARDNAME) onto it\.", re.I),
+     lambda m: MoveCounterFromSourceOntoSubject(_counter_name(m[1]))),  # Graft (CR 702.58a)
     (re.compile(r"move any number of ([+\-\u2212]1/[+\-\u2212]1) counters from (?:this creature|CARDNAME) onto other creatures\.", re.I),
      lambda m: MoveCountersToOthers(_counter_name(m[1]))),
     (re.compile(r"shuffle (?:this creature|CARDNAME) and target (creature with a stun counter on it) into their owners' libraries\.", re.I),

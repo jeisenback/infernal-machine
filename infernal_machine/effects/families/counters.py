@@ -7,7 +7,7 @@ from typing import Any, Literal, TYPE_CHECKING
 
 from ...characteristics import Modifier
 from ..common import Quantity
-from ..targets import PREVIOUS_TARGET, SOURCE, SUBJECT
+from ..targets import PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, SUBJECT
 from ...prompts import PromptKind
 
 if TYPE_CHECKING:
@@ -200,6 +200,20 @@ class MoveCountersToOthers:
                 return
             pick = controller.player.choose(SHIFT_ONTO_PROMPT(target.card.name), [game.label(p) for p in others])
             game.move_counters(target, others[pick], self.counter, number)
+
+
+@dataclass(frozen=True)
+class MoveCounterFromSourceOntoSubject:
+    """Graft (CR 702.58a): "Whenever another creature enters, you may move a +1/+1 counter from this creature onto it." Nothing
+    moves once either has left the battlefield (nor once the graft creature has none left: `move_counters` moves what is there)."""
+    counter: str
+    binds = SOURCE_AND_SUBJECT
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        source, subject = target if target is not None else (None, None)
+        if source is not None and subject is not None and any(source in s.battlefield for s in game.seats) \
+                and any(subject in s.battlefield for s in game.seats):
+            game.move_counters(source, subject, self.counter, 1)
 
 
 @dataclass(frozen=True)
