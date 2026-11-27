@@ -279,6 +279,7 @@ from .outcomes import (  # noqa: F401
     mode_text,
 )
 from .statics import (  # noqa: F401
+    CANT_CREW,
     LOSES_ALL,
     NO_ACTIVATING,
     NO_ACTIVATING_NONMANA,

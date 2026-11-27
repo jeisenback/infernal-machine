@@ -1395,11 +1395,16 @@ _ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and h
 
 LOSES_ALL, NO_UNTAP = "loses all abilities", "doesn't untap"  # pseudo-keywords of an Aura: Infinite Coursework
 NO_ACTIVATING, NO_ACTIVATING_NONMANA = "can't activate", "can't activate nonmana"  # pseudo-keywords of an Aura: Arrest, Faith's Fetters
+CANT_CREW = "can't crew"  # Revoke Privileges: "... can't attack, block, or crew Vehicles." (Game._crew_candidates)
 
 
 # Arrest, Prison Term, Petrify, Faith's Fetters ("... unless they're mana abilities"): Game._ability_barred reads the second keyword.
-_ATTACHED_ARREST = re.compile(r"Enchanted (?:creature|permanent|artifact) can't attack or block, and its activated abilities can't be "
-                              r"activated( unless they're mana abilities)?\.")
+# Cessation ("can't attack."), Sluggishness ("can't block."), Demotion ("can't block, and its activated abilities ..."), Revoke Privileges
+# and Intercessor's Arrest ("can't attack, block, or crew Vehicles. Its activated abilities can't be activated unless ...").
+_ATTACHED_ARREST = re.compile(r"Enchanted (?:creature|permanent|artifact) can't (attack or block|attack, block, or crew Vehicles|attack|block)"
+                              r"(?:(?:, and its|\. Its) activated abilities can't be activated( unless they're mana abilities)?)?\.")
+_ARREST_KEYWORDS = {"attack": {CANT_ATTACK}, "block": {CANT_BLOCK}, "attack or block": {CANT_ATTACK, CANT_BLOCK},
+                    "attack, block, or crew Vehicles": {CANT_ATTACK, CANT_BLOCK, CANT_CREW}}
 
 
 _GRANT = re.compile(rf'(?:Equipped|Enchanted) (?:creature|land|permanent) has (?:{_KEYWORDS_BARE} and )?"(.+)"\.?')
@@ -1564,8 +1569,8 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
         if m := _ATTACHED_PER_OWN_COUNTER.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(1, 0), line, per=("source_counters", m[1])))
         elif m := _ATTACHED_ARREST.fullmatch(line):
-            buffs.append(AttachedBuff(Modifier(keywords=frozenset({CANT_ATTACK, CANT_BLOCK, NO_ACTIVATING_NONMANA if m[1] else NO_ACTIVATING})),
-                                      line))
+            locks = set() if "activated" not in line else {NO_ACTIVATING_NONMANA if m[2] else NO_ACTIVATING}
+            buffs.append(AttachedBuff(Modifier(keywords=frozenset(_ARREST_KEYWORDS[m[1]] | locks)), line))
         elif m := _ATTACHED.fullmatch(line):
             if "can't attack or block" in line:
                 modifier = Modifier(keywords=frozenset({CANT_ATTACK, CANT_BLOCK}))

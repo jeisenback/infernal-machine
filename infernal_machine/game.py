@@ -30,7 +30,7 @@ from . import casting
 from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, MILLED, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects.common import colors_spent
-from .effects import (HEXPROOF_FROM_COLOR, instant_loyalty, vehicle_crew, exiled_abilities_kind, opposes_searches, CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_ACTIVATING, NO_ACTIVATING_NONMANA, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
+from .effects import (HEXPROOF_FROM_COLOR, instant_loyalty, vehicle_crew, exiled_abilities_kind, opposes_searches, CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, CANT_CREW, LOSES_ALL, NO_ACTIVATING, NO_ACTIVATING_NONMANA, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, temporary_clone_keyword, is_class, class_view, is_leveler, leveler_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, sneak_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, embalm_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, unleashes, riots, amplify_of, has_sunburst, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, begins_with_luck, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
                       SacrificeSelf,
@@ -1385,7 +1385,7 @@ class Game:
             return False
         if ability.crew and (permanent.original is not None
                              or any(i.source is permanent and getattr(i.ability, "crew", 0) for i in self.stack)  # already crewing
-                             or sum(self.power(p) for p in self._crew_candidates(seat, permanent)) < ability.crew):
+                             or sum(self.power(p) for p in self._crew_candidates(seat, permanent, crewing=True)) < ability.crew):
             return False
         if self._ability_payment(seat, permanent, ability) is None:
             return False
@@ -1451,9 +1451,12 @@ class Game:
         kind = _checked(ability.sacrifice_other)
         return [p for p in seat.battlefield if _permanent_matches(kind, p.card) and not (ability.sacrifice_another and p is source)]
 
-    def _crew_candidates(self, seat: Seat, vehicle: Permanent | None, legendary: bool = False, kind: str = "") -> list[Permanent]:
+    def _crew_candidates(self, seat: Seat, vehicle: Permanent | None, legendary: bool = False, kind: str = "",
+                         crewing: bool = False) -> list[Permanent]:
         """The untapped creatures that could crew `vehicle` (summoning sickness doesn't matter, CR 702.122); only legendary
-        ones, for Relic of Legends."""
+        ones, for Relic of Legends. `crewing`: for a crew ability, so not one that can't crew Vehicles (Revoke Privileges)."""
+        if crewing:
+            return [p for p in self._crew_candidates(seat, vehicle) if not self.has_keyword(p, CANT_CREW)]
         if kind in ("permanent", "artifact"):  # Gene Pollinator: "Tap an untapped permanent you control"; Bladewheel Chariot: "artifacts"
             return [p for p in seat.battlefield if p is not vehicle and not p.tapped and (kind == "permanent" or "Artifact" in p.card.type_line)]
         return [p for p in seat.battlefield if p is not vehicle and not p.tapped and "Creature" in p.card.type_line
@@ -1644,7 +1647,7 @@ class Game:
         if ability.crew:  # tap creatures until their power adds up to the crew number
             crewed = 0
             while crewed < ability.crew:
-                options = self._crew_candidates(seat, source)
+                options = self._crew_candidates(seat, source, crewing=True)
                 member = options[seat.player.choose(CREW_PROMPT(name), [self.label(p) for p in options])]
                 self.tap(member)
                 crewed += self.power(member)
