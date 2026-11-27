@@ -949,6 +949,14 @@ _PLUS_ONE_ARTIFACTS = ("If one or more +1/+1 counters would be put on an artifac
 _PLUS_ONE_COUNTERS = ("If one or more +1/+1 counters would be put on a creature you control, that many plus one "
                       "+1/+1 counters are put on it instead.")
 _PLUS_ONE_COUNTERS_THAT = _PLUS_ONE_COUNTERS.replace("put on it instead", "put on that creature instead")  # Conclave Mentor
+_PLUS_ONE_ON = re.compile(r"If one or more \+1/\+1 counters would be put on (CARDNAME|an? (.+?) you control), that many plus one \+1/\+1 "
+                          r"counters are put on (?:it|that permanent|that creature) instead\.")  # Solid Ground, Mowu, Caradora, Mauhur
+
+
+def _plus_one_kind(m: re.Match) -> str:
+    """Whom a "that many plus one" replacement is for: "self" (Mowu: "on CARDNAME"), or a kind of permanent ("creature or vehicle",
+    Mauhur's "army, goblin, or orc")."""
+    return "self" if m[1] == "CARDNAME" else m[2].lower()
 
 
 _EXTRA_TRIGGER = re.compile(r"If (an artifact or creature|a permanent) entering(?: the battlefield)? causes a triggered "
@@ -968,6 +976,7 @@ class Replacements:
     enter_counters_per_opponent_loss: int = 0  # Gev: other creatures enter with that many extra counters per opponent who lost life
     plus_one_permanents: int = 0  # the same on any permanent you control (Kami of Whispered Hopes)
     plus_one_artifacts: int = 0  # the same on an artifact or creature you control (Ozolith, the Shattered Spire)
+    plus_one_kinds: tuple[str, ...] = ()  # the same on each permanent of these kinds you control, or on itself ("self": Mowu)
     opponent_loss_factor: int = 1  # Bloodletter of Aclazotz: opponents lose that many times as much life during its controller's turn
     win_on_empty_draw: bool = False  # Laboratory Maniac
     life_gain_plus: int = 0  # Pest Rescuer: its controller gains that much more life whenever they gain life
@@ -1049,6 +1058,8 @@ def replacement_effects(card: Card) -> Replacements:
             found["plus_one_artifacts"] = found.get("plus_one_artifacts", 0) + 1
         elif line == _PLUS_ONE_OTHERS:
             found["plus_one_others"] = found.get("plus_one_others", 0) + 1
+        elif m := _PLUS_ONE_ON.fullmatch(line):
+            found["plus_one_kinds"] = found.get("plus_one_kinds", ()) + (_plus_one_kind(m),)
         elif m := _EXTRA_TRIGGER.fullmatch(line):
             found["extra_trigger"] = m[1].removeprefix("an ").removeprefix("a ")
         elif _EXTRA_TRIGGER_SPELL.fullmatch(line):
@@ -1208,7 +1219,8 @@ def is_replacement_line(line: str) -> bool:
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_COUNTERS_THAT, _DOUBLE_PLUS_ONE_IT, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _ENTER_PER_OPPONENT_LOSS, _LIFE_GAIN_PLUS_ONE,
                      _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _EXTRA_TREASURE, _SQUIRRELS, _DIE_EXILE_OPPONENT, _DOUBLE_YOU_PUT,
                      _HALVE_OPPONENTS_PUT, _PROLIFERATE_TWICE)
-            or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None or _damage_modifier(line) is not None)
+            or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None or _damage_modifier(line) is not None
+            or _PLUS_ONE_ON.fullmatch(line) is not None)
 
 
 _CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)?( tapped)?(?: the battlefield)? as a copy of (.+?)(?:, except (.+))?\.")

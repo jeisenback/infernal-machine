@@ -1633,6 +1633,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     the watch `plus_counters_put_on`, observed where `plus_counters_put` fires, x being how many: Enduring Scalelord, Shalai and Hallar
     ("deals that much damage to target opponent"), Wildwood Scourge ("another non-Hydra creature"). Spider-Man, New Champion's
     "deals that much damage to any target" is read by the same sentence.
+  - "If one or more +1/+1 counters would be put on <whom>, that many plus one +1/+1 counters are put on it instead." for whom the exact
+    Hardened Scales sentences don't name (`tests/test_plus_one_counters.py`, `Replacements.plus_one_kinds`): a kind of permanent you
+    control (Solid Ground's "a permanent", Caradora's "a creature or Vehicle", Mauhur's "an Army, Goblin, or Orc") or itself (Mowu).
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with
