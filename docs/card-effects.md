@@ -1629,6 +1629,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     attacked with a creature this combat." (`MeleePump`: each opponent once, as the attackers were declared (`Combat.attacked`); an attack on a planeswalker isn't one on its
     controller).
     Melee granted by a static (Adriana, Captain of the Guard) triggers too, once for each instance, as an attacker is declared.
+  - "Whenever one or more +1/+1 counters are put on (another|a) <creature or permanent> you control, ..." (`tests/test_counters_put_on_yours.py`):
+    the watch `plus_counters_put_on`, observed where `plus_counters_put` fires, x being how many: Enduring Scalelord, Shalai and Hallar
+    ("deals that much damage to target opponent"), Wildwood Scourge ("another non-Hydra creature"). Spider-Man, New Champion's
+    "deals that much damage to any target" is read by the same sentence.
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with

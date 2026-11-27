@@ -5799,6 +5799,7 @@ class Game:
         """"Whenever one or more +1/+1 counters are put on this creature" (CR 122.6): put, moved onto it, or arriving with it."""
         if counter == "+1/+1" and count > 0 and (holder := self.controller_of(permanent)) is not None:
             self.trigger("plus_counters_put", permanent, holder, x=count)
+            self._observe("plus_counters_put_on", permanent.card, holder, subject=permanent, x=count)  # "... on a creature you control"
 
     def _relevel(self, permanent: Permanent) -> None:
         """A leveler reads as the band its level counters are in now (CR 711.2)."""
