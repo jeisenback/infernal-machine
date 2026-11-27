@@ -1649,7 +1649,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Arrest-style Auras (`tests/test_arrest.py`, CR 602.5): "Enchanted creature (or permanent, or artifact) can't attack or block, and its
     activated abilities can't be activated." gives the host the pseudo-keyword `NO_ACTIVATING` beside can't attack and can't block, read
     by `Game._ability_barred` (its mana abilities too); with "... unless they're mana abilities" (Faith's Fetters, Realmbreaker's Grasp)
-    it is `NO_ACTIVATING_NONMANA`, and its mana abilities still work. Arrest, Prison Term, Petrify, Suppression Bonds and nine more.
+    it is `NO_ACTIVATING_NONMANA`, and its mana abilities still work. Arrest, Prison Term, Petrify, Suppression Bonds and eight more.
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with

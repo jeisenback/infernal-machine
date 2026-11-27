@@ -1,5 +1,5 @@
 """Arrest-style Auras (CR 602.5): "Enchanted creature can't attack or block, and its activated abilities can't be activated.", from the
-cards' real Oracle text. All 13 cards whose only gap it was are fully playable ("Enchanted permanent" and "Enchanted artifact" too).
+cards' real Oracle text. All 12 cards whose only gap it was are fully playable ("Enchanted permanent" and "Enchanted artifact" too).
 A Seer ("{T}: Draw a card.") under Arrest can't attack, block or draw; the Seer beside it still can; once Arrest is destroyed it can
 again. A mana creature under Prison Term adds no mana; under Faith's Fetters ("... unless they're mana abilities") it still does, while
 its "{T}: Draw a card." is stopped. Petrify on a noncreature artifact stops its ability."""
