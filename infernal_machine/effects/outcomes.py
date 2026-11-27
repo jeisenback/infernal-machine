@@ -1785,7 +1785,8 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
                    r"|creature or planeswalker|planeswalker or creature|creature or enchantment|creature or Vehicle|legendary creature|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?:, (?-i:[A-Z][a-z]+))*,? or (?-i:[A-Z][a-z]+)(?= you control)"
                    r"|(?-i:[A-Z][a-z]+)(?= you control))(?: an opponent controls| you don't control| you control| you own| that (?:player|opponent) controls)?"
-                   r"(?: with mana value (?:\d+ or (?:less|greater)|X)| with (?:power or toughness|power|toughness) \d+ or (?:less|greater))?)")
+                   r"(?: with mana value (?:\d+ or (?:less|greater)|X)| with (?:power or toughness|power|toughness) \d+ or (?:less|greater)"
+                   r"| with an? (?:\+1/\+1|-1/-1|stun) counter on it)?)")  # Helium Squirter: Game._target_options reads the counter
 
 
 _COPY_TOKEN = re.compile(

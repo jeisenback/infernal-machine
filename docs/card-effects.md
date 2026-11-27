@@ -1653,6 +1653,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Graft N (`tests/test_graft.py`, CR 702.58): a `_KEYWORD_RULES` row, "This creature enters with N +1/+1 counters on it. Whenever
     another creature enters, you may move a +1/+1 counter from this creature onto it." (`MoveCounterFromSourceOntoSubject`, bound to the
     source and the creature that entered; nothing moves once either has left): Simic Initiate, Vigean Hydropon and Llanowar Reborn (a land).
+  - A target "with a +1/+1 counter on it" (or a -1/-1 or stun counter; `tests/test_target_with_counter.py`): the qualifier is part of
+    `_PERMANENT_KIND`, so every template that reads a target kind takes it, and `Game._target_options` offers only the permanents with
+    such a counter: Helium Squirter, Plaxcaster Frogling, Vigean Graftmage, Sporeback Troll, Crumbling Ashes, Liliana, Death Wielder and
+    seven more.
   - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
     land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with

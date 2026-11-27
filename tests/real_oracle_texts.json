@@ -8615,6 +8615,150 @@
     "G",
     "U"
    ]
+  },
+  {
+   "name": "Aquastrand Spider",
+   "mana_cost": "{1}{G}",
+   "type_line": "Creature — Spider Mutant",
+   "oracle_text": "Graft 2 (This creature enters with two +1/+1 counters on it. Whenever another creature enters, you may move a +1/+1 counter from this creature onto it.)\n{G}: Target creature with a +1/+1 counter on it gains reach until end of turn. (It can block creatures with flying.)",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Crumbling Ashes",
+   "mana_cost": "{1}{B}",
+   "type_line": "Enchantment",
+   "oracle_text": "At the beginning of your upkeep, destroy target creature with a -1/-1 counter on it.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Cytoplast Manipulator",
+   "mana_cost": "{2}{U}{U}",
+   "type_line": "Creature — Human Wizard Mutant",
+   "oracle_text": "Graft 2 (This creature enters with two +1/+1 counters on it. Whenever another creature enters, you may move a +1/+1 counter from this creature onto it.)\n{U}, {T}: Gain control of target creature with a +1/+1 counter on it for as long as this creature remains on the battlefield.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Cytospawn Shambler",
+   "mana_cost": "{6}{G}",
+   "type_line": "Creature — Elemental Mutant",
+   "oracle_text": "Graft 6 (This creature enters with six +1/+1 counters on it. Whenever another creature enters, you may move a +1/+1 counter from this creature onto it.)\n{G}: Target creature with a +1/+1 counter on it gains trample until end of turn.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Helium Squirter",
+   "mana_cost": "{4}{U}",
+   "type_line": "Creature — Beast Mutant",
+   "oracle_text": "Graft 3 (This creature enters with three +1/+1 counters on it. Whenever another creature enters, you may move a +1/+1 counter from this creature onto it.)\n{1}: Target creature with a +1/+1 counter on it gains flying until end of turn.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Hog-Monkey",
+   "mana_cost": "{2}{B}",
+   "type_line": "Creature — Boar Monkey",
+   "oracle_text": "At the beginning of combat on your turn, target creature you control with a +1/+1 counter on it gains menace until end of turn. (It can't be blocked except by two or more creatures.)\nExhaust — {5}: Put two +1/+1 counters on this creature. (Activate each exhaust ability only once.)",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Liliana, Death Wielder",
+   "mana_cost": "{5}{B}{B}",
+   "type_line": "Legendary Planeswalker — Liliana",
+   "oracle_text": "+2: Put a -1/-1 counter on up to one target creature.\n−3: Destroy target creature with a -1/-1 counter on it.\n−10: Return all creature cards from your graveyard to the battlefield.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Ollenbock Escort",
+   "mana_cost": "{W}",
+   "type_line": "Creature — Human Cleric",
+   "oracle_text": "Vigilance\nSacrifice this creature: Target creature you control with a +1/+1 counter on it gains lifelink and indestructible until end of turn.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Plaxcaster Frogling",
+   "mana_cost": "{1}{G}{U}",
+   "type_line": "Creature — Frog Mutant",
+   "oracle_text": "Graft 3 (This creature enters with three +1/+1 counters on it. Whenever another creature enters, you may move a +1/+1 counter from this creature onto it.)\n{2}: Target creature with a +1/+1 counter on it gains shroud until end of turn. (It can't be the target of spells or abilities.)",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G",
+    "U"
+   ]
+  },
+  {
+   "name": "Sporeback Troll",
+   "mana_cost": "{3}{G}",
+   "type_line": "Creature — Troll Mutant",
+   "oracle_text": "Graft 2 (This creature enters with two +1/+1 counters on it. Whenever another creature enters, you may move a +1/+1 counter from this creature onto it.)\n{1}{G}: Regenerate target creature with a +1/+1 counter on it.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Steppe Glider",
+   "mana_cost": "{4}{W}",
+   "type_line": "Creature — Elemental",
+   "oracle_text": "Flying, vigilance\n{1}{W}: Target creature with a +1/+1 counter on it gains flying and vigilance until end of turn.",
+   "power": "2",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Tempered Veteran",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Human Knight",
+   "oracle_text": "{W}, {T}: Put a +1/+1 counter on target creature with a +1/+1 counter on it.\n{4}{W}{W}, {T}: Put a +1/+1 counter on target creature.",
+   "power": "1",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Vigean Graftmage",
+   "mana_cost": "{2}{U}",
+   "type_line": "Creature — Vedalken Wizard Mutant",
+   "oracle_text": "Graft 2 (This creature enters with two +1/+1 counters on it. Whenever another creature enters, you may move a +1/+1 counter from this creature onto it.)\n{1}{U}: Untap target creature with a +1/+1 counter on it.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "U"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
