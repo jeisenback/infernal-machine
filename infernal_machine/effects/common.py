@@ -65,6 +65,8 @@ _KEYWORD_RULES = [  # a keyword line and the rules text it stands for (the remin
         "When this creature dies, you may put a +1/+1 counter on target artifact creature for each +1/+1 counter on this creature."),
     (re.compile(r"Evolve"), lambda m: "Whenever a creature you control enters, if that creature has greater power or toughness than this creature, "
         "put a +1/+1 counter on this creature."),
+    (re.compile(r"Training"), lambda m: "Whenever this creature attacks with another creature with greater power, put a +1/+1 counter "
+        "on this creature."),  # CR 702.149a
     (re.compile(r"Mentor"), lambda m: "Whenever this creature attacks, put a +1/+1 counter on target attacking creature with lesser power."),
     (re.compile(r"Bargain"), lambda m: "Kicker\u2014Sacrifice an artifact, enchantment, or token."),  # CR 702.166: an optional additional cost, read as a kicker
     (re.compile(r"Bloodthirst (\d+)"), lambda m: f"If an opponent was dealt damage this turn, this creature enters with {_WORDS[int(m[1])]} +1/+1 "
