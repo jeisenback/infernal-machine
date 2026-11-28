@@ -1689,6 +1689,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - "Whenever an opponent plays a land" (Burgeoning) is the event `opponent_plays_land`, heard from `Game._land_played`, which every
     land play goes through (from the hand or any zone that allows one; a land put onto the battlefield is not played)
     (`tests/test_burgeoning.py`).
+  - Removing a creature from combat (`Game.remove_from_combat`, CR 506.4: its attack goes, and as a blocker it leaves each block):
+    "Remove target attacking creature you control from combat and untap it." (Reconnaissance), "Remove target attacking or blocking
+    creature from combat." (Labyrinth of Skophos, Hollowhenge Spirit) and "you may untap it and remove it from combat." (the Gustcloak
+    cycle) (`tests/test_remove_from_combat.py`).
   - A player with hexproof or shroud (`tests/test_player_hexproof.py`, CR 702.11c, 702.18c): "You have hexproof." and "You have
     shroud." are rules statics (`you_hexproof`, `you_shroud`) that `Game._player_untargetable` reads beside protection and Veil of
     Summer's hexproof from colors, so the player isn't offered as a target of an opponent's spell or ability (with shroud, of anyone's):

@@ -2055,6 +2055,15 @@ class Game:
 
 
 
+    def remove_from_combat(self, permanent: Permanent, untap: bool = False) -> None:
+        """CR 506.4: `permanent` stops being an attacking or blocking creature (its attack goes; as a blocker it leaves each block)."""
+        self.combat.attacks = [a for a in self.combat.attacks if a.attacker is not permanent]
+        for attack in self.combat.attacks:
+            attack.blockers = [b for b in attack.blockers if b is not permanent]
+        if untap:
+            self.untap(permanent)
+        self.broadcast({"event": "removed_from_combat", "card": permanent.card.name})
+
     def _land_played(self, seat: Seat) -> None:
         """`seat` just played a land (CR 305.1: a special action, from whatever zone allowed it): it counts toward the land drops,
         and "Whenever an opponent plays a land" (Burgeoning) hears it."""
