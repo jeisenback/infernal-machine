@@ -3720,7 +3720,7 @@ class Game:
     def _observe(self, event: str, card: Card, seat: Seat, subject: Permanent | None = None,
                  extra: Sequence[tuple[Permanent, Seat]] = (), x: int = 0, from_hand: bool = False,
                  prepared: bool = False, spell: "StackItem | None" = None, from_graveyard: bool = False,
-                 player: "Seat | None" = None, from_exile: bool = False) -> None:
+                 player: "Seat | None" = None, from_exile: bool = False, from_battlefield: bool = False) -> None:
         """Trigger abilities that watch for `event` happening to `card` (controlled by `seat`; `player` is "that player" when it is
         someone else: the player a creature dealt combat damage to):
         "Whenever another creature enters", landfall, "whenever a creature dies",
@@ -3752,6 +3752,8 @@ class Game:
                 if event == "copy" and not watch.with_copy:
                     continue
                 if event in ("cast", "copy") and (card.cmc < watch.mv_at_least or (watch.from_hand and not from_hand)):
+                    continue
+                if watch.from_zone == "not_battlefield" and from_battlefield:  # Syr Konrad: "from anywhere other than the battlefield"
                     continue
                 if event in ("cast", "copy") and ((watch.from_zone == "graveyard" and not from_graveyard)
                                                   or (watch.from_zone == "not_hand" and from_hand)
@@ -5219,6 +5221,7 @@ class Game:
             seat.discarded_on.pop(id(card), None)  # CR 400.7: back in the graveyard, it is a new object that wasn't discarded (Mayhem)
             if _is_instant_or_sorcery(card):  # Murktide Regent: one trigger for each such card
                 self.happened("instant_sorcery_left_graveyard", seat, spell=card)
+            self._observe("card_left_graveyard", card, seat)  # Syr Konrad: "a creature card leaves your graveyard"
 
     def _exiled_from_library_or_graveyard(self, seat: Seat) -> None:
         """One or more of `seat`'s cards were just put into exile from its library and/or graveyard, as one event (Laelia)."""
@@ -8136,7 +8139,7 @@ class Game:
                 where = "exile"
                 self.change_life(permanent.paragon_life[0], permanent.paragon_life[1])
             if not _is_token(permanent.card):  # tokens stop existing once they leave (CR 111.7)
-                self._move_card(permanent.owner or controller, permanent.card, where)
+                self._move_card(permanent.owner or controller, permanent.card, where, from_battlefield=True)
         for permanent, _ in leaving:  # Animate Dead leaves: "that creature's controller sacrifices it"
             host = permanent.attached_to
             if reanimation_aura(permanent.card) is not None and host is not None and self.on_battlefield(host):
@@ -8538,7 +8541,7 @@ class Game:
                 extra += 1
         return 1 + extra
 
-    def _move_card(self, seat: Seat, card: Card, zone: str) -> None:
+    def _move_card(self, seat: Seat, card: Card, zone: str, from_battlefield: bool = False) -> None:
         """Put a card into its owner's graveyard, exile or hand; a commander may go to the
         command zone instead (CR 903.9). Rest in Peace and its kind send a card to exile instead of a graveyard."""
         if zone == "graveyard" and replacement_effects(card).graveyard_shuffle:
@@ -8568,7 +8571,7 @@ class Game:
             return
         {"exile": seat.exile, "hand": seat.hand, "graveyard": seat.graveyard, "library": seat.library}[zone].append(card)
         if zone == "graveyard":  # "Whenever a creature card is put into your graveyard from anywhere"
-            self._observe("card_to_graveyard", card, seat)
+            self._observe("card_to_graveyard", card, seat, from_battlefield=from_battlefield)
 
     def _unpair(self) -> None:
         """A pair ends when either creature is gone, is no longer a creature, or when they are no longer under one player's control (CR 702.95e)."""

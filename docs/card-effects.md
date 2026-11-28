@@ -1666,6 +1666,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     the chosen type." is a costed mana ability by a count (`mana_by_count`, as Cabal Stronghold's), the count the amount
     `you_control_chosen_type` its source chose as it entered; the mana is any one color (each unit any color, as Sanctum Weaver's)
     (`tests/test_three_tree_city.py`).
+  - Syr Konrad, the Grim's "Whenever another creature dies, or a creature card is put into a graveyard from anywhere other than the
+    battlefield, or a creature card leaves your graveyard, ..." is three watches (`_watch_triggers`): a creature dying, a creature card
+    put into any graveyard (`Watch.from_zone` "not_battlefield": `Game._move_card` says when the card comes from the battlefield, so a
+    death counts once) and a creature card leaving his controller's graveyard (`card_left_graveyard`, for each card
+    `Game._left_graveyard` is told of) (`tests/test_syr_konrad.py`).
   - A player with hexproof or shroud (`tests/test_player_hexproof.py`, CR 702.11c, 702.18c): "You have hexproof." and "You have
     shroud." are rules statics (`you_hexproof`, `you_shroud`) that `Game._player_untargetable` reads beside protection and Veil of
     Summer's hexproof from colors, so the player isn't offered as a target of an opponent's spell or ability (with shroud, of anyone's):

@@ -106,7 +106,8 @@ class Watch:
     mv_at_least: int = 0  # "a spell with mana value 5 or greater"
     from_hand: bool = False  # "... from your hand"
     not_starting_deck: bool = False  # "a spell that isn't from your starting deck": a conjured card
-    from_zone: str = ""  # "graveyard" ("from your graveyard", "from their graveyard"), "not_hand" ("from anywhere other than your hand") or "exile"
+    from_zone: str = ""  # "graveyard" ("from your graveyard", "from their graveyard"), "not_hand" ("from anywhere other than your hand"), "exile"
+    # or "not_battlefield" (Syr Konrad: a card put into a graveyard "from anywhere other than the battlefield")
     qualifier: str = ""  # "with power 4 or greater" ("power>=4"), "with flying" ("flying"), "with a +1/+1 counter on it" ("counter:+1/+1"),
     # for casts "mv_is_charge" ("with mana value equal to the number of charge counters on this artifact")
     expend: int = 0  # "Whenever you expend 4": the total mana spent on spells this turn that it waits for
@@ -247,6 +248,8 @@ _CHOSEN_OF = " of the chosen type"
 
 
 _ENTERS_OR_ATTACKS = " enters or attacks"
+_KONRAD = ("Whenever another creature dies, or a creature card is put into a graveyard from anywhere other than the battlefield, or a "
+           "creature card leaves your graveyard")
 
 
 def _watch_triggers(line: str) -> list[tuple[str, Watch, str]]:
@@ -256,6 +259,9 @@ def _watch_triggers(line: str) -> list[tuple[str, Watch, str]]:
     head, sep, tail = bare.partition(", ")
     if head == "Whenever you create or sacrifice a token":  # Mirkwood Bats: a token entering under your control, or one sacrificed
         return [("permanent_enters", Watch("token", yours=True), tail), ("sacrifice", Watch("token", yours=True), tail)]
+    if bare.startswith(_KONRAD + ", ") and (dies := _watch_trigger("Whenever another creature dies, " + (rest := bare[len(_KONRAD) + 2:]))):
+        return [dies, ("card_to_graveyard", Watch("creature", from_zone="not_battlefield"), rest),  # Syr Konrad, the Grim: three watches
+                ("card_left_graveyard", Watch("creature", yours=True), rest)]
     if _CHOSEN_OF not in head:
         found = _watch_trigger(line)
         return [found] if found else []
