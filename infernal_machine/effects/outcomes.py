@@ -1372,6 +1372,7 @@ def _merge_target_copies(effects: list) -> list | None:
 
 
 _AMOUNTS = [
+    (re.compile(r"the number of creatures you control of the chosen type", re.I), lambda m: Amount("you_control_chosen_type")),  # Three Tree City
     (re.compile(r"(?:its|this creature's|CARDNAME's) power", re.I), lambda m: Amount("source_power")),
     (re.compile(r"the sacrificed creature's power", re.I), lambda m: Amount("sacrificed_power")),
     (re.compile(r"the sacrificed (?:permanent|creature|artifact)'s mana value", re.I), lambda m: Amount("sacrificed_value")),  # Reckoner's Bargain
