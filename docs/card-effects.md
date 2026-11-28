@@ -1671,6 +1671,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     put into any graveyard (`Watch.from_zone` "not_battlefield": `Game._move_card` says when the card comes from the battlefield, so a
     death counts once) and a creature card leaving his controller's graveyard (`card_left_graveyard`, for each card
     `Game._left_graveyard` is told of) (`tests/test_syr_konrad.py`).
+  - Guardian Project's "if it doesn't have the same name as another creature you control or a creature card in your graveyard" is a
+    condition on the creature that entered (`subject_unique_name`; the "it" is only looked at, so the trigger isn't about the creature)
+    (`tests/test_guardian_project.py`).
   - A player with hexproof or shroud (`tests/test_player_hexproof.py`, CR 702.11c, 702.18c): "You have hexproof." and "You have
     shroud." are rules statics (`you_hexproof`, `you_shroud`) that `Game._player_untargetable` reads beside protection and Veil of
     Summer's hexproof from colors, so the player isn't offered as a target of an opponent's spell or ability (with shroud, of anyone's):
