@@ -4850,6 +4850,33 @@ class Game:
         for card in [c for c in seat.graveyard if _card_matches(kind, c)]:
             self.return_from_graveyard(GraveyardTarget(card, seat), seat, to, tapped)
 
+    def return_all_from_all_graveyards(self, controller: Seat, kind: str) -> None:
+        """Rise of the Dark Realms: every graveyard's cards of `kind` onto the battlefield under `controller`'s control (they stay their
+        owners' cards)."""
+        for seat in self.live_seats():
+            for card in [c for c in seat.graveyard if _card_matches(kind, c)]:
+                self.return_from_graveyard(GraveyardTarget(card, seat), controller, "battlefield")
+
+    def living_death(self) -> None:
+        """Living Death: each player exiles all creature cards from their graveyard, then sacrifices all creatures they control, then puts
+        the cards they exiled onto the battlefield (CR 608.2c: in that order, so the creatures sacrificed stay in the graveyard)."""
+        exiled: list[tuple[Seat, list[Card]]] = []
+        for seat in self.live_seats():
+            cards = [c for c in seat.graveyard if "Creature" in c.type_line]
+            seat.graveyard = [c for c in seat.graveyard if c not in cards]
+            seat.exile.extend(cards)
+            if cards:
+                self._left_graveyard(seat, cards)
+                self._exiled_from_library_or_graveyard(seat)
+            exiled.append((seat, cards))
+        for seat in self.live_seats():
+            self.sacrifice(seat, "creature", None)
+        for seat, cards in exiled:
+            for card in cards:
+                if any(c is card for c in seat.exile):
+                    seat.exile = [c for c in seat.exile if c is not card]
+                    self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card), owner=seat))
+
     def graveyard_target(self, card: Card, seat: Seat) -> "GraveyardTarget":
         return GraveyardTarget(card, seat)
 

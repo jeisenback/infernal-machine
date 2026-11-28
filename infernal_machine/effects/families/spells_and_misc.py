@@ -744,6 +744,24 @@ class ReturnAllFromGraveyard:
 
 
 @dataclass(frozen=True)
+class ReturnAllFromAllGraveyards:
+    """Rise of the Dark Realms: "Put all creature cards from all graveyards onto the battlefield under your control." """
+    kind: str = "creature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.return_all_from_all_graveyards(controller, self.kind)
+
+
+@dataclass(frozen=True)
+class LivingDeath:
+    """Living Death: "Each player exiles all creature cards from their graveyard, then sacrifices all creatures they control, then puts
+    all cards they exiled this way onto the battlefield." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.living_death()
+
+
+@dataclass(frozen=True)
 class TargetShufflesGraveyard:
     """Blessed Respite: "Target player shuffles their graveyard into their library." """
     target: str = "player"

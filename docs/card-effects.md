@@ -1674,6 +1674,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Guardian Project's "if it doesn't have the same name as another creature you control or a creature card in your graveyard" is a
     condition on the creature that entered (`subject_unique_name`; the "it" is only looked at, so the trigger isn't about the creature)
     (`tests/test_guardian_project.py`).
+  - Mass reanimation (`tests/test_mass_reanimation.py`): Living Death (`LivingDeath`, `Game.living_death`: each player exiles the
+    creature cards in their graveyard, sacrifices their creatures, then puts the exiled cards onto the battlefield, CR 608.2c) and Rise of
+    the Dark Realms (`ReturnAllFromAllGraveyards`: every graveyard's creature cards under its caster's control).
   - A player with hexproof or shroud (`tests/test_player_hexproof.py`, CR 702.11c, 702.18c): "You have hexproof." and "You have
     shroud." are rules statics (`you_hexproof`, `you_shroud`) that `Game._player_untargetable` reads beside protection and Veil of
     Summer's hexproof from colors, so the player isn't offered as a target of an opponent's spell or ability (with shroud, of anyone's):
