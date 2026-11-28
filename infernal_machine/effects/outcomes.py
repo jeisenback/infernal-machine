@@ -4053,6 +4053,8 @@ _CONDITIONS = [
     (re.compile(r"this is the (first|second|third) time this ability has resolved this turn"),  # Tannuk, Memorial Ensign
      lambda m: Condition("nth_resolution", ("first", "second", "third").index(m[1]) + 1)),
     (re.compile(r"you created a token this turn"), lambda m: Condition("created_token")),
+    (re.compile(r"you control (seven) or more lands with different names"),  # Field of the Dead
+     lambda m: Condition("lands_different_names", _number(m[1]))),
     (re.compile(r"you control (eight) or more artifacts with the same name as one another"),  # Mechanized Production
      lambda m: Condition("same_name_artifacts", _number(m[1]))),
     (re.compile(r"you attacked this turn"), lambda m: Condition("attacked_this_turn")),  # Raid

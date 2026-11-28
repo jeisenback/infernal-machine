@@ -3524,6 +3524,8 @@ class Game:
             return any(sum(1 for turn, _ in other.cast_log if turn == self.turn - 1) >= 2 for other in self.seats)
         if kind in ("day", "night"):
             return self.day_night == kind
+        if kind == "lands_different_names":  # Field of the Dead: "seven or more lands with different names"
+            return len({p.card.name for p in seat.battlefield if is_land(p.card)}) >= condition.count
         if kind == "subject_unique_name":  # Guardian Project: no other creature you control nor creature card in your graveyard has its name
             return subject is not None and not any(
                 p is not subject and "Creature" in p.card.type_line and p.card.name == subject.card.name for p in seat.battlefield) \
