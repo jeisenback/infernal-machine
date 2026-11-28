@@ -3305,6 +3305,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Mill(_count(m[2]), "each " + m[1].lower())),
     (re.compile(rf"target (player|opponent) mills {_N} cards?\.", re.I),
      lambda m: TargetMill(_count(m[2]), m[1].lower())),
+    (re.compile(r"target (player|opponent) mills that many cards\.", re.I), lambda m: TargetMill("X", m[1].lower())),  # Mindcrank: the life lost
     (re.compile(r"target (player|opponent) mills half their library, rounded down\.", re.I),  # Traumatize, Jidoor
      lambda m: TargetMill("half", m[1].lower())),
     (re.compile(rf"destroy all {_MASS_FILTERED}\.", re.I), lambda m: _mass_effect(DestroyAll, m)),

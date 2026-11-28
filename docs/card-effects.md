@@ -1683,6 +1683,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     gets `must_attack_turn`) and Champion of Lambholt's "Creatures with power less than this creature's power can't block creatures you
     control." (`weaker_cant_block_yours`, read by `Combat._can_block` for every attacker its controller controls)
     (`tests/test_bident_and_champion.py`).
+  - Drannith Magistrate's "Your opponents can't cast spells from anywhere other than their hands." (a rules static, `opp_hand_only`,
+    read by `Game._can_cast` for a cast from the command zone, a graveyard or any other zone) and Mindcrank's "that player mills that
+    many cards" (the life the trigger saw lost) (`tests/test_drannith_and_mindcrank.py`).
   - A player with hexproof or shroud (`tests/test_player_hexproof.py`, CR 702.11c, 702.18c): "You have hexproof." and "You have
     shroud." are rules statics (`you_hexproof`, `you_shroud`) that `Game._player_untargetable` reads beside protection and Veil of
     Summer's hexproof from colors, so the player isn't offered as a target of an opponent's spell or ability (with shroud, of anyone's):
