@@ -470,15 +470,16 @@ _ADD_X_COMBINATION = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\})+), \{T\}: Add X mana
 # Gyre Sage, Marwyn, Cabal Stronghold, Crypt of Agadeem: one color, as much as an amount the game works out when the mana is wanted
 # ("for each +1/+1 counter on this creature", "equal to Marwyn's power", "for each basic Swamp you control"). The plain "for each
 # creature you control" is _PER_COUNT's.
-_ADD_BY_COUNT = re.compile(r"(?:((?:\{\d+\}|\{[WUBRGC]\})+), )?\{T\}: Add (?:an amount of )?\{([WUBRGC])\} (?:for each|equal to) (.+)\.")
+_ADD_BY_COUNT = re.compile(r"(?:((?:\{\d+\}|\{[WUBRGC]\})+), )?\{T\}: (?:Add (?:an amount of )?\{([WUBRGC])\} (?:for each|equal to) (.+)"
+                           r"|Choose a color\. Add an amount of mana of that color equal to (.+))\.")  # Three Tree City
 
 
 @lru_cache(maxsize=None)
 def mana_by_count(card: Card) -> tuple[str, str, Amount] | None:
     """(the mana the ability costs, '' if none; the color it makes; how much) for a mana ability read by _ADD_BY_COUNT, or None."""
     for line in rules_lines(card):
-        if not _PER_COUNT.fullmatch(line) and (m := _ADD_BY_COUNT.fullmatch(line)) and (amount := _amount(m[3])):
-            return m[1] or "", m[2], amount
+        if not _PER_COUNT.fullmatch(line) and (m := _ADD_BY_COUNT.fullmatch(line)) and (amount := _amount(m[3] or m[4])):
+            return m[1] or "", m[2] or "WUBRG", amount  # "that color": any one color (like Sanctum Weaver's, each unit any color here)
     return None
 
 
@@ -531,7 +532,7 @@ def is_mana_ability(line: str) -> bool:
             or _COUNTER_MANA.fullmatch(line) is not None or _PER_COUNT.fullmatch(line) is not None
             or _CHARGE_MANA.fullmatch(line) is not None or _ADD_EACH_COLOR.fullmatch(line) is not None
             or ((m := _ADD_X_COMBINATION.fullmatch(line)) is not None and _amount(m[2]) is not None)
-            or ((m := _ADD_BY_COUNT.fullmatch(line)) is not None and _amount(m[3]) is not None)
+            or ((m := _ADD_BY_COUNT.fullmatch(line)) is not None and _amount(m[3] or m[4]) is not None)
             or ((m := _ADD_ONE_COLOR_BY.fullmatch(line)) is not None and _amount(m[1]) is not None)
             or _FILTER.fullmatch(line) is not None
             or _FILTER_ANY.fullmatch(line) is not None or _FILTER_LAND.fullmatch(line) is not None or _REFLECT.fullmatch(line) is not None

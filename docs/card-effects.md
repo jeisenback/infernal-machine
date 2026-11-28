@@ -1662,6 +1662,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     for the turn too (`HexproofThisTurn`; Lazotep Plating, Dawn's Truce, whose "If the gift was promised, permanents you control also
     gain indestructible ..." is read without its "also"). "Permanents you control gain ..." (Heroic Intervention) now reaches every
     permanent: it was read as a creature type, "Permanent", and gave nothing (`tests/test_protection_each_color.py`).
+  - Three Tree City's "{2}, {T}: Choose a color. Add an amount of mana of that color equal to the number of creatures you control of
+    the chosen type." is a costed mana ability by a count (`mana_by_count`, as Cabal Stronghold's), the count the amount
+    `you_control_chosen_type` its source chose as it entered; the mana is any one color (each unit any color, as Sanctum Weaver's)
+    (`tests/test_three_tree_city.py`).
   - A player with hexproof or shroud (`tests/test_player_hexproof.py`, CR 702.11c, 702.18c): "You have hexproof." and "You have
     shroud." are rules statics (`you_hexproof`, `you_shroud`) that `Game._player_untargetable` reads beside protection and Veil of
     Summer's hexproof from colors, so the player isn't offered as a target of an opponent's spell or ability (with shroud, of anyone's):

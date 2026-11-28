@@ -3192,6 +3192,9 @@ class Game:
         if kind == "you_control_matching":  # "for each colorless creature you control", "for each basic Swamp you control"
             wanted = parse_filter(amount.what)
             return sum(wanted.matches(p.card) for p in controller.battlefield)
+        if kind == "you_control_chosen_type":  # Three Tree City: the creature type its source chose as it entered
+            wanted = source.chosen_type if source is not None else None
+            return sum("Creature" in p.card.type_line and wanted in self.subtypes(p) for p in controller.battlefield) if wanted else 0
         if kind == "you_control_counter":  # Inspiring Call: "each creature you control with a +1/+1 counter on it"
             return sum("Creature" in p.card.type_line and p.counters.get(amount.what, 0) > 0 for p in controller.battlefield)
         if kind == "life_total":  # Storm Herd
