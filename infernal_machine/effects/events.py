@@ -136,6 +136,8 @@ declare("opponent_extra_draw", re.compile(r"Whenever an opponent draws a card ex
         to="opponents", happens="drew", accepts=fact("extra"), about_player=True)
 declare("opponent_gain_life", re.compile(r"Whenever an opponent gains life, (.+)", re.I),
         to="opponents", happens="life_gained", about_player=True)
+declare("opponent_plays_land", re.compile(r"Whenever an opponent plays a land, (.+)", re.I),
+        to="opponents", happens="land_played", about_player=True)  # Burgeoning: Game._land_played
 declare("opponent_lose_life", re.compile(r"Whenever an opponent loses life, (.+)", re.I),
         to="opponents", happens="life_lost", about_player=True)
 declare("become_monarch", re.compile(r"Whenever you become the monarch, (.+)", re.I), to="you", happens="became_monarch")

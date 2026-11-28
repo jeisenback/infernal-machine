@@ -2055,6 +2055,12 @@ class Game:
 
 
 
+    def _land_played(self, seat: Seat) -> None:
+        """`seat` just played a land (CR 305.1: a special action, from whatever zone allowed it): it counts toward the land drops,
+        and "Whenever an opponent plays a land" (Burgeoning) hears it."""
+        seat.lands_played += 1
+        self.happened("land_played", seat)
+
     def _perform(self, seat: Seat, action: str) -> None:
         if any(zone.perform(self, seat, action) for zone in ZONE_PLAYS):  # a zone other than the hand (zones.py)
             return
@@ -2062,7 +2068,7 @@ class Game:
             name = action.removeprefix(PLAY_LAND)
             card = _take_face(seat.hand, name)
             self._enter(seat, Permanent(card, sick=True))  # a land that becomes a creature can't attack the turn it came in
-            seat.lands_played += 1
+            self._land_played(seat)
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name})
         elif action.startswith(CAST_FACE_DOWN):
             card = next(c for c in seat.hand if c.name == action.removeprefix(CAST_FACE_DOWN))
@@ -8037,7 +8043,7 @@ class Game:
         if is_a_land:
             owner.exile = [c for c in owner.exile if c is not card]
             self._enter(seat, Permanent(card, sick=True))
-            seat.lands_played += 1
+            self._land_played(seat)
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "exile"})
         else:
             self._cast(seat, card, owner.exile, free=True)
@@ -8232,7 +8238,7 @@ class Game:
         elif seat.lands_played < self._land_drops(seat):
             owner.exile.remove(card)
             self._enter(seat, Permanent(card, sick=True, owner=owner))
-            seat.lands_played += 1
+            self._land_played(seat)
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "exile"})
 
     def exile_top_cast_nonland_free(self, seat: Seat, victim: Seat) -> None:

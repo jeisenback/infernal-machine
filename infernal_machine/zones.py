@@ -78,7 +78,7 @@ class Graveyard(ZonePlay):
             card = g._take(seat.graveyard, action.removeprefix(PLAY_GRAVEYARD))
             game._left_graveyard(seat, [card])
             game._enter(seat, g.Permanent(card, sick=True))
-            seat.lands_played += 1
+            game._land_played(seat)
             game.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "graveyard"})
         elif action.startswith(CAST_GRAVEYARD):
             name = action.removeprefix(CAST_GRAVEYARD)
@@ -114,7 +114,7 @@ class Paragon(ZonePlay):
             game._used_paragon(seat, card)
             game._left_graveyard(seat, [card])
             game._enter(seat, g.Permanent(card, sick=True))
-            seat.lands_played += 1
+            game._land_played(seat)
             game.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "graveyard"})
         elif action.startswith(CAST_PARAGON):
             card = next(c for c in seat.graveyard if c.name == action.removeprefix(CAST_PARAGON))
@@ -190,7 +190,7 @@ class Exile(ZonePlay):
             if entry is not None:
                 seat.borrowed.remove(entry)
             game._enter(seat, g.Permanent(card, sick=True, owner=entry[1] if entry is not None else None))
-            seat.lands_played += 1
+            game._land_played(seat)
             game.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "exile"})
         elif action.startswith(CAST_EXILE):
             card = next(c for c in seat.exile if c.name == action.removeprefix(CAST_EXILE))
@@ -219,7 +219,7 @@ class Library(ZonePlay):
         if action.startswith(PLAY_TOP):
             card = seat.library.pop(0)
             game._enter(seat, g.Permanent(card, sick=True))
-            seat.lands_played += 1
+            game._land_played(seat)
             game.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "library"})
         elif action.startswith(CAST_TOP):
             game._cast(seat, seat.library[0], seat.library)
@@ -275,7 +275,7 @@ class Milled(ZonePlay):
             seat.graveyard.remove(card)
             game._left_graveyard(seat, [card])
             game._enter(seat, g.Permanent(card, sick=True))
-            seat.lands_played += 1
+            game._land_played(seat)
             game.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "graveyard"})
         elif action.startswith(CAST_MILLED):
             game._cast(seat, game._use_milled(seat, action.removeprefix(CAST_MILLED)), seat.graveyard)

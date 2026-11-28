@@ -1686,6 +1686,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Drannith Magistrate's "Your opponents can't cast spells from anywhere other than their hands." (a rules static, `opp_hand_only`,
     read by `Game._can_cast` for a cast from the command zone, a graveyard or any other zone) and Mindcrank's "that player mills that
     many cards" (the life the trigger saw lost) (`tests/test_drannith_and_mindcrank.py`).
+  - "Whenever an opponent plays a land" (Burgeoning) is the event `opponent_plays_land`, heard from `Game._land_played`, which every
+    land play goes through (from the hand or any zone that allows one; a land put onto the battlefield is not played)
+    (`tests/test_burgeoning.py`).
   - A player with hexproof or shroud (`tests/test_player_hexproof.py`, CR 702.11c, 702.18c): "You have hexproof." and "You have
     shroud." are rules statics (`you_hexproof`, `you_shroud`) that `Game._player_untargetable` reads beside protection and Veil of
     Summer's hexproof from colors, so the player isn't offered as a target of an opponent's spell or ability (with shroud, of anyone's):
