@@ -917,3 +917,26 @@ class OpponentsCreaturesAttack:
             for permanent in seat.battlefield:
                 if "Creature" in permanent.card.type_line:
                     permanent.must_attack_turn = game.turn
+
+
+@dataclass(frozen=True)
+class RemoveFromCombat:
+    """Reconnaissance: "Remove target attacking creature you control from combat and untap it."; Labyrinth of Skophos: "Remove target
+    attacking or blocking creature from combat." (CR 506.4: it stops being an attacking, blocking, blocked or unblocked creature)"""
+    target: str = "attacking or blocking creature"
+    untap: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            game.remove_from_combat(target, self.untap)
+
+
+@dataclass(frozen=True)
+class RemoveSourceFromCombat:
+    """The Gustcloak cycle: "Whenever this creature becomes blocked, you may untap it and remove it from combat." """
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            game.remove_from_combat(target, untap=True)
+

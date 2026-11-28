@@ -86,6 +86,8 @@ from .families.combat_and_pump import (  # noqa: F401
     Pump,
     PumpEach,
     OpponentsCreaturesAttack,
+    RemoveFromCombat,
+    RemoveSourceFromCombat,
     PumpEachX,
     AnimateArtifacts,
     PumpNamed,
@@ -2515,6 +2517,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"return (five|six|seven) target {_PLURAL_KIND} to their owners' hands\.", re.I),  # Aether Gale: exactly that many
      lambda m: [ReturnToHand(_PLURAL_KINDS[m[2].lower()] + _suffix(m[3]), distinct=n > 0) for n in range(_number(m[1]))]),
     (re.compile(r"creatures your opponents control attack this turn if able\.", re.I), lambda m: OpponentsCreaturesAttack()),  # Bident of Thassa
+    (re.compile(r"remove target (attacking or blocking creature|attacking creature you control|attacking creature|blocking creature) from "
+                r"combat( and untap it)?\.", re.I), lambda m: RemoveFromCombat(m[1].lower(), bool(m[2]))),  # Reconnaissance, Labyrinth of Skophos
+    (re.compile(r"(?:you may )?untap (?:this creature|it) and remove it from combat\.", re.I), lambda m: RemoveSourceFromCombat()),  # Gustcloak
     (re.compile(r"put all creature cards from all graveyards onto the battlefield under your control\.", re.I),
      lambda m: ReturnAllFromAllGraveyards()),  # Rise of the Dark Realms
     (re.compile(r"each player exiles all creature cards from their graveyard, then sacrifices all creatures they control, then puts all "
