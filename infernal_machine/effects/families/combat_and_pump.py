@@ -906,3 +906,14 @@ class ChosenColorShield:
         color = game.choose_color(controller, game.resolving_item.card.name if game.resolving_item is not None else "")
         game.modify_until_end_of_turn(target, Modifier(keywords=frozenset({f"toxic {self.toxic}", HEXPROOF_FROM_COLOR + color,
                                                                             NOT_BLOCKED_BY + "color:" + color})))
+
+
+@dataclass(frozen=True)
+class OpponentsCreaturesAttack:
+    """Bident of Thassa: "Creatures your opponents control attack this turn if able." (Combat.declare_attackers: `must_attack_turn`)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.opponents(controller):
+            for permanent in seat.battlefield:
+                if "Creature" in permanent.card.type_line:
+                    permanent.must_attack_turn = game.turn

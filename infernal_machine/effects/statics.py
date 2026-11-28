@@ -321,6 +321,8 @@ _COMBAT_RESTRICTIONS = [
     (re.compile(rf"Creatures with power less than {_SELF}'s power can't block it\.|"
                 r"Creatures with power less than this creature's power can't block it\.", re.I),
      lambda m: CombatRestriction("weaker_cant_block")),
+    (re.compile(rf"Creatures with power less than (?:{_SELF}'s|this creature's) power can't block creatures you control\.", re.I),
+     lambda m: CombatRestriction("weaker_cant_block_yours")),  # Champion of Lambholt
 ]
 
 
