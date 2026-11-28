@@ -1904,6 +1904,9 @@ class Game:
                   graveyard: GraveyardCast | None = None, from_hand: bool = True, free: bool = False, any_mana: bool = False) -> bool:
         if self._cast_barred(seat, card):
             return False
+        if (not from_hand or from_command_zone or graveyard is not None) and any(
+                key == "opp_hand_only" and owner is not seat for owner, _, key in self._static_rules()):
+            return False  # Drannith Magistrate: an opponent of its controller casts spells only from their hand (a commander too)
         paying = dataclasses.replace(card, mana_cost=casting.any_type_cost(card.mana_cost)) if any_mana else card  # Court of Locthwain
         if not free and not self._cast_ways(seat, paying, from_command_zone, graveyard, from_hand):  # `free`: no cost to afford
             return False

@@ -377,6 +377,7 @@ _RULES_STATICS = [
     (re.compile(r"Each spell a player casts costs \{1\} more to cast for each other spell that player has cast this turn\.", re.I),
      "spell_count_tax"),  # Damping Sphere
     (re.compile(r"Players can't gain life\.", re.I), "no_life_gain"),  # Sunspine Lynx, Erebos
+    (re.compile(r"Your opponents can't cast spells from anywhere other than their hands\.", re.I), "opp_hand_only"),  # Drannith Magistrate
     (re.compile(r"You have hexproof\.", re.I), "you_hexproof"),  # Leyline of Sanctity (CR 702.11c): Game._player_untargetable
     (re.compile(r"You have shroud\.", re.I), "you_shroud"),  # Ivory Mask (CR 702.18c)
     (re.compile(r"Each opponent can cast spells only any time they could cast a sorcery\.", re.I), "opp_sorcery_speed"),  # Teferi, Time Raveler
