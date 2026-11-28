@@ -3524,6 +3524,10 @@ class Game:
             return any(sum(1 for turn, _ in other.cast_log if turn == self.turn - 1) >= 2 for other in self.seats)
         if kind in ("day", "night"):
             return self.day_night == kind
+        if kind == "subject_unique_name":  # Guardian Project: no other creature you control nor creature card in your graveyard has its name
+            return subject is not None and not any(
+                p is not subject and "Creature" in p.card.type_line and p.card.name == subject.card.name for p in seat.battlefield) \
+                and not any("Creature" in c.type_line and c.name == subject.card.name for c in seat.graveyard)
         if kind == "subject_greater":  # Evolve: the creature that entered has greater power or toughness than the source
             return (source is not None and subject is not None
                     and (self.power(subject) > self.power(source) or (self.toughness(subject) or 0) > (self.toughness(source) or 0)))

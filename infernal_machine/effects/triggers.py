@@ -702,7 +702,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     without_token_ability = _AURAS_ON_IT.sub("", _TOKEN_HAS.sub("", rest) if re.search(r"\btokens?\b", rest, re.I) else rest)
     without_token_ability = _SELF_THEN_IT.sub(r"\1 This", without_token_ability)
     without_token_ability = _STILL_A_LAND.sub("", without_token_ability)  # "It's still a land." closes an Animate; it is not about the subject
-    without_token_ability = _NTH_TIME_IT.sub("", without_token_ability)  # Omnath, Scythecat Cub: "it" is the time, or the creature targeted;
+    without_token_ability = _UNIQUE_NAME_IF.sub("", _NTH_TIME_IT.sub("", without_token_ability))  # Omnath, Scythecat Cub: "it" is the time, or the creature targeted;
     # Emeria Shepherd, Koth: the land is only looked at, by the condition (subject_land_type)
     about_subject = re.search(r"\bit\b|\bthat spell\b", _CAST_IT.sub("", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", without_token_ability)))))), re.I) is not None
     copies_spell = re.match(r"(?:you may )?(?:you may pay (?:\{[^}]+\})+\. If you do, )?copy (it|that spell)(?: for each [^.]*|, except the copy isn't legendary)?\.", rest,
@@ -739,6 +739,10 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
             return None, False, False, None
         effects = [OnSubject(e) if binding(e) == SOURCE else e for e in effects]
     return effects, optional, once, condition
+
+
+_UNIQUE_NAME_IF = re.compile(r"^if it doesn't have the same name as another creature you control or a creature card in your graveyard, ",
+                             re.I)  # Guardian Project: the creature is only looked at, by the condition (subject_unique_name)
 
 
 _COMPOUND_TRIGGER = re.compile(r"(When|Whenever) ([^,]+?) and whenever ([^,]+), (.+)")

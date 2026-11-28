@@ -4116,6 +4116,8 @@ _CONDITIONS = [
     (re.compile(r"you have the city's blessing"), lambda m: Condition("citys_blessing")),
     (re.compile(rf"{_SELF} isn't prepared"), lambda m: Condition("not_prepared")),
     (re.compile(r"(?:it|that creature) has greater power or toughness than (?:this creature|CARDNAME)"), lambda m: Condition("subject_greater")),
+    (re.compile(r"it doesn't have the same name as another creature you control or a creature card in your graveyard"),
+     lambda m: Condition("subject_unique_name")),  # Guardian Project
     (re.compile(rf"{_SELF} isn't renowned"), lambda m: Condition("not_renowned")),
     (re.compile(r"this spell was foretold"), lambda m: Condition("foretold")),
     (re.compile(r"this spell was cast from your hand"), lambda m: Condition("cast_from_hand")),  # Apex of Power
