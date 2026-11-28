@@ -1677,6 +1677,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Mass reanimation (`tests/test_mass_reanimation.py`): Living Death (`LivingDeath`, `Game.living_death`: each player exiles the
     creature cards in their graveyard, sacrifices their creatures, then puts the exiled cards onto the battlefield, CR 608.2c) and Rise of
     the Dark Realms (`ReturnAllFromAllGraveyards`: every graveyard's creature cards under its caster's control).
+  - Field of the Dead's "if you control seven or more lands with different names" is a condition (`lands_different_names`)
+    (`tests/test_field_of_the_dead.py`).
   - A player with hexproof or shroud (`tests/test_player_hexproof.py`, CR 702.11c, 702.18c): "You have hexproof." and "You have
     shroud." are rules statics (`you_hexproof`, `you_shroud`) that `Game._player_untargetable` reads beside protection and Veil of
     Summer's hexproof from colors, so the player isn't offered as a target of an opponent's spell or ability (with shroud, of anyone's):
