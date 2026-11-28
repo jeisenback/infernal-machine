@@ -509,6 +509,10 @@ class Combat:
         if any(r.kind == "weaker_cant_block" for r in combat_restrictions(attacker.card)) \
                 and self.game.power(blocker) < self.game.power(attacker):
             return False  # Elusive Otter
+        owner = self.game.controller_of(attacker)  # Champion of Lambholt: "... can't block creatures you control."
+        if owner is not None and any(r.kind == "weaker_cant_block_yours" and self.game.power(blocker) < self.game.power(source)
+                                     for source in owner.battlefield for r in combat_restrictions(source.card)):
+            return False
         if self.game.protected_from(attacker, source_qualities(blocker.card)):  # can't be blocked by those colors
             return False
         if self._has(attacker, "flying"):
